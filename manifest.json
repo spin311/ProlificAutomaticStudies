@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Microsoft automatic rewards",
+  "version": "1.2.0",
+  "icons": {
+    "16": "imgs/logo.png",
+    "32": "imgs/logo2.png",
+    "48": "imgs/logo2.png",
+    "128": "imgs/logo3.png"
+  },
+  "description": "Google extension for Prolific to notify you when studies are available",
+
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "popup/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.bing.com/*"],
+      "js": ["src/popup.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "title": "Microsoft automatic rewards"
+  }
+}
