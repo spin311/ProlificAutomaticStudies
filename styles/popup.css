@@ -1,6 +1,6 @@
 body {
     width: 20em;
-    height: 11em;
+    height: 9em;
     font-size: 18px;
     background-color: #e6f5f1;
 
@@ -65,9 +65,9 @@ body {
     user-select: none;
     background-color: #28a745;
     border-color: #28a745;
-    padding: 0.375rem 0.75rem;
-    font-size: 1rem;
-    line-height: 1.5;
+    padding: 0.375rem 0.3rem;
+    font-size: 0.7rem;
+    line-height: 1;
     border-radius: 0.25rem;
     transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
