@@ -19,12 +19,12 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     if (details.reason === "install") {
         yield setInitialValues();
         yield new Promise(resolve => setTimeout(resolve, 1000));
-        yield chrome.browserAction.setBadgeText({ text: "1" });
+        yield chrome.action.setBadgeText({ text: "1" });
         yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificStudiesGoogle/", active: true });
     }
 }));
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.title && tab.title.toLowerCase().includes('prolific')) {
+    if (tab.url && tab.url.includes("app.prolific.com/")) {
         if (changeInfo.title && changeInfo.title !== 'Prolific') {
             yield sendNotification();
             yield playAudioMessage(tabId);
@@ -57,6 +57,12 @@ function playAudioMessage(tabId) {
         }
     });
 }
+function updateBadge(counter) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield chrome.action.setBadgeText({ text: counter.toString() });
+        yield chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
+    });
+}
 function updateCounter() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get(COUNTER);
@@ -68,6 +74,6 @@ function updateCounter() {
             counter++;
         }
         yield chrome.storage.sync.set({ [COUNTER]: counter });
-        yield chrome.browserAction.setBadgeText({ text: counter.toString() });
+        yield updateBadge(counter);
     });
 }

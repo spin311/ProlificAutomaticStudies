@@ -34,8 +34,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 function setCounter(counter) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get(COUNTER);
-        const count = result[COUNTER];
+        const result = yield chrome.storage.sync.get("counter");
+        const count = result["counter"];
         if (count !== undefined) {
             counter.innerText = count.toString();
         }
@@ -43,35 +43,35 @@ function setCounter(counter) {
 }
 function playAlert() {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get(AUDIO);
-        let audio = new Audio('../audio/' + result[AUDIO]);
+        const result = yield chrome.storage.sync.get("audio");
+        let audio = new Audio('../audio/' + result["audio"]);
         yield audio.play();
     });
 }
 function setAudioOption(selectAudio) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get(AUDIO);
-        selectAudio.value = result[AUDIO];
+        const result = yield chrome.storage.sync.get("audio");
+        selectAudio.value = result["audio"];
         selectAudio.addEventListener("change", function () {
-            chrome.storage.sync.set({ [AUDIO]: selectAudio.value });
+            chrome.storage.sync.set({ ["audio"]: selectAudio.value });
         });
     });
 }
 function setAudioCheckbox(autoAudio) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get(AUDIO_ACTIVE);
-        autoAudio.checked = result[AUDIO_ACTIVE];
+        const result = yield chrome.storage.sync.get("audioActive");
+        autoAudio.checked = result["audioActive"];
         autoAudio.addEventListener("click", function () {
-            chrome.storage.sync.set({ [AUDIO_ACTIVE]: autoAudio.checked });
+            chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
         });
     });
 }
 function setShowNotification(showNotification) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get(SHOW_NOTIFICATION);
-        showNotification.checked = result[SHOW_NOTIFICATION];
+        const result = yield chrome.storage.sync.get("showNotification");
+        showNotification.checked = result["showNotification"];
         showNotification.addEventListener("click", function () {
-            chrome.storage.sync.set({ [SHOW_NOTIFICATION]: showNotification.checked });
+            chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
         });
     });
 }

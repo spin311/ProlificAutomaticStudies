@@ -1,3 +1,5 @@
+
+
 document.addEventListener('DOMContentLoaded', async function () {
     const autoAudio = document.getElementById("autoAudio") as HTMLInputElement;
     const selectAudio = document.getElementById("selectAudio") as HTMLSelectElement;
@@ -27,39 +29,39 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 async function setCounter(counter: HTMLSpanElement): Promise<void> {
-    const result = await chrome.storage.sync.get(COUNTER);
-    const count = result[COUNTER];
+    const result = await chrome.storage.sync.get("counter");
+    const count = result["counter"];
     if (count !== undefined) {
         counter.innerText = count.toString();
     }
 }
 
 async function playAlert(): Promise<void> {
-    const result = await chrome.storage.sync.get(AUDIO);
-    let audio = new Audio('../audio/' + result[AUDIO]);
+    const result = await chrome.storage.sync.get("audio");
+    let audio = new Audio('../audio/' + result["audio"]);
     await audio.play();
 }
 
 async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
-    const result = await chrome.storage.sync.get(AUDIO);
-    selectAudio.value = result[AUDIO];
+    const result = await chrome.storage.sync.get("audio");
+    selectAudio.value = result["audio"];
     selectAudio.addEventListener("change", function () {
-        chrome.storage.sync.set({[AUDIO]: selectAudio.value});
+        chrome.storage.sync.set({["audio"]: selectAudio.value});
     });
 }
 
 async function setAudioCheckbox(autoAudio: HTMLInputElement): Promise<void> {
-    const result = await chrome.storage.sync.get(AUDIO_ACTIVE);
-    autoAudio.checked = result[AUDIO_ACTIVE];
+    const result = await chrome.storage.sync.get("audioActive");
+    autoAudio.checked = result["audioActive"];
     autoAudio.addEventListener("click", function () {
-        chrome.storage.sync.set({[AUDIO_ACTIVE]: autoAudio.checked});
+        chrome.storage.sync.set({["audioActive"]: autoAudio.checked});
     });
 }
 
 async function setShowNotification(showNotification: HTMLInputElement): Promise<void> {
-    const result = await chrome.storage.sync.get(SHOW_NOTIFICATION);
-    showNotification.checked = result[SHOW_NOTIFICATION];
+    const result = await chrome.storage.sync.get("showNotification");
+    showNotification.checked = result["showNotification"];
     showNotification.addEventListener("click", function () {
-        chrome.storage.sync.set({[SHOW_NOTIFICATION]: showNotification.checked});
+        chrome.storage.sync.set({["showNotification"]: showNotification.checked});
     });
 }
