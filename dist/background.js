@@ -12,7 +12,7 @@ const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const AUDIO = "audio";
 const COUNTER = "counter";
-const ICON_URL = '../images/logo.png';
+const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, void 0, function* () {
@@ -24,36 +24,73 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     }
 }));
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.url && tab.url.includes("app.prolific.com/")) {
-        if (changeInfo.title && changeInfo.title !== 'Prolific') {
-            yield sendNotification();
-            yield playAudioMessage(tabId);
-            yield updateCounter();
+    console.log(tab);
+    if (tab.status === "complete") {
+        if (tab.url && tab.url.includes("app.prolific.com/")) {
+            // if (changeInfo.title && changeInfo.title !== 'Prolific') {
+            console.log("doing stuff");
+            sendNotification();
+            playAudioMessage(tabId);
+            updateCounter();
         }
     }
+    // }
 }));
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield chrome.storage.sync.set({ [AUDIO_ACTIVE]: true });
-        yield chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" });
-        yield chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true });
+        yield Promise.all([
+            chrome.storage.sync.set({ [AUDIO_ACTIVE]: true }),
+            chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" }),
+            chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true })
+        ]);
     });
 }
 function sendNotification() {
     return __awaiter(this, void 0, void 0, function* () {
+        chrome.storage.sync.get(SHOW_NOTIFICATION, (result) => __awaiter(this, void 0, void 0, function* () {
+            if (!result[SHOW_NOTIFICATION]) {
+                return;
+            }
+        }));
+        console.log("sendNotification");
         chrome.notifications.create({
             type: 'basic',
-            iconUrl: ICON_URL,
+            iconUrl: chrome.runtime.getURL(ICON_URL),
             title: TITLE,
             message: MESSAGE
+        }, (notificationId) => {
+            if (chrome.runtime.lastError) {
+                console.log(`Notification Error: ${chrome.runtime.lastError.message}`);
+            }
+            else {
+                console.log(`Notification created with ID: ${notificationId}`);
+            }
         });
     });
 }
+// chrome.tabs.onCreated.addListener(async (tab) => {
+//     console.log(tab);
+//     if (tab.id) {
+//     await playAudioMessage(tab.id);
+//     }
+// });
 function playAudioMessage(tabId) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get(AUDIO_ACTIVE);
         if (result[AUDIO_ACTIVE]) {
-            yield chrome.tabs.executeScript(tabId, { file: "playAlert.js" });
+            console.log("playAudioMessage");
+            try {
+                yield chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ["dist/playAlert.js"]
+                });
+            }
+            catch (e) {
+                console.log(e);
+            }
+        }
+        else {
+            console.log("audio is not active");
         }
     });
 }

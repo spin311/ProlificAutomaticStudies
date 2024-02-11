@@ -5,7 +5,13 @@
   "description": "Google extension for Prolific to notify you when studies are available",
 
   "permissions": [
-    "storage"
+    "storage",
+    "scripting",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://app.prolific.com/*"
   ],
   "background": {
     "service_worker": "dist/background.js"

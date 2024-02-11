@@ -1,10 +1,4 @@
 "use strict";
-chrome.storage.sync.get("audio", function (result) {
-    if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
-    }
-    else {
-        let audio = new Audio(chrome.runtime.getURL('audio/' + result.audio));
-        audio.play();
-    }
-});
+console.log("ProlificStudiesGoogle: playAlert.ts");
+var audioHTML = new Audio(chrome.runtime.getURL('audio/alert1.mp3'));
+audioHTML.play();

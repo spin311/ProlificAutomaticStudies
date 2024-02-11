@@ -2,7 +2,7 @@ const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const AUDIO = "audio";
 const COUNTER = "counter";
-const ICON_URL = '../images/logo.png';
+const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 
@@ -16,13 +16,17 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId:number, changeInfo:chrome.tabs.TabChangeInfo, tab:chrome.tabs.Tab):Promise<void> => {
-    if(tab.url && tab.url.includes("app.prolific.com/")) {
-        if (changeInfo.title && changeInfo.title !== 'Prolific') {
-            await sendNotification();
-            await playAudioMessage(tabId);
-            await updateCounter();
+    console.log(tab);
+    if(tab.status === "complete") {
+        if (tab.url && tab.url.includes("app.prolific.com/")) {
+            // if (changeInfo.title && changeInfo.title !== 'Prolific') {
+                console.log("doing stuff");
+                sendNotification();
+                playAudioMessage(tabId);
+                updateCounter();
+            }
         }
-    }
+    // }
 });
 
 async function setInitialValues(): Promise<void> {
@@ -41,18 +45,43 @@ async function sendNotification(): Promise<void> {
             return;
         }
     });
+    console.log("sendNotification");
     chrome.notifications.create({
         type: 'basic',
-        iconUrl: ICON_URL,
+        iconUrl: chrome.runtime.getURL(ICON_URL),
         title: TITLE,
         message: MESSAGE
+    }, (notificationId) => {
+        if (chrome.runtime.lastError) {
+            console.log(`Notification Error: ${chrome.runtime.lastError.message}`);
+        } else {
+            console.log(`Notification created with ID: ${notificationId}`);
+        }
     });
 }
+
+// chrome.tabs.onCreated.addListener(async (tab) => {
+//     console.log(tab);
+//     if (tab.id) {
+//     await playAudioMessage(tab.id);
+//     }
+// });
 
 async function playAudioMessage(tabId: number): Promise<void> {
     const result = await chrome.storage.sync.get(AUDIO_ACTIVE);
     if(result[AUDIO_ACTIVE]) {
-        await chrome.tabs.executeScript(tabId, {file: "playAlert.js"});
+        console.log("playAudioMessage");
+        try{
+            await chrome.scripting.executeScript({
+                target: {tabId: tabId},
+                files: ["dist/playAlert.js"]
+            });
+        } catch(e) {
+            console.log(e);
+        }
+    }
+    else {
+        console.log("audio is not active");
     }
 }
 
