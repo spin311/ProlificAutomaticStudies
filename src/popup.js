@@ -8,18 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-function setVolume(volume) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("volume");
-        const vol = result["volume"];
-        if (vol !== undefined) {
-            volume.value = String(vol);
-        }
-        volume.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
-        });
-    });
-}
 document.addEventListener('DOMContentLoaded', function () {
     return __awaiter(this, void 0, void 0, function* () {
         const autoAudio = document.getElementById("autoAudio");
@@ -27,7 +15,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const counter = document.getElementById("counter");
         const playAudio = document.getElementById("playAudio");
         const showNotification = document.getElementById("showNotification");
-        const volume = document.getElementById("volume");
         if (autoAudio) {
             yield setAudioCheckbox(autoAudio);
         }
@@ -42,9 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (showNotification) {
             yield setShowNotification(showNotification);
-        }
-        if (volume) {
-            yield setVolume(volume);
         }
     });
 });

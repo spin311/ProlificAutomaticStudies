@@ -8,8 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var Reason = chrome.offscreen.Reason;
-var ContextType = chrome.runtime.ContextType;
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const AUDIO = "audio";
@@ -17,36 +15,26 @@ const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
-let creating; // A global promise to avoid concurrency issues
-let docExists = false;
 chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, void 0, function* () {
     if (details.reason === "install") {
         yield setInitialValues();
         yield new Promise(resolve => setTimeout(resolve, 1000));
+        yield chrome.action.setBadgeText({ text: "1" });
         yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificStudiesGoogle/", active: true });
     }
 }));
-function playAudio() {
-    return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume = 1.0) {
-        yield chrome.runtime.sendMessage({
-            type: 'play-sound',
-            target: 'offscreen-doc',
-            data: audio
-        });
-    });
-}
-chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title.includes('Prolific') && !(changeInfo.title.trim() === 'Prolific')) {
-        const result = yield chrome.storage.sync.get(AUDIO_ACTIVE);
-        if (result[AUDIO_ACTIVE]) {
-            if (!docExists)
-                yield setupOffscreenDocument('audio/audio.html');
-            const audioFile = yield chrome.storage.sync.get(AUDIO);
-            const volume = yield chrome.storage.sync.get('volume');
-            yield playAudio(audioFile[AUDIO], volume['volume']);
-            yield updateCounter();
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log(tab);
+    if (tab.status === "complete") {
+        if (tab.url && tab.url.includes("app.prolific.com/")) {
+            // if (changeInfo.title && changeInfo.title !== 'Prolific') {
+            console.log("doing stuff");
+            sendNotification();
+            playAudioMessage(tabId);
+            updateCounter();
         }
     }
+    // }
 }));
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -64,6 +52,7 @@ function sendNotification() {
                 return;
             }
         }));
+        console.log("sendNotification");
         chrome.notifications.create({
             type: 'basic',
             iconUrl: chrome.runtime.getURL(ICON_URL),
@@ -77,6 +66,32 @@ function sendNotification() {
                 console.log(`Notification created with ID: ${notificationId}`);
             }
         });
+    });
+}
+// chrome.tabs.onCreated.addListener(async (tab) => {
+//     console.log(tab);
+//     if (tab.id) {
+//     await playAudioMessage(tab.id);
+//     }
+// });
+function playAudioMessage(tabId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.sync.get(AUDIO_ACTIVE);
+        if (result[AUDIO_ACTIVE]) {
+            console.log("playAudioMessage");
+            try {
+                yield chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ["dist/playAlert.js"]
+                });
+            }
+            catch (e) {
+                console.log(e);
+            }
+        }
+        else {
+            console.log("audio is not active");
+        }
     });
 }
 function updateBadge(counter) {
@@ -97,33 +112,5 @@ function updateCounter() {
         }
         yield chrome.storage.sync.set({ [COUNTER]: counter });
         yield updateBadge(counter);
-    });
-}
-function setupOffscreenDocument(path) {
-    return __awaiter(this, void 0, void 0, function* () {
-        // Check all windows controlled by the service worker to see if one
-        // of them is the offscreen document with the given path
-        const offscreenUrl = chrome.runtime.getURL(path);
-        const existingContexts = yield chrome.runtime.getContexts({
-            contextTypes: [ContextType.OFFSCREEN_DOCUMENT],
-            documentUrls: [offscreenUrl]
-        });
-        if (existingContexts.length > 0) {
-            docExists = true;
-            return;
-        }
-        if (creating) {
-            yield creating;
-        }
-        else {
-            creating = chrome.offscreen.createDocument({
-                url: path,
-                reasons: [Reason.AUDIO_PLAYBACK],
-                justification: 'Notification'
-            });
-            yield creating;
-            creating = null;
-            docExists = true;
-        }
     });
 }

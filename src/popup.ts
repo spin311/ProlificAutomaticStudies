@@ -1,4 +1,14 @@
+async function setVolume(volume: HTMLInputElement) {
+    const result = await chrome.storage.sync.get("volume");
+    const vol = result["volume"];
+    if (vol !== undefined) {
+        volume.value =  String(vol);
+    }
+    volume.addEventListener("change", function () {
+        chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
+    });
 
+}
 
 document.addEventListener('DOMContentLoaded', async function () {
     const autoAudio = document.getElementById("autoAudio") as HTMLInputElement;
@@ -6,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const counter = document.getElementById("counter") as HTMLSpanElement;
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
     const showNotification = document.getElementById("showNotification") as HTMLInputElement;
+    const volume = document.getElementById("volume") as HTMLInputElement;
 
     if (autoAudio) {
         await setAudioCheckbox(autoAudio);
@@ -25,6 +36,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     if(showNotification) {
         await setShowNotification(showNotification);
+    }
+
+    if (volume) {
+        await setVolume(volume);
     }
 });
 

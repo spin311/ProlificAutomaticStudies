@@ -8,10 +8,13 @@
     "storage",
     "scripting",
     "tabs",
-    "notifications"
+    "notifications",
+    "offscreen"
   ],
   "host_permissions": [
-    "https://app.prolific.com/*"
+    "https://app.prolific.com/*",
+    "http://localhost/*",
+    "https://localhost/*"
   ],
   "background": {
     "service_worker": "dist/background.js"
