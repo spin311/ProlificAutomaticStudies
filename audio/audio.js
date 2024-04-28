@@ -41,7 +41,8 @@ async function playSound(data) {
         // `document.execCommand('copy')` works against the user's selection in a web
         // page. As such, we must insert the string we want to copy to the web page
         // and to select that content in the page before calling `execCommand()`.
-        let audio = new Audio('/audio/' + data);
+        let audio = new Audio('/audio/' + data.audio);
+        audio.volume = data.volume;
         audio.play();
     } catch (error) {
         console.error(error);

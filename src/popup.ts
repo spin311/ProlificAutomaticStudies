@@ -5,7 +5,7 @@ async function setVolume(volume: HTMLInputElement) {
         volume.value =  String(vol);
     }
     volume.addEventListener("change", function () {
-        chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
+        chrome.storage.sync.set({["volume"]: parseFloat(volume.value) / 100});
     });
 
 }
@@ -54,6 +54,8 @@ async function setCounter(counter: HTMLSpanElement): Promise<void> {
 async function playAlert(): Promise<void> {
     const result = await chrome.storage.sync.get("audio");
     let audio = new Audio('../audio/' + result["audio"]);
+    const audioVolume = await chrome.storage.sync.get("volume");
+    audio.volume = audioVolume["volume"];
     await audio.play();
 }
 

@@ -28,23 +28,31 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
 }));
 function playAudio() {
     return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume = 1.0) {
+        const req = {
+            audio: audio,
+            volume: volume
+        };
         yield chrome.runtime.sendMessage({
             type: 'play-sound',
             target: 'offscreen-doc',
-            data: audio
+            data: req
         });
     });
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title.includes('Prolific') && !(changeInfo.title.trim() === 'Prolific')) {
-        const result = yield chrome.storage.sync.get(AUDIO_ACTIVE);
-        if (result[AUDIO_ACTIVE]) {
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
+        const resultAudio = yield chrome.storage.sync.get(AUDIO_ACTIVE);
+        if (resultAudio[AUDIO_ACTIVE]) {
             if (!docExists)
                 yield setupOffscreenDocument('audio/audio.html');
             const audioFile = yield chrome.storage.sync.get(AUDIO);
             const volume = yield chrome.storage.sync.get('volume');
             yield playAudio(audioFile[AUDIO], volume['volume']);
             yield updateCounter();
+        }
+        const resultNotification = yield chrome.storage.sync.get(SHOW_NOTIFICATION);
+        if (resultNotification[SHOW_NOTIFICATION]) {
+            sendNotification();
         }
     }
 }));
@@ -58,25 +66,18 @@ function setInitialValues() {
     });
 }
 function sendNotification() {
-    return __awaiter(this, void 0, void 0, function* () {
-        chrome.storage.sync.get(SHOW_NOTIFICATION, (result) => __awaiter(this, void 0, void 0, function* () {
-            if (!result[SHOW_NOTIFICATION]) {
-                return;
-            }
-        }));
-        chrome.notifications.create({
-            type: 'basic',
-            iconUrl: chrome.runtime.getURL(ICON_URL),
-            title: TITLE,
-            message: MESSAGE
-        }, (notificationId) => {
-            if (chrome.runtime.lastError) {
-                console.log(`Notification Error: ${chrome.runtime.lastError.message}`);
-            }
-            else {
-                console.log(`Notification created with ID: ${notificationId}`);
-            }
-        });
+    chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL(ICON_URL),
+        title: TITLE,
+        message: MESSAGE
+    }, (notificationId) => {
+        if (chrome.runtime.lastError) {
+            console.log(`Notification Error: ${chrome.runtime.lastError.message}`);
+        }
+        else {
+            console.log(`Notification created with ID: ${notificationId}`);
+        }
     });
 }
 function updateBadge(counter) {

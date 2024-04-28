@@ -16,7 +16,7 @@ function setVolume(volume) {
             volume.value = String(vol);
         }
         volume.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
+            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) / 100 });
         });
     });
 }
@@ -61,6 +61,8 @@ function playAlert() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("audio");
         let audio = new Audio('../audio/' + result["audio"]);
+        const audioVolume = yield chrome.storage.sync.get("volume");
+        audio.volume = audioVolume["volume"];
         yield audio.play();
     });
 }

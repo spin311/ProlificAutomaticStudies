@@ -19,22 +19,30 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
 });
 
 async function playAudio(audio:string='alert1.mp3',volume: number = 1.0) {
+    const req = {
+        audio: audio,
+        volume: volume
+    };
     await chrome.runtime.sendMessage({
         type: 'play-sound',
         target: 'offscreen-doc',
-        data: audio
+        data: req
     });
 }
 
 chrome.tabs.onUpdated.addListener(async (_, changeInfo, tab) => {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title.includes('Prolific') && !(changeInfo.title.trim() === 'Prolific')) {
-        const result = await chrome.storage.sync.get(AUDIO_ACTIVE);
-        if (result[AUDIO_ACTIVE]) {
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
+        const resultAudio = await chrome.storage.sync.get(AUDIO_ACTIVE);
+        if (resultAudio[AUDIO_ACTIVE]) {
             if (!docExists) await setupOffscreenDocument('audio/audio.html');
             const audioFile = await chrome.storage.sync.get(AUDIO);
             const volume = await chrome.storage.sync.get('volume');
             await playAudio(audioFile[AUDIO], volume['volume']);
             await updateCounter();
+        }
+        const resultNotification = await chrome.storage.sync.get(SHOW_NOTIFICATION);
+        if (resultNotification[SHOW_NOTIFICATION]) {
+            sendNotification();
         }
     }
 });
@@ -50,12 +58,7 @@ async function setInitialValues(): Promise<void> {
 
 }
 
-async function sendNotification(): Promise<void> {
-    chrome.storage.sync.get(SHOW_NOTIFICATION, async (result) => {
-        if(!result[SHOW_NOTIFICATION]) {
-            return;
-        }
-    });
+function sendNotification(): void {
     chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL(ICON_URL),
