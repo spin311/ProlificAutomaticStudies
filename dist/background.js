@@ -41,13 +41,14 @@ function playAudio() {
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
     if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
+        yield updateBadge(1);
         const resultAudio = yield chrome.storage.sync.get(AUDIO_ACTIVE);
         if (resultAudio[AUDIO_ACTIVE]) {
             if (!docExists)
                 yield setupOffscreenDocument('audio/audio.html');
             const audioFile = yield chrome.storage.sync.get(AUDIO);
             const volume = yield chrome.storage.sync.get('volume');
-            yield playAudio(audioFile[AUDIO], volume['volume']);
+            yield playAudio(audioFile[AUDIO], volume['volume'] / 100);
             yield updateCounter();
         }
         const resultNotification = yield chrome.storage.sync.get(SHOW_NOTIFICATION);
@@ -61,7 +62,7 @@ function setInitialValues() {
         yield Promise.all([
             chrome.storage.sync.set({ [AUDIO_ACTIVE]: true }),
             chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" }),
-            chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true })
+            chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true }),
         ]);
     });
 }

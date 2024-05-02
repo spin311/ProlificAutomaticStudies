@@ -1,11 +1,12 @@
 async function setVolume(volume: HTMLInputElement) {
     const result = await chrome.storage.sync.get("volume");
     const vol = result["volume"];
+    console.log(vol);
     if (vol !== undefined) {
         volume.value =  String(vol);
     }
     volume.addEventListener("change", function () {
-        chrome.storage.sync.set({["volume"]: parseFloat(volume.value) / 100});
+        chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
     });
 
 }
@@ -52,10 +53,10 @@ async function setCounter(counter: HTMLSpanElement): Promise<void> {
 }
 
 async function playAlert(): Promise<void> {
-    const result = await chrome.storage.sync.get("audio");
-    let audio = new Audio('../audio/' + result["audio"]);
-    const audioVolume = await chrome.storage.sync.get("volume");
-    audio.volume = audioVolume["volume"];
+    let selectAudio: HTMLSelectElement = document.getElementById("selectAudio") as HTMLSelectElement;
+    let volume: HTMLInputElement = document.getElementById("volume") as HTMLInputElement;
+    let audio: HTMLAudioElement = new Audio('../audio/' + selectAudio.value);
+    audio.volume = parseFloat(String(volume.valueAsNumber / 100));
     await audio.play();
 }
 

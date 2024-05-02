@@ -12,11 +12,12 @@ function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("volume");
         const vol = result["volume"];
+        console.log(vol);
         if (vol !== undefined) {
             volume.value = String(vol);
         }
         volume.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) / 100 });
+            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
         });
     });
 }
@@ -59,10 +60,10 @@ function setCounter(counter) {
 }
 function playAlert() {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("audio");
-        let audio = new Audio('../audio/' + result["audio"]);
-        const audioVolume = yield chrome.storage.sync.get("volume");
-        audio.volume = audioVolume["volume"];
+        let selectAudio = document.getElementById("selectAudio");
+        let volume = document.getElementById("volume");
+        let audio = new Audio('../audio/' + selectAudio.value);
+        audio.volume = parseFloat(String(volume.valueAsNumber / 100));
         yield audio.play();
     });
 }
