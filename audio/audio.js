@@ -22,22 +22,17 @@ async function handleMessages(message) {
         case 'play-sound':
             await playSound(message.data);
             break;
-        default:
-            console.warn(`Unexpected message type received: '${message.type}'.`);
     }
 }
 
 async function playSound(data) {
     try {
-        console.log(data);
-        console.log("playSound");
         // Error if we received the wrong kind of data.
-        if (typeof data !== 'string') {
+        if (typeof data !== 'object' || !('audio' in data) || !('volume' in data)) {
             throw new TypeError(
-                `Value provided must be a 'string', got '${typeof data}'.`
+                `Value provided must be an 'object' with 'audio' and 'volume' properties, got '${typeof data}'.`
             );
         }
-
         // `document.execCommand('copy')` works against the user's selection in a web
         // page. As such, we must insert the string we want to copy to the web page
         // and to select that content in the page before calling `execCommand()`.

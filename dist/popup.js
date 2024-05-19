@@ -12,12 +12,18 @@ function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("volume");
         const vol = result["volume"];
-        console.log(vol);
         if (vol !== undefined) {
             volume.value = String(vol);
         }
         volume.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
+                yield chrome.runtime.sendMessage({
+                    type: 'volume-changed',
+                    target: 'background',
+                    data: parseFloat(volume.value) / 100
+                });
+            });
         });
     });
 }
@@ -60,11 +66,10 @@ function setCounter(counter) {
 }
 function playAlert() {
     return __awaiter(this, void 0, void 0, function* () {
-        let selectAudio = document.getElementById("selectAudio");
-        let volume = document.getElementById("volume");
-        let audio = new Audio('../audio/' + selectAudio.value);
-        audio.volume = parseFloat(String(volume.valueAsNumber / 100));
-        yield audio.play();
+        yield chrome.runtime.sendMessage({
+            type: 'play-sound',
+            target: 'background',
+        });
     });
 }
 function setAudioOption(selectAudio) {
@@ -72,7 +77,14 @@ function setAudioOption(selectAudio) {
         const result = yield chrome.storage.sync.get("audio");
         selectAudio.value = result["audio"];
         selectAudio.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["audio"]: selectAudio.value });
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["audio"]: selectAudio.value });
+                yield chrome.runtime.sendMessage({
+                    type: 'audio-changed',
+                    target: 'background',
+                    data: selectAudio.value
+                });
+            });
         });
     });
 }
@@ -81,7 +93,14 @@ function setAudioCheckbox(autoAudio) {
         const result = yield chrome.storage.sync.get("audioActive");
         autoAudio.checked = result["audioActive"];
         autoAudio.addEventListener("click", function () {
-            chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
+                yield chrome.runtime.sendMessage({
+                    type: 'audioActive-changed',
+                    target: 'background',
+                    data: autoAudio.checked
+                });
+            });
         });
     });
 }
@@ -90,7 +109,14 @@ function setShowNotification(showNotification) {
         const result = yield chrome.storage.sync.get("showNotification");
         showNotification.checked = result["showNotification"];
         showNotification.addEventListener("click", function () {
-            chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
+                yield chrome.runtime.sendMessage({
+                    type: 'showNotification-changed',
+                    target: 'background',
+                    data: showNotification.checked
+                });
+            });
         });
     });
 }

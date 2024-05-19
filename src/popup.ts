@@ -1,12 +1,16 @@
 async function setVolume(volume: HTMLInputElement) {
     const result = await chrome.storage.sync.get("volume");
     const vol = result["volume"];
-    console.log(vol);
     if (vol !== undefined) {
         volume.value =  String(vol);
     }
-    volume.addEventListener("change", function () {
-        chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
+    volume.addEventListener("change", async function () {
+        await chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
+        await chrome.runtime.sendMessage({
+            type: 'volume-changed',
+            target: 'background',
+            data: parseFloat(volume.value) / 100
+        });
     });
 
 }
@@ -53,33 +57,48 @@ async function setCounter(counter: HTMLSpanElement): Promise<void> {
 }
 
 async function playAlert(): Promise<void> {
-    let selectAudio: HTMLSelectElement = document.getElementById("selectAudio") as HTMLSelectElement;
-    let volume: HTMLInputElement = document.getElementById("volume") as HTMLInputElement;
-    let audio: HTMLAudioElement = new Audio('../audio/' + selectAudio.value);
-    audio.volume = parseFloat(String(volume.valueAsNumber / 100));
-    await audio.play();
+    await chrome.runtime.sendMessage({
+        type: 'play-sound',
+        target: 'background',
+    });
+
 }
 
 async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
     const result = await chrome.storage.sync.get("audio");
     selectAudio.value = result["audio"];
-    selectAudio.addEventListener("change", function () {
-        chrome.storage.sync.set({["audio"]: selectAudio.value});
+    selectAudio.addEventListener("change", async function (): Promise<void> {
+        await chrome.storage.sync.set({["audio"]: selectAudio.value});
+        await chrome.runtime.sendMessage({
+            type: 'audio-changed',
+            target: 'background',
+            data: selectAudio.value
+        });
     });
 }
 
 async function setAudioCheckbox(autoAudio: HTMLInputElement): Promise<void> {
     const result = await chrome.storage.sync.get("audioActive");
     autoAudio.checked = result["audioActive"];
-    autoAudio.addEventListener("click", function () {
-        chrome.storage.sync.set({["audioActive"]: autoAudio.checked});
+    autoAudio.addEventListener("click", async function (): Promise<void> {
+        await chrome.storage.sync.set({["audioActive"]: autoAudio.checked});
+        await chrome.runtime.sendMessage({
+            type: 'audioActive-changed',
+            target: 'background',
+            data: autoAudio.checked
+        });
     });
 }
 
 async function setShowNotification(showNotification: HTMLInputElement): Promise<void> {
     const result = await chrome.storage.sync.get("showNotification");
     showNotification.checked = result["showNotification"];
-    showNotification.addEventListener("click", function () {
-        chrome.storage.sync.set({["showNotification"]: showNotification.checked});
+    showNotification.addEventListener("click", async function (): Promise<void> {
+        await chrome.storage.sync.set({["showNotification"]: showNotification.checked});
+        await chrome.runtime.sendMessage({
+            type: 'showNotification-changed',
+            target: 'background',
+            data: showNotification.checked
+        });
     });
 }

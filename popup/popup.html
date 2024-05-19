@@ -5,20 +5,21 @@
     <link href="../styles/popup.css" rel="stylesheet">
 </head>
 <body>
-<h3 class="container-fluid text-center mt-2">Prolific automatic studies</h3>
+<h1 class=" mt-2 heading">Prolific automatic studies</h1>
 
-<h4 class="container-fluid text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
+<h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
 
-<div class="text-center">
+<div class="text-align">
 
-    <div class="form-check text-center d-flex justify-content-center ml-3 my-2">
+
+    <div class="form-check d-flex justify-content-center ml-3 my-2">
         <input class="form-check-input me-2" type="checkbox" value="" id="autoAudio">
         <label class="form-check-label" for="autoAudio">
             Play audio when new study is available
         </label>
     </div>
 
-    <div class="form-check text-center d-flex justify-content-center ml-3 my-2">
+    <div class="form-check d-flex justify-content-center ml-3 my-2">
         <input class="form-check-input me-2" type="checkbox" value="" id="showNotification">
         <label class="form-check-label" for="showNotification">
             Show notification when new study is available
@@ -26,7 +27,7 @@
     </div>
 
 
-    <div class="my-2">
+    <div class="my-2 text-center">
         <label for="selectAudio" class="form-label">Select Audio:
         </label>
         <select name="selectAudio" id="selectAudio" class="form-select">
@@ -38,7 +39,7 @@
         <label for="volume">Volume:</label>
             <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
         </div>
-            <button id="playAudio" class="btn btn-primary">
+            <button id="playAudio" class="btn">
             <i class="fas fa-play"></i> Play
         </button>
 
@@ -46,10 +47,13 @@
 
 </div>
 
-<div class="container-fluid text-center mt-2">
-    <a href="https://spin311.github.io/ProlificStudiesGoogle/" class="float-start" target="_blank">Help</a>
-
-    <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="float-end" target="_blank">Donate</a>
+<div class="container-fluid mt-2">
+    <a href="https://spin311.github.io/MicrosoftRewardsWebsite#features" class="float-start links" target="_blank">Help</a>
+    <a class="my-1 links" href="https://app.prolific.com/" target="_blank">Prolific</a>
+    <span class="float-end" style="display: flex; align-items: center;">
+    <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="links" target="_blank">Donate</a>
+    <img src="/imgs/justAGirlSmol.png" alt="Cat">
+  </span>
 </div>
 
 </body>

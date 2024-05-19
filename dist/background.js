@@ -19,6 +19,12 @@ const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 let creating; // A global promise to avoid concurrency issues
 let docExists = false;
+let volume = 1.0;
+let audio = 'alert1.mp3';
+let shouldSendNotification = true;
+let shouldPlayAudio = true;
+// todo: setvalues on window load, onchange read values
+chrome.runtime.onMessage.addListener(handleMessages);
 chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, void 0, function* () {
     if (details.reason === "install") {
         yield setInitialValues();
@@ -26,8 +32,38 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificStudiesGoogle/", active: true });
     }
 }));
+function handleMessages(message) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Return early if this message isn't meant for the offscreen document.
+        if (message.target !== 'background') {
+            return;
+        }
+        // Dispatch the message to an appropriate handler.
+        switch (message.type) {
+            case 'play-sound':
+                yield playAudio(audio, volume);
+                break;
+            case 'show-notification':
+                sendNotification();
+                break;
+            case 'audio-changed':
+                audio = message.data;
+                break;
+            case 'volume-changed':
+                volume = message.data;
+                break;
+            case 'showNotification-changed':
+                shouldSendNotification = message.data;
+                break;
+            case 'audioActive-changed':
+                shouldPlayAudio = message.data;
+                break;
+        }
+    });
+}
 function playAudio() {
     return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume = 1.0) {
+        yield setupOffscreenDocument('audio/audio.html');
         const req = {
             audio: audio,
             volume: volume
@@ -41,19 +77,12 @@ function playAudio() {
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
     if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
-        yield updateBadge(1);
-        const resultAudio = yield chrome.storage.sync.get(AUDIO_ACTIVE);
-        if (resultAudio[AUDIO_ACTIVE]) {
-            if (!docExists)
-                yield setupOffscreenDocument('audio/audio.html');
-            const audioFile = yield chrome.storage.sync.get(AUDIO);
-            const volume = yield chrome.storage.sync.get('volume');
-            yield playAudio(audioFile[AUDIO], volume['volume'] / 100);
-            yield updateCounter();
-        }
-        const resultNotification = yield chrome.storage.sync.get(SHOW_NOTIFICATION);
-        if (resultNotification[SHOW_NOTIFICATION]) {
+        if (shouldSendNotification) {
             sendNotification();
+        }
+        if (shouldPlayAudio) {
+            yield playAudio(audio, volume);
+            yield updateCounter();
         }
     }
 }));
@@ -63,22 +92,34 @@ function setInitialValues() {
             chrome.storage.sync.set({ [AUDIO_ACTIVE]: true }),
             chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" }),
             chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true }),
+            chrome.storage.sync.set({ ['volume']: 100 }),
         ]);
     });
 }
+chrome.runtime.onStartup.addListener(function () {
+    chrome.storage.sync.get(null, function (result) {
+        if (result) {
+            if (result[AUDIO_ACTIVE] !== undefined) {
+                shouldPlayAudio = result[AUDIO_ACTIVE];
+            }
+            if (result[AUDIO] !== undefined) {
+                audio = result[AUDIO];
+            }
+            if (result[SHOW_NOTIFICATION] !== undefined) {
+                shouldSendNotification = result[SHOW_NOTIFICATION];
+            }
+            if (result['volume'] !== undefined) {
+                volume = result['volume'] / 100;
+            }
+        }
+    });
+});
 function sendNotification() {
     chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL(ICON_URL),
         title: TITLE,
         message: MESSAGE
-    }, (notificationId) => {
-        if (chrome.runtime.lastError) {
-            console.log(`Notification Error: ${chrome.runtime.lastError.message}`);
-        }
-        else {
-            console.log(`Notification created with ID: ${notificationId}`);
-        }
     });
 }
 function updateBadge(counter) {
@@ -98,7 +139,7 @@ function updateCounter() {
             counter++;
         }
         yield chrome.storage.sync.set({ [COUNTER]: counter });
-        yield updateBadge(counter);
+        yield updateBadge(1);
     });
 }
 function setupOffscreenDocument(path) {
@@ -121,7 +162,7 @@ function setupOffscreenDocument(path) {
             creating = chrome.offscreen.createDocument({
                 url: path,
                 reasons: [Reason.AUDIO_PLAYBACK],
-                justification: 'Notification'
+                justification: 'Audio playback'
             });
             yield creating;
             creating = null;
