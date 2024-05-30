@@ -1,20 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Prolific get studies automatically",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "description": "Google extension for Prolific to notify you when studies are available",
 
   "permissions": [
     "storage",
-    "scripting",
-    "tabs",
     "notifications",
-    "offscreen"
+    "offscreen",
+    "tabs"
   ],
   "host_permissions": [
-    "https://app.prolific.com/*",
-    "http://localhost/*",
-    "https://localhost/*"
+    "https://app.prolific.com/*"
   ],
   "background": {
     "service_worker": "dist/background.js"

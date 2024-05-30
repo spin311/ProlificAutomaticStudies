@@ -126,6 +126,9 @@ function updateBadge(counter) {
     return __awaiter(this, void 0, void 0, function* () {
         yield chrome.action.setBadgeText({ text: counter.toString() });
         yield chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
+        setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+            yield chrome.action.setBadgeText({ text: '' });
+        }), 60000);
     });
 }
 function updateCounter() {

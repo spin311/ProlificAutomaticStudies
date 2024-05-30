@@ -122,6 +122,10 @@ function sendNotification(): void {
 async function updateBadge(counter: number): Promise<void> {
     await chrome.action.setBadgeText({text: counter.toString()});
     await chrome.action.setBadgeBackgroundColor({color: "#FF0000"});
+
+    setTimeout(async (): Promise<void> => {
+        await chrome.action.setBadgeText({text: ''});
+    }, 60000);
 }
 
 async function updateCounter(): Promise<void> {
