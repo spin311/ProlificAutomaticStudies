@@ -75,7 +75,7 @@ chrome.tabs.onUpdated.addListener(async (_, changeInfo, tab) => {
             sendNotification();
         }
         if (shouldPlayAudio) {
-            await playAudio(audio, volume);
+            await playAudio(audio , volume);
             await updateCounter();
         }
     }
