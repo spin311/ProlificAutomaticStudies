@@ -74,6 +74,15 @@ function playAlert() {
             type: 'play-sound',
             target: 'background',
         });
+        const playAudio = document.getElementById("playAudio");
+        playAudio.disabled = true;
+        playAudio.classList.remove("btn-success");
+        playAudio.classList.add("btn-fail");
+        setTimeout(() => {
+            playAudio.disabled = false;
+            playAudio.classList.remove("btn-fail");
+            playAudio.classList.add("btn-success");
+        }, 500);
     });
 }
 function setAudioOption(selectAudio) {
