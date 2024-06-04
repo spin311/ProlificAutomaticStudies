@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const playAudio = document.getElementById("playAudio");
         const showNotification = document.getElementById("showNotification");
         const volume = document.getElementById("volume");
+        const openProlific = document.getElementById("openProlific");
         if (autoAudio) {
             yield setAudioCheckbox(autoAudio);
         }
@@ -49,6 +50,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (showNotification) {
             yield setShowNotification(showNotification);
+        }
+        if (openProlific) {
+            yield setOpenProlific(openProlific);
         }
         if (volume) {
             yield setVolume(volume);
@@ -116,6 +120,17 @@ function setShowNotification(showNotification) {
                     target: 'background',
                     data: showNotification.checked
                 });
+            });
+        });
+    });
+}
+function setOpenProlific(openProlific) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.sync.get("openProlific");
+        openProlific.checked = result["openProlific"];
+        openProlific.addEventListener("click", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["openProlific"]: openProlific.checked });
             });
         });
     });

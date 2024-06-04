@@ -12,18 +12,19 @@ var Reason = chrome.offscreen.Reason;
 var ContextType = chrome.runtime.ContextType;
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
+const OPEN_PROLIFIC = "openProlific";
 const AUDIO = "audio";
+const VOLUME = "volume";
 const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 let creating; // A global promise to avoid concurrency issues
 let docExists = false;
-let volume = 1.0;
-let audio = 'alert1.mp3';
-let shouldSendNotification = true;
-let shouldPlayAudio = true;
-// todo: setvalues on window load, onchange read values
+let volume;
+let audio;
+let shouldSendNotification;
+let shouldPlayAudio;
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, void 0, function* () {
     if (details.reason === "install") {
@@ -41,7 +42,20 @@ function handleMessages(message) {
         // Dispatch the message to an appropriate handler.
         switch (message.type) {
             case 'play-sound':
-                yield playAudio(audio, volume);
+                if (audio && volume) {
+                    yield playAudio(audio, volume);
+                }
+                else {
+                    chrome.storage.sync.get([AUDIO, VOLUME], function (result) {
+                        if (result) {
+                            audio = result[AUDIO];
+                            volume = result[VOLUME] / 100;
+                            if (audio && volume) {
+                                playAudio(audio, volume);
+                            }
+                        }
+                    });
+                }
                 break;
             case 'show-notification':
                 sendNotification();
@@ -61,6 +75,13 @@ function handleMessages(message) {
         }
     });
 }
+chrome.runtime.onStartup.addListener(function () {
+    chrome.storage.sync.get(OPEN_PROLIFIC, function (result) {
+        if (result && result[OPEN_PROLIFIC]) {
+            chrome.tabs.create({ url: "https://app.prolific.co/", active: false });
+        }
+    });
+});
 function playAudio() {
     return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume = 1.0) {
         yield setupOffscreenDocument('audio/audio.html');
@@ -80,10 +101,32 @@ chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void
         if (shouldSendNotification) {
             sendNotification();
         }
-        if (shouldPlayAudio) {
-            yield playAudio(audio, volume);
-            yield updateCounter();
+        else {
+            chrome.storage.sync.get(SHOW_NOTIFICATION, function (result) {
+                if (result) {
+                    shouldSendNotification = result[SHOW_NOTIFICATION];
+                    if (shouldSendNotification) {
+                        sendNotification();
+                    }
+                }
+            });
         }
+        if (shouldPlayAudio && audio && volume) {
+            yield playAudio(audio, volume);
+        }
+        else {
+            chrome.storage.sync.get([AUDIO_ACTIVE, VOLUME, AUDIO], function (result) {
+                if (result) {
+                    shouldPlayAudio = result[AUDIO_ACTIVE];
+                    volume = result[VOLUME] / 100;
+                    audio = result[AUDIO];
+                    if (shouldPlayAudio && audio && volume) {
+                        playAudio(audio, volume);
+                    }
+                }
+            });
+        }
+        yield updateCounter();
     }
 }));
 function setInitialValues() {
@@ -92,28 +135,10 @@ function setInitialValues() {
             chrome.storage.sync.set({ [AUDIO_ACTIVE]: true }),
             chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" }),
             chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true }),
-            chrome.storage.sync.set({ ['volume']: 100 }),
+            chrome.storage.sync.set({ [VOLUME]: 100 }),
         ]);
     });
 }
-chrome.runtime.onStartup.addListener(function () {
-    chrome.storage.sync.get(null, function (result) {
-        if (result) {
-            if (result[AUDIO_ACTIVE] !== undefined) {
-                shouldPlayAudio = result[AUDIO_ACTIVE];
-            }
-            if (result[AUDIO] !== undefined) {
-                audio = result[AUDIO];
-            }
-            if (result[SHOW_NOTIFICATION] !== undefined) {
-                shouldSendNotification = result[SHOW_NOTIFICATION];
-            }
-            if (result['volume'] !== undefined) {
-                volume = result['volume'] / 100;
-            }
-        }
-    });
-});
 function sendNotification() {
     chrome.notifications.create({
         type: 'basic',

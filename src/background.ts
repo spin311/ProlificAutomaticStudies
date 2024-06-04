@@ -3,18 +3,19 @@ import ContextType = chrome.runtime.ContextType;
 
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
+const OPEN_PROLIFIC = "openProlific";
 const AUDIO = "audio";
+const VOLUME = "volume";
 const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 let creating: Promise<void> | null; // A global promise to avoid concurrency issues
 let docExists: boolean = false;
-let volume: number = 1.0;
-let audio: string = 'alert1.mp3';
-let shouldSendNotification: boolean = true;
-let shouldPlayAudio: boolean = true;
-// todo: setvalues on window load, onchange read values
+let volume: number;
+let audio: string;
+let shouldSendNotification: boolean;
+let shouldPlayAudio: boolean;
 
 chrome.runtime.onMessage.addListener(handleMessages);
 
@@ -35,7 +36,20 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
     // Dispatch the message to an appropriate handler.
     switch (message.type) {
         case 'play-sound':
-            await playAudio(audio, volume);
+            if (audio && volume) {
+                await playAudio(audio, volume);
+            }
+            else {
+                chrome.storage.sync.get([AUDIO, VOLUME], function (result): void {
+                    if (result) {
+                        audio = result[AUDIO];
+                        volume = result[VOLUME] / 100;
+                        if (audio && volume) {
+                            playAudio(audio, volume);
+                        }
+                    }
+                });
+            }
             break;
         case 'show-notification':
             sendNotification();
@@ -54,6 +68,15 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
             break;
     }
 }
+
+chrome.runtime.onStartup.addListener(function(): void{
+    chrome.storage.sync.get(OPEN_PROLIFIC, function (result): void {
+        if (result && result[OPEN_PROLIFIC]) {
+            chrome.tabs.create({url: "https://app.prolific.co/", active: false});
+        }
+
+    });
+});
 
 async function playAudio(audio:string='alert1.mp3',volume: number = 1.0) {
 
@@ -74,10 +97,32 @@ chrome.tabs.onUpdated.addListener(async (_, changeInfo, tab) => {
         if (shouldSendNotification) {
             sendNotification();
         }
-        if (shouldPlayAudio) {
-            await playAudio(audio , volume);
-            await updateCounter();
+        else {
+            chrome.storage.sync.get(SHOW_NOTIFICATION, function (result) {
+                if (result) {
+                    shouldSendNotification = result[SHOW_NOTIFICATION];
+                    if (shouldSendNotification) {
+                        sendNotification();
+                    }
+                }
+            });
         }
+        if (shouldPlayAudio && audio && volume) {
+            await playAudio(audio, volume);
+        }
+        else {
+            chrome.storage.sync.get([AUDIO_ACTIVE, VOLUME, AUDIO], function (result) {
+                if (result) {
+                    shouldPlayAudio = result[AUDIO_ACTIVE];
+                    volume = result[VOLUME] / 100;
+                    audio = result[AUDIO];
+                    if (shouldPlayAudio && audio && volume) {
+                        playAudio(audio, volume);
+                    }
+                }
+            });
+        }
+        await updateCounter();
     }
 });
 
@@ -87,29 +132,10 @@ async function setInitialValues(): Promise<void> {
         chrome.storage.sync.set({ [AUDIO_ACTIVE]: true }),
         chrome.storage.sync.set({ [AUDIO]: "alert1.mp3" }),
         chrome.storage.sync.set({ [SHOW_NOTIFICATION]: true }),
-        chrome.storage.sync.set({ ['volume']: 100 }),
+        chrome.storage.sync.set({ [VOLUME]: 100 }),
     ]);
 
 }
-
-chrome.runtime.onStartup.addListener(function(){
-    chrome.storage.sync.get(null, function (result) {
-        if (result) {
-            if (result[AUDIO_ACTIVE] !== undefined) {
-                shouldPlayAudio = result[AUDIO_ACTIVE];
-            }
-            if (result[AUDIO] !== undefined) {
-                audio = result[AUDIO];
-            }
-            if (result[SHOW_NOTIFICATION] !== undefined) {
-                shouldSendNotification = result[SHOW_NOTIFICATION];
-            }
-            if (result['volume'] !== undefined) {
-                volume = result['volume'] / 100;
-            }
-        }
-    });
-});
 
 function sendNotification(): void {
     chrome.notifications.create({

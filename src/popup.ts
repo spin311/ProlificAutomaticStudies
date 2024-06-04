@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
     const showNotification = document.getElementById("showNotification") as HTMLInputElement;
     const volume = document.getElementById("volume") as HTMLInputElement;
+    const openProlific = document.getElementById("openProlific") as HTMLInputElement;
 
     if (autoAudio) {
         await setAudioCheckbox(autoAudio);
@@ -41,6 +42,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     if(showNotification) {
         await setShowNotification(showNotification);
+    }
+
+    if(openProlific) {
+        await setOpenProlific(openProlific);
     }
 
     if (volume) {
@@ -100,5 +105,13 @@ async function setShowNotification(showNotification: HTMLInputElement): Promise<
             target: 'background',
             data: showNotification.checked
         });
+    });
+}
+
+async function setOpenProlific(openProlific: HTMLInputElement): Promise<void> {
+    const result = await chrome.storage.sync.get("openProlific");
+    openProlific.checked = result["openProlific"];
+    openProlific.addEventListener("click", async function (): Promise<void> {
+        await chrome.storage.sync.set({["openProlific"]: openProlific.checked});
     });
 }
