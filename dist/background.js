@@ -25,6 +25,7 @@ let volume;
 let audio;
 let shouldSendNotification;
 let shouldPlayAudio;
+let previousTitle = null;
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, void 0, function* () {
     if (details.reason === "install") {
@@ -97,7 +98,8 @@ function playAudio() {
     });
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific') && changeInfo.title !== previousTitle) {
+        previousTitle = changeInfo.title;
         if (shouldSendNotification) {
             sendNotification();
         }

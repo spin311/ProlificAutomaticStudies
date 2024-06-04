@@ -16,6 +16,7 @@ let volume: number;
 let audio: string;
 let shouldSendNotification: boolean;
 let shouldPlayAudio: boolean;
+let previousTitle: string | null = null;
 
 chrome.runtime.onMessage.addListener(handleMessages);
 
@@ -93,7 +94,8 @@ async function playAudio(audio:string='alert1.mp3',volume: number = 1.0) {
 }
 
 chrome.tabs.onUpdated.addListener(async (_, changeInfo, tab) => {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific')) {
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific') && changeInfo.title !== previousTitle) {
+        previousTitle = changeInfo.title;
         if (shouldSendNotification) {
             sendNotification();
         }
