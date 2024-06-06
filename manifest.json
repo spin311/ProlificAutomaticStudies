@@ -10,18 +10,9 @@
     "offscreen",
     "tabs"
   ],
-  "host_permissions": [
-    "https://app.prolific.com/*"
-  ],
   "background": {
     "service_worker": "dist/background.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://app.prolific.com/*"],
-      "js": ["dist/popup.js"]
-    }
-  ],
   "action": {
     "default_popup": "popup/popup.html",
     "title": "Prolific get studies automatically"

@@ -35,7 +35,7 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
     if(details.reason === "install"){
         await setInitialValues();
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await chrome.tabs.create({url: "https://spin311.github.io/ProlificStudiesGoogle/", active: true});
+        await chrome.tabs.create({url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true});
     }
 });
 
@@ -62,6 +62,9 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
             break;
         case 'show-notification':
             sendNotification();
+            break;
+        case 'clear-badge':
+            await chrome.action.setBadgeText({text: ''});
             break;
     }
 }
@@ -91,7 +94,6 @@ async function playAudio(audio:string='alert1.mp3',volume: number = 1.0): Promis
 
 chrome.tabs.onUpdated.addListener(async (_: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
     if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle) {
-    //
         previousTitle = changeInfo.title;
         if (!(changeInfo.title.trim() === 'Prolific')) {
             shouldSendNotification = await getValueFromStorage(SHOW_NOTIFICATION, true);

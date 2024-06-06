@@ -24,6 +24,10 @@ function setVolume(volume) {
 }
 document.addEventListener('DOMContentLoaded', function () {
     return __awaiter(this, void 0, void 0, function* () {
+        yield chrome.runtime.sendMessage({
+            type: 'clear-badge',
+            target: 'background',
+        });
         const autoAudio = document.getElementById("autoAudio");
         const selectAudio = document.getElementById("selectAudio");
         const counter = document.getElementById("counter");

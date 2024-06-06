@@ -40,7 +40,7 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     if (details.reason === "install") {
         yield setInitialValues();
         yield new Promise(resolve => setTimeout(resolve, 1000));
-        yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificStudiesGoogle/", active: true });
+        yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true });
     }
 }));
 function getValueFromStorage(key, defaultValue) {
@@ -66,6 +66,9 @@ function handleMessages(message) {
                 break;
             case 'show-notification':
                 sendNotification();
+                break;
+            case 'clear-badge':
+                yield chrome.action.setBadgeText({ text: '' });
                 break;
         }
     });
@@ -93,7 +96,6 @@ function playAudio() {
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
     if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle) {
-        //
         previousTitle = changeInfo.title;
         if (!(changeInfo.title.trim() === 'Prolific')) {
             shouldSendNotification = yield getValueFromStorage(SHOW_NOTIFICATION, true);

@@ -11,6 +11,11 @@ async function setVolume(volume: HTMLInputElement) {
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
+    await chrome.runtime.sendMessage({
+        type: 'clear-badge',
+        target: 'background',
+    });
+
     const autoAudio = document.getElementById("autoAudio") as HTMLInputElement;
     const selectAudio = document.getElementById("selectAudio") as HTMLSelectElement;
     const counter = document.getElementById("counter") as HTMLSpanElement;

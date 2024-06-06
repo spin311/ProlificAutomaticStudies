@@ -18,6 +18,12 @@ a {
     transition: background-size 400ms;
 }
 
+.flex {
+    display: flex;
+    justify-content: flex-start;
+    gap: 1.2em;
+}
+
 a:hover {
     background-size: 0 3px, 100% 3px;
 }
