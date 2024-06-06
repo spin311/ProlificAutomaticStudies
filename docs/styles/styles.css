@@ -18,6 +18,35 @@ a {
     transition: background-size 400ms;
 }
 
+ul.downloads li {
+    font-size: 26px;
+    margin-top: 10px;
+}
+
+.tool {
+    height: 25px;
+    width: 25px;
+    margin-right: 10px;
+}
+
+.logo {
+    height: 25px;
+    width: 25px;
+    border-radius: 100%;
+    margin-right: 10px;
+}
+
+.logo-inline {
+    height: 25px;
+    width: 25px;
+    margin-left: 10px;
+}
+
+.logo-inline-star {
+    width: 7%;
+    margin-left: 10px;
+}
+
 .flex {
     display: flex;
     justify-content: flex-start;
