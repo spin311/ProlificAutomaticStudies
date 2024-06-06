@@ -8,10 +8,9 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
-const TITLE = 'Prolific Studies';
+const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
 let creating: Promise<void> | null; // A global promise to avoid concurrency issues
-let docExists: boolean = false;
 let volume: number;
 let audio: string;
 let shouldSendNotification: boolean;
@@ -19,6 +18,18 @@ let shouldPlayAudio: boolean;
 let previousTitle: string | null = null;
 
 chrome.runtime.onMessage.addListener(handleMessages);
+
+chrome.notifications.onClicked.addListener(function (notificationId: string): void {
+    chrome.tabs.create({url: "https://app.prolific.com/", active: true});
+    chrome.notifications.clear(notificationId);
+});
+
+chrome.notifications.onButtonClicked.addListener(function (notificationId: string, buttonIndex: number): void {
+    if (buttonIndex === 0) {
+        chrome.tabs.create({url: "https://app.prolific.com/", active: true});
+    }
+    chrome.notifications.clear(notificationId);
+});
 
 chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Promise<void> => {
     if(details.reason === "install"){
@@ -28,6 +39,13 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
     }
 });
 
+function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
+    return new Promise((resolve): void => {
+        chrome.storage.sync.get(key, function (result): void {
+            resolve((result[key] !== undefined) ? result[key] as T : defaultValue);
+        });
+    });
+}
 
 async function handleMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
     // Return early if this message isn't meant for the offscreen document.
@@ -37,35 +55,13 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
     // Dispatch the message to an appropriate handler.
     switch (message.type) {
         case 'play-sound':
-            if (audio && volume) {
-                await playAudio(audio, volume);
-            }
-            else {
-                chrome.storage.sync.get([AUDIO, VOLUME], function (result): void {
-                    if (result) {
-                        audio = result[AUDIO];
-                        volume = result[VOLUME] / 100;
-                        if (audio && volume) {
-                            playAudio(audio, volume);
-                        }
-                    }
-                });
-            }
+            audio = await getValueFromStorage(AUDIO, 'alert1.mp3');
+            volume = await getValueFromStorage(VOLUME, 100) / 100;
+            await playAudio(audio, volume);
+            sendNotification();
             break;
         case 'show-notification':
             sendNotification();
-            break;
-        case 'audio-changed':
-            audio = message.data;
-            break;
-        case 'volume-changed':
-            volume = message.data;
-            break;
-        case 'showNotification-changed':
-            shouldSendNotification = message.data;
-            break;
-        case 'audioActive-changed':
-            shouldPlayAudio = message.data;
             break;
     }
 }
@@ -73,13 +69,13 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
 chrome.runtime.onStartup.addListener(function(): void{
     chrome.storage.sync.get(OPEN_PROLIFIC, function (result): void {
         if (result && result[OPEN_PROLIFIC]) {
-            chrome.tabs.create({url: "https://app.prolific.co/", active: false});
+            chrome.tabs.create({url: "https://app.prolific.com/", active: false});
         }
 
     });
 });
 
-async function playAudio(audio:string='alert1.mp3',volume: number = 1.0) {
+async function playAudio(audio:string='alert1.mp3',volume: number = 1.0): Promise<void> {
 
     await setupOffscreenDocument('audio/audio.html');
     const req = {
@@ -93,40 +89,25 @@ async function playAudio(audio:string='alert1.mp3',volume: number = 1.0) {
     });
 }
 
-chrome.tabs.onUpdated.addListener(async (_, changeInfo, tab) => {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && !(changeInfo.title.trim() === 'Prolific') && changeInfo.title !== previousTitle) {
+chrome.tabs.onUpdated.addListener(async (_: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle) {
+    //
         previousTitle = changeInfo.title;
-        if (shouldSendNotification) {
-            sendNotification();
+        if (!(changeInfo.title.trim() === 'Prolific')) {
+            shouldSendNotification = await getValueFromStorage(SHOW_NOTIFICATION, true);
+            if (shouldSendNotification) {
+                sendNotification();
+            }
+            shouldPlayAudio = await getValueFromStorage(AUDIO_ACTIVE, true);
+            if (shouldPlayAudio) {
+                audio = await getValueFromStorage(AUDIO, 'alert1.mp3');
+                volume = await getValueFromStorage(VOLUME, 100) / 100;
+                await playAudio(audio, volume);
+            }
         }
-        else {
-            chrome.storage.sync.get(SHOW_NOTIFICATION, function (result) {
-                if (result) {
-                    shouldSendNotification = result[SHOW_NOTIFICATION];
-                    if (shouldSendNotification) {
-                        sendNotification();
-                    }
-                }
-            });
+            await updateCounter();
         }
-        if (shouldPlayAudio && audio && volume) {
-            await playAudio(audio, volume);
-        }
-        else {
-            chrome.storage.sync.get([AUDIO_ACTIVE, VOLUME, AUDIO], function (result) {
-                if (result) {
-                    shouldPlayAudio = result[AUDIO_ACTIVE];
-                    volume = result[VOLUME] / 100;
-                    audio = result[AUDIO];
-                    if (shouldPlayAudio && audio && volume) {
-                        playAudio(audio, volume);
-                    }
-                }
-            });
-        }
-        await updateCounter();
-    }
-});
+    });
 
 
 async function setInitialValues(): Promise<void> {
@@ -144,27 +125,21 @@ function sendNotification(): void {
         type: 'basic',
         iconUrl: chrome.runtime.getURL(ICON_URL),
         title: TITLE,
-        message: MESSAGE
+        message: MESSAGE,
+        buttons: [{title: 'Open Prolific'}, {title: 'Dismiss'}],
     });
 }
 async function updateBadge(counter: number): Promise<void> {
     await chrome.action.setBadgeText({text: counter.toString()});
-    await chrome.action.setBadgeBackgroundColor({color: "#FF0000"});
+    await chrome.action.setBadgeBackgroundColor({color: "#9dec14"});
 
     setTimeout(async (): Promise<void> => {
         await chrome.action.setBadgeText({text: ''});
-    }, 60000);
+    }, 20000);
 }
 
 async function updateCounter(): Promise<void> {
-    const result = await chrome.storage.sync.get(COUNTER);
-    let counter = result[COUNTER];
-    if (counter === undefined) {
-        counter = 1;
-    }
-    else {
-        counter++;
-    }
+    let counter: number = await getValueFromStorage(COUNTER, 0) + 1;
     await chrome.storage.sync.set({ [COUNTER]: counter });
     await updateBadge(1);
 }
@@ -179,7 +154,6 @@ async function setupOffscreenDocument(path: string): Promise<void> {
     });
 
     if (existingContexts.length > 0) {
-        docExists = true;
         return;
     }
     if (creating) {
@@ -192,6 +166,5 @@ async function setupOffscreenDocument(path: string): Promise<void> {
         });
         await creating;
         creating = null;
-        docExists = true;
     }
 }

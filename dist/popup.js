@@ -18,11 +18,6 @@ function setVolume(volume) {
         volume.addEventListener("change", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 yield chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
-                yield chrome.runtime.sendMessage({
-                    type: 'volume-changed',
-                    target: 'background',
-                    data: parseFloat(volume.value) / 100
-                });
             });
         });
     });
@@ -36,6 +31,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const showNotification = document.getElementById("showNotification");
         const volume = document.getElementById("volume");
         const openProlific = document.getElementById("openProlific");
+        const donateText = document.getElementById('donateText');
+        const donateImg = document.getElementById('donateImg');
+        if (donateImg && donateText) {
+            donateText.addEventListener('mouseover', function () {
+                donateImg.style.visibility = 'visible';
+            });
+        }
         if (autoAudio) {
             yield setAudioCheckbox(autoAudio);
         }
@@ -92,11 +94,6 @@ function setAudioOption(selectAudio) {
         selectAudio.addEventListener("change", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 yield chrome.storage.sync.set({ ["audio"]: selectAudio.value });
-                yield chrome.runtime.sendMessage({
-                    type: 'audio-changed',
-                    target: 'background',
-                    data: selectAudio.value
-                });
             });
         });
     });
@@ -108,11 +105,6 @@ function setAudioCheckbox(autoAudio) {
         autoAudio.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 yield chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
-                yield chrome.runtime.sendMessage({
-                    type: 'audioActive-changed',
-                    target: 'background',
-                    data: autoAudio.checked
-                });
             });
         });
     });
@@ -124,11 +116,6 @@ function setShowNotification(showNotification) {
         showNotification.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 yield chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
-                yield chrome.runtime.sendMessage({
-                    type: 'showNotification-changed',
-                    target: 'background',
-                    data: showNotification.checked
-                });
             });
         });
     });

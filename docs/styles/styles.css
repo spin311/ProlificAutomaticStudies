@@ -1,0 +1,43 @@
+a {
+    text-decoration: none;
+    background:
+            linear-gradient(
+                    to right,
+                    rgb(5, 5, 217),
+                    rgb(106, 106, 243)
+            ),
+            linear-gradient(
+                    to right,
+                    rgba(255, 0, 0, 1),
+                    rgba(255, 0, 180, 1),
+                    rgba(0, 100, 200, 1)
+            );
+    background-size: 100% 3px, 0 3px;
+    background-position: 100% 100%, 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 400ms;
+}
+
+a:hover {
+    background-size: 0 3px, 100% 3px;
+}
+
+mark {
+    background: #0fccb0;
+}
+
+footer {
+    text-align: center;
+    background-color: #d7fafa;
+    border-top: 5px solid black;
+}
+header {
+    text-align: center;
+    background-color: #fff;
+    border-bottom: 5px solid black;
+    margin-top: 0 !important;
+}
+
+.activateImg {
+    height: 300px;
+}

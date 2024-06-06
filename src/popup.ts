@@ -6,11 +6,6 @@ async function setVolume(volume: HTMLInputElement) {
     }
     volume.addEventListener("change", async function () {
         await chrome.storage.sync.set({["volume"]: parseFloat(volume.value)});
-        await chrome.runtime.sendMessage({
-            type: 'volume-changed',
-            target: 'background',
-            data: parseFloat(volume.value) / 100
-        });
     });
 
 }
@@ -23,6 +18,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     const showNotification = document.getElementById("showNotification") as HTMLInputElement;
     const volume = document.getElementById("volume") as HTMLInputElement;
     const openProlific = document.getElementById("openProlific") as HTMLInputElement;
+    const donateText: HTMLElement | null = document.getElementById('donateText');
+    const donateImg: HTMLElement | null = document.getElementById('donateImg');
+
+    if (donateImg && donateText) {
+        donateText.addEventListener('mouseover', function() {
+            donateImg.style.visibility = 'visible';
+        });
+    }
 
     if (autoAudio) {
         await setAudioCheckbox(autoAudio);
@@ -82,11 +85,6 @@ async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
     selectAudio.value = result["audio"];
     selectAudio.addEventListener("change", async function (): Promise<void> {
         await chrome.storage.sync.set({["audio"]: selectAudio.value});
-        await chrome.runtime.sendMessage({
-            type: 'audio-changed',
-            target: 'background',
-            data: selectAudio.value
-        });
     });
 }
 
@@ -95,11 +93,6 @@ async function setAudioCheckbox(autoAudio: HTMLInputElement): Promise<void> {
     autoAudio.checked = result["audioActive"];
     autoAudio.addEventListener("click", async function (): Promise<void> {
         await chrome.storage.sync.set({["audioActive"]: autoAudio.checked});
-        await chrome.runtime.sendMessage({
-            type: 'audioActive-changed',
-            target: 'background',
-            data: autoAudio.checked
-        });
     });
 }
 
@@ -108,11 +101,6 @@ async function setShowNotification(showNotification: HTMLInputElement): Promise<
     showNotification.checked = result["showNotification"];
     showNotification.addEventListener("click", async function (): Promise<void> {
         await chrome.storage.sync.set({["showNotification"]: showNotification.checked});
-        await chrome.runtime.sendMessage({
-            type: 'showNotification-changed',
-            target: 'background',
-            data: showNotification.checked
-        });
     });
 }
 

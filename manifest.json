@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Prolific get studies automatically",
+  "name": "Prolific Automatic Studies",
   "version": "1.0.0",
   "description": "Google extension for Prolific to notify you when studies are available",
 
