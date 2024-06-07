@@ -108,8 +108,8 @@ chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void
                 volume = (yield getValueFromStorage(VOLUME, 100)) / 100;
                 yield playAudio(audio, volume);
             }
+            yield updateCounter();
         }
-        yield updateCounter();
     }
 }));
 function setInitialValues() {

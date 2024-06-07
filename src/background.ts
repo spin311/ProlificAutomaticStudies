@@ -106,8 +106,8 @@ chrome.tabs.onUpdated.addListener(async (_: number, changeInfo: chrome.tabs.TabC
                 volume = await getValueFromStorage(VOLUME, 100) / 100;
                 await playAudio(audio, volume);
             }
-        }
             await updateCounter();
+        }
         }
     });
 
