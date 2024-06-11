@@ -19,12 +19,13 @@ const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
+const PROLIFIC_TITLE = 'prolificTitle';
 let creating; // A global promise to avoid concurrency issues
 let volume;
 let audio;
 let shouldSendNotification;
 let shouldPlayAudio;
-let previousTitle = null;
+let previousTitle;
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.notifications.onClicked.addListener(function (notificationId) {
     chrome.tabs.create({ url: "https://app.prolific.com/", active: true });
@@ -50,6 +51,10 @@ function getValueFromStorage(key, defaultValue) {
         });
     });
 }
+function getNumberFromTitle(title) {
+    const match = title.match(/\((\d+)\)/);
+    return match ? parseInt(match[1]) : 0;
+}
 function handleMessages(message) {
     return __awaiter(this, void 0, void 0, function* () {
         // Return early if this message isn't meant for the offscreen document.
@@ -74,9 +79,9 @@ function handleMessages(message) {
     });
 }
 chrome.runtime.onStartup.addListener(function () {
-    chrome.storage.sync.get(OPEN_PROLIFIC, function (result) {
-        if (result && result[OPEN_PROLIFIC]) {
-            chrome.tabs.create({ url: "https://app.prolific.com/", active: false });
+    return __awaiter(this, void 0, void 0, function* () {
+        if (yield getValueFromStorage(OPEN_PROLIFIC, false)) {
+            yield chrome.tabs.create({ url: "https://app.prolific.com/", active: false });
         }
     });
 });
@@ -95,9 +100,13 @@ function playAudio() {
     });
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void 0, void 0, function* () {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle) {
-        previousTitle = changeInfo.title;
-        if (!(changeInfo.title.trim() === 'Prolific')) {
+    previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle && tab.status === 'complete') {
+        const previousNumber = getNumberFromTitle(previousTitle);
+        const currentNumber = getNumberFromTitle(changeInfo.title);
+        yield chrome.storage.sync.set({ [PROLIFIC_TITLE]: changeInfo.title });
+        if (changeInfo.title.trim() !== 'Prolific' && currentNumber > previousNumber) {
+            const match = changeInfo.title.match(/\((\d+)\)/);
             shouldSendNotification = yield getValueFromStorage(SHOW_NOTIFICATION, true);
             if (shouldSendNotification) {
                 sendNotification();
@@ -108,7 +117,7 @@ chrome.tabs.onUpdated.addListener((_, changeInfo, tab) => __awaiter(void 0, void
                 volume = (yield getValueFromStorage(VOLUME, 100)) / 100;
                 yield playAudio(audio, volume);
             }
-            yield updateCounter();
+            yield updateCounterAndBadge(currentNumber - previousNumber);
         }
     }
 }));
@@ -140,11 +149,11 @@ function updateBadge(counter) {
         }), 20000);
     });
 }
-function updateCounter() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let counter = (yield getValueFromStorage(COUNTER, 0)) + 1;
+function updateCounterAndBadge() {
+    return __awaiter(this, arguments, void 0, function* (count = 1) {
+        let counter = (yield getValueFromStorage(COUNTER, 0)) + count;
         yield chrome.storage.sync.set({ [COUNTER]: counter });
-        yield updateBadge(1);
+        yield updateBadge(count);
     });
 }
 function setupOffscreenDocument(path) {

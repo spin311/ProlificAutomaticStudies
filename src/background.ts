@@ -10,12 +10,13 @@ const COUNTER = "counter";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study has been posted on Prolific!';
+const PROLIFIC_TITLE = 'prolificTitle';
 let creating: Promise<void> | null; // A global promise to avoid concurrency issues
 let volume: number;
 let audio: string;
 let shouldSendNotification: boolean;
 let shouldPlayAudio: boolean;
-let previousTitle: string | null = null;
+let previousTitle: string;
 
 chrome.runtime.onMessage.addListener(handleMessages);
 
@@ -47,6 +48,11 @@ function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
     });
 }
 
+function getNumberFromTitle(title: string): number {
+    const match: RegExpMatchArray | null = title.match(/\((\d+)\)/);
+    return match ? parseInt(match[1]) : 0;
+}
+
 async function handleMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
     // Return early if this message isn't meant for the offscreen document.
     if (message.target !== 'background') {
@@ -69,13 +75,10 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
     }
 }
 
-chrome.runtime.onStartup.addListener(function(): void{
-    chrome.storage.sync.get(OPEN_PROLIFIC, function (result): void {
-        if (result && result[OPEN_PROLIFIC]) {
-            chrome.tabs.create({url: "https://app.prolific.com/", active: false});
-        }
-
-    });
+chrome.runtime.onStartup.addListener(async function(): Promise<void> {
+    if (await getValueFromStorage(OPEN_PROLIFIC, false)) {
+        await chrome.tabs.create({url: "https://app.prolific.com/", active: false});
+    }
 });
 
 async function playAudio(audio:string='alert1.mp3',volume: number = 1.0): Promise<void> {
@@ -93,9 +96,13 @@ async function playAudio(audio:string='alert1.mp3',volume: number = 1.0): Promis
 }
 
 chrome.tabs.onUpdated.addListener(async (_: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
-    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle) {
-        previousTitle = changeInfo.title;
-        if (!(changeInfo.title.trim() === 'Prolific')) {
+    previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && changeInfo.title && changeInfo.title !== previousTitle && tab.status === 'complete') {
+        const previousNumber: number = getNumberFromTitle(previousTitle );
+        const currentNumber: number = getNumberFromTitle(changeInfo.title);
+        await chrome.storage.sync.set({[PROLIFIC_TITLE]: changeInfo.title});
+        if (changeInfo.title.trim() !== 'Prolific' && currentNumber > previousNumber) {
+            const match: RegExpMatchArray | null = changeInfo.title.match(/\((\d+)\)/);
             shouldSendNotification = await getValueFromStorage(SHOW_NOTIFICATION, true);
             if (shouldSendNotification) {
                 sendNotification();
@@ -106,9 +113,9 @@ chrome.tabs.onUpdated.addListener(async (_: number, changeInfo: chrome.tabs.TabC
                 volume = await getValueFromStorage(VOLUME, 100) / 100;
                 await playAudio(audio, volume);
             }
-            await updateCounter();
+            await updateCounterAndBadge(currentNumber - previousNumber);
         }
-        }
+    }
     });
 
 
@@ -140,10 +147,10 @@ async function updateBadge(counter: number): Promise<void> {
     }, 20000);
 }
 
-async function updateCounter(): Promise<void> {
-    let counter: number = await getValueFromStorage(COUNTER, 0) + 1;
+async function updateCounterAndBadge(count: number = 1): Promise<void> {
+    let counter: number = await getValueFromStorage(COUNTER, 0) + count;
     await chrome.storage.sync.set({ [COUNTER]: counter });
-    await updateBadge(1);
+    await updateBadge(count);
 }
 
 async function setupOffscreenDocument(path: string): Promise<void> {
