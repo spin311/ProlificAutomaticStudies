@@ -1,42 +1,28 @@
-# Prolific Automatic Studies
+# Eye Strain Protector
 
-Welcome to Prolific Automatic Studies! This extension will help you get the most out of your Prolific account!
+Welcome Prolific Automatic Studies! <img src="imgs/logo.png" alt="icon" height="32">
 
-## Download
+Get notifications about new Prolific studies automatically!
 
-- ![Google Store logo](./imgs/googleStore.png)
-  [Google Chrome Store](https://chromewebstore.google.com/detail/prolific-automatic-studie/mlicfddkgjkeajfgkihplfbgpmbonbao)
-    - Consider giving it a 5 stars rating ![5 Stars](./imgs/stars5.jpeg)
+If you like the extension, please give it a star on GitHub! <img src="docs/imgs/github-star.png" alt="icon" height="32">
 
-- ![Github Logo](./imgs/github.png)
-  [Github](https://github.com/spin311/ProlificAutomaticStudies)
-    - Consider giving it a star ![GitHub star](./imgs/github-star.png)
+## Support Our Efforts
 
-- ![Tools](./imgs/computer.png)
-  [My other extensions](https://chromewebstore.google.com/search/spin311)
+Donations help me make tools like this for free in my spare time. Any amount helps! ❤️
 
-## Donate
+[![Donate with PayPal button](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY)
 
-Any amount helps! ❤️ Donations help me make tools like this for free in my spare time.
+## Enabling Notifications
 
-<form action="https://www.paypal.com/donate" method="post" target="_top">
-  <input type="hidden" name="hosted_button_id" value="4WXEWMN3QGLGY" />
-  <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button" />
-  <img alt="" border="0" src="https://www.paypal.com/en_SI/i/scr/pixel.gif" width="1" height="1" />
-</form>
+For notifications to work, you must enable them on your browser AND on your system.
 
-## Notifications
-
-For notifications to work you must enable them on your browser AND on your system.
-
-![enableOnGoogle](./imgs/enableGoogle.png)
-![enableOnWindows](./imgs/enableWindows.png)
-
+![Enable on Google](docs/imgs/enableGoogle.png)
+![Enable on Windows](docs/imgs/enableWindows.png)
 Extension works by notifying when Prolific shows new study, so [Prolific](https://app.prolific.com/) tab must be opened for the extension to work.
 
 ## How to use the extension:
 
-![Popup Screenshot](./imgs/help.png)
+![Popup Screenshot](docs/imgs/help.png)
 
 1. Number of studies this extension has notified you.
 2. Open Prolific when opening browser.
@@ -49,7 +35,7 @@ Extension works by notifying when Prolific shows new study, so [Prolific](https:
 9. Open Prolific website.
 10. [Donate with PayPal or any credit card](https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY)
 
-![Pin extension](./imgs/pin.png)
+![Pin extension](docs/imgs/pin.png)
 Make sure to pin the extension.
 
 ## Contact
