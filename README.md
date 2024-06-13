@@ -1,4 +1,4 @@
-# Eye Strain Protector
+# Prolific Automatic Studies
 
 Welcome Prolific Automatic Studies! <img src="imgs/logo.png" alt="icon" height="32">
 
