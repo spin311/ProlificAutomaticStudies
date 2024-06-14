@@ -1,8 +1,9 @@
-# Prolific Automatic Studies
+# Prolific Studies Notifier
 
-Welcome Prolific Automatic Studies! <img src="imgs/logo.png" alt="icon" height="32">
+Welcome Prolific Studies Notifier! <img src="imgs/logo.png" alt="icon" height="32">
 
-Get notifications about new Prolific studies automatically!
+Get notified when new studies are available on [Prolific](https://app.prolific.com/).
+Extension works by notifying when Prolific tab title changes, so [Prolific](https://app.prolific.com/) tab must be opened for the extension to work.
 
 If you like the extension, please give it a star on GitHub! <img src="docs/imgs/github-star.png" alt="icon" height="32">
 
@@ -18,7 +19,6 @@ For notifications to work, you must enable them on your browser AND on your syst
 
 ![Enable on Google](docs/imgs/enableGoogle.png)
 ![Enable on Windows](docs/imgs/enableWindows.png)
-Extension works by notifying when Prolific shows new study, so [Prolific](https://app.prolific.com/) tab must be opened for the extension to work.
 
 ## How to use the extension:
 
