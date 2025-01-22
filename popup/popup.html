@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Prolific automatic studies</title>
+    <link href="../styles/popup.css" rel="stylesheet">
+</head>
+<body>
+<h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
+
+<h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
+
+<div class="text-align">
+
+
+    <div class="form-check d-flex justify-content-center ml-1">
+        <input class="form-check-input me-2" type="checkbox" value="" id="openProlific">
+        <label class="form-check-label" for="openProlific">
+            Open Prolific on startup
+        </label>
+    </div>
+    <div class="form-check d-flex justify-content-center ml-1 my-2">
+        <input class="form-check-input me-2" type="checkbox" value="" id="focusProlific">
+        <label class="form-check-label" for="focusProlific">
+            Focus Prolific tab for new studies
+        </label>
+    </div>
+    <div class="form-check d-flex justify-content-center ml-1 my-2">
+        <input class="form-check-input me-2" type="checkbox" value="" id="autoAudio">
+        <label class="form-check-label" for="autoAudio">
+            Play audio for new studies
+        </label>
+    </div>
+
+    <div class="form-check d-flex justify-content-center ml-1 my-2">
+        <input class="form-check-input me-2" type="checkbox" value="" id="showNotification">
+        <label class="form-check-label" for="showNotification">
+            Show notification for new studies
+        </label>
+    </div>
+
+
+
+    <div class="my-2 ml-1">
+        <div>
+            <label for="volume">Volume:</label>
+            <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
+        </div>
+        <label for="selectAudio" class="form-label">Select Audio:
+        </label>
+        <select name="selectAudio" id="selectAudio" class="form-select">
+            <option value="alert1.mp3">Alert 1</option>
+            <option value="alert2.mp3">Alert 2</option>
+            <option value="alert3.mp3">Alert 3</option>
+            <option value="alert4.mp3">Alert4</option>
+            <option value="robot.wav">Robot</option>
+            <option value="loud.mp3">LOUD</option>
+        </select>
+        <button id="playAudio" class="btn btn-success ml-05">
+            Test
+        </button>
+
+    </div>
+
+</div>
+
+<div class="container-fluid mt-2">
+    <span>
+        <a href="https://github.com/spin311/ProlificAutomaticStudies" class="float-start" target="_blank" style="margin-right: 5px">Github</a>
+        <img src="/imgs/github.png" alt="GitHubLogo">
+    </span>
+    <a class="my-1 links" href="https://app.prolific.com/" target="_blank">Prolific</a>
+    <span class="float-end" style="display: flex; align-items: center;">
+    <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="" target="_blank" id="donateText">Donate</a>
+    <img src="/imgs/justAGirlSmol.png" alt="Cat" id="donateImg">
+  </span>
+</div>
+
+</body>
+</html>
+
+<script src="../dist/popup.js"></script>

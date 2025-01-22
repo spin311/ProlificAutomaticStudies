@@ -1,0 +1,8 @@
+node_modules
+tsconfig.json
+package.json
+package-lock.json
+.DS_Store
+.idea/*
+*.xml
+docs/imgs/Screenshot_4.png
