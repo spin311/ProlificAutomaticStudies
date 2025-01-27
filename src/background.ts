@@ -91,11 +91,26 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
             await chrome.action.setBadgeText({text: ''});
             break;
         case 'new-studies':
-            const studies: Study[] = message.data;
-            if (!studies || studies.length === 0) break;
+            let studies: Study[] = message.data;
+            if (!studies) break;
             const shouldShowNotification = await getValueFromStorage(SHOW_NOTIFICATION, true);
             const shouldPlayAudio = await getValueFromStorage(AUDIO_ACTIVE, true);
             const shouldFocusProlific = await getValueFromStorage(FOCUS_PROLIFIC, false);
+            const numPlaces = await getValueFromStorage(NU_PLACES, 0);
+            const reward = await getValueFromStorage(REWARD, 0);
+            const rewardPerHour = await getValueFromStorage(REWARD_PER_HOUR, 0);
+            if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
+                studies = studies.filter((study) => {
+                    if (numPlaces && study.places && study.places <= numPlaces) {
+                        return false;
+                    }
+                    if (reward && study.reward && getFloatValue(study.reward) <= reward) {
+                        return false;
+                    }
+                    return !(rewardPerHour && study.rewardPerHour && parseFloat(study.rewardPerHour) <= rewardPerHour);
+                });
+            }
+            if (studies.length === 0) break;
             if (shouldPlayAudio) {
                 audio = await getValueFromStorage(AUDIO, 'alert1.mp3');
                 volume = await getValueFromStorage(VOLUME, 100) / 100;
@@ -213,5 +228,16 @@ async function setupOffscreenDocument(path: string): Promise<void> {
         });
         await creating;
         creating = null;
+    }
+}
+
+function getFloatValue(value: string): number {
+    const firstWord = value.split(" ")[0];
+    if (firstWord.charAt(0) === '£') {
+        return parseFloat(firstWord.slice(1));
+    } else if (firstWord.charAt(0) === '$') {
+        return parseFloat(firstWord.slice(1)) * 1.2;
+    } else {
+        throw new Error("Unsupported currency symbol");
     }
 }

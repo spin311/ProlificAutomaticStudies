@@ -14,10 +14,10 @@ const NUMBER_OF_IDS_TO_STORE = 50;
 
 function waitForTarget(): Promise<Element | null> {
     return new Promise((resolve) => {
-        let retries = 10;
+        let retries = 20;
 
         function checkTarget() {
-            let timer = 1000;
+            let timer = 500;
             const target = document.querySelector(targetSelector);
             if (target || retries <= 0) {
                 console.log("Prolific list element found." + target);

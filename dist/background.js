@@ -85,12 +85,28 @@ function handleMessages(message) {
                 yield chrome.action.setBadgeText({ text: '' });
                 break;
             case 'new-studies':
-                const studies = message.data;
-                if (!studies || studies.length === 0)
+                let studies = message.data;
+                if (!studies)
                     break;
                 const shouldShowNotification = yield getValueFromStorage(SHOW_NOTIFICATION, true);
                 const shouldPlayAudio = yield getValueFromStorage(AUDIO_ACTIVE, true);
                 const shouldFocusProlific = yield getValueFromStorage(FOCUS_PROLIFIC, false);
+                const numPlaces = yield getValueFromStorage(NU_PLACES, 0);
+                const reward = yield getValueFromStorage(REWARD, 0);
+                const rewardPerHour = yield getValueFromStorage(REWARD_PER_HOUR, 0);
+                if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
+                    studies = studies.filter((study) => {
+                        if (numPlaces && study.places && study.places <= numPlaces) {
+                            return false;
+                        }
+                        if (reward && study.reward && getFloatValue(study.reward) <= reward) {
+                            return false;
+                        }
+                        return !(rewardPerHour && study.rewardPerHour && parseFloat(study.rewardPerHour) <= rewardPerHour);
+                    });
+                }
+                if (studies.length === 0)
+                    break;
                 if (shouldPlayAudio) {
                     audio = yield getValueFromStorage(AUDIO, 'alert1.mp3');
                     volume = (yield getValueFromStorage(VOLUME, 100)) / 100;
@@ -214,4 +230,16 @@ function setupOffscreenDocument(path) {
             creating = null;
         }
     });
+}
+function getFloatValue(value) {
+    const firstWord = value.split(" ")[0];
+    if (firstWord.charAt(0) === '£') {
+        return parseFloat(firstWord.slice(1));
+    }
+    else if (firstWord.charAt(0) === '$') {
+        return parseFloat(firstWord.slice(1)) * 1.2;
+    }
+    else {
+        throw new Error("Unsupported currency symbol");
+    }
 }
