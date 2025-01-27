@@ -18,6 +18,10 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
+const NU_PLACES = "nuPlaces";
+const REWARD = "reward";
+const REWARD_PER_HOUR = "rewardPerHour";
+const ACTIVE_TAB = "activeTab";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study is available on Prolific!';
@@ -143,6 +147,7 @@ async function setInitialValues(): Promise<void> {
         [AUDIO]: "alert1.mp3",
         [SHOW_NOTIFICATION]: true,
         [VOLUME]: 100,
+        [ACTIVE_TAB]: "settings",
     });
 }
 

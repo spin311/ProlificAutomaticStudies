@@ -8,16 +8,46 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+function setVolume(volume) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.sync.get("volume");
+        const vol = result["volume"];
+        if (vol !== undefined) {
+            volume.value = String(vol);
+        }
+        volume.addEventListener("change", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["volume"]: parseFloat(volume.value) });
+            });
+        });
+    });
+}
 document.addEventListener('DOMContentLoaded', function () {
     return __awaiter(this, void 0, void 0, function* () {
-        const autoAudio = document.getElementById("autoAudio");
+        yield chrome.runtime.sendMessage({
+            type: 'clear-badge',
+            target: 'background',
+        });
         const selectAudio = document.getElementById("selectAudio");
         const counter = document.getElementById("counter");
         const playAudio = document.getElementById("playAudio");
-        const showNotification = document.getElementById("showNotification");
-        if (autoAudio) {
-            yield setAudioCheckbox(autoAudio);
+        const volume = document.getElementById("volume");
+        const donateText = document.getElementById('donateText');
+        const donateImg = document.getElementById('donateImg');
+        const settingsTab = document.getElementById('settings-tab');
+        const filterTab = document.getElementById('filters-tab');
+        if (donateImg && donateText) {
+            donateText.addEventListener('mouseover', function () {
+                donateImg.style.visibility = 'visible';
+            });
         }
+        yield setCheckboxState("autoAudio", "audioActive");
+        yield setCheckboxState("showNotification", "showNotification");
+        yield setCheckboxState("openProlific", "openProlific");
+        yield setCheckboxState("focusProlific", "focusProlific");
+        yield setInputState("nuPlaces", "nuPlaces");
+        yield setInputState("reward", "reward");
+        yield setInputState("rewardPerHour", "rewardPerHour");
         if (selectAudio) {
             yield setAudioOption(selectAudio);
         }
@@ -27,8 +57,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (playAudio) {
             playAudio.addEventListener("click", playAlert);
         }
-        if (showNotification) {
-            yield setShowNotification(showNotification);
+        if (volume) {
+            yield setVolume(volume);
+        }
+        if (settingsTab) {
+            yield setSettingsTab(settingsTab);
+        }
+        if (filterTab) {
+            yield setFiltersTab(filterTab);
         }
     });
 });
@@ -43,9 +79,19 @@ function setCounter(counter) {
 }
 function playAlert() {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("audio");
-        let audio = new Audio('../audio/' + result["audio"]);
-        yield audio.play();
+        yield chrome.runtime.sendMessage({
+            type: 'play-sound',
+            target: 'background',
+        });
+        const playAudio = document.getElementById("playAudio");
+        playAudio.disabled = true;
+        playAudio.classList.remove("btn-success");
+        playAudio.classList.add("btn-fail");
+        setTimeout(() => {
+            playAudio.disabled = false;
+            playAudio.classList.remove("btn-fail");
+            playAudio.classList.add("btn-success");
+        }, 500);
     });
 }
 function setAudioOption(selectAudio) {
@@ -53,25 +99,57 @@ function setAudioOption(selectAudio) {
         const result = yield chrome.storage.sync.get("audio");
         selectAudio.value = result["audio"];
         selectAudio.addEventListener("change", function () {
-            chrome.storage.sync.set({ ["audio"]: selectAudio.value });
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["audio"]: selectAudio.value });
+            });
         });
     });
 }
-function setAudioCheckbox(autoAudio) {
+function setSettingsTab(settingsTab) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("audioActive");
-        autoAudio.checked = result["audioActive"];
-        autoAudio.addEventListener("click", function () {
-            chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
+        const result = yield chrome.storage.sync.get("activeTab");
+        settingsTab.addEventListener("click", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["activeTab"]: "settings" });
+            });
         });
     });
 }
-function setShowNotification(showNotification) {
+function setFiltersTab(filterTab) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("showNotification");
-        showNotification.checked = result["showNotification"];
-        showNotification.addEventListener("click", function () {
-            chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
+        const result = yield chrome.storage.sync.get("activeTab");
+        filterTab.addEventListener("click", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ ["activeTab"]: "filters" });
+            });
+        });
+    });
+}
+function setCheckboxState(elementId, storageKey) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get(storageKey);
+        element.checked = result[storageKey];
+        element.addEventListener("click", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ [storageKey]: element.checked });
+            });
+        });
+    });
+}
+function setInputState(elementId, storageKey) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get(storageKey);
+        element.value = result[storageKey];
+        element.addEventListener("change", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ [storageKey]: parseFloat(element.value) });
+            });
         });
     });
 }

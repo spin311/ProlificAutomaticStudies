@@ -16,14 +16,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         target: 'background',
     });
 
-    const autoAudio = document.getElementById("autoAudio") as HTMLInputElement;
     const selectAudio = document.getElementById("selectAudio") as HTMLSelectElement;
     const counter = document.getElementById("counter") as HTMLSpanElement;
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
-    const showNotification = document.getElementById("showNotification") as HTMLInputElement;
     const volume = document.getElementById("volume") as HTMLInputElement;
-    const openProlific = document.getElementById("openProlific") as HTMLInputElement;
-    const focusProlific = document.getElementById("focusProlific") as HTMLInputElement;
     const donateText: HTMLElement | null = document.getElementById('donateText');
     const donateImg: HTMLElement | null = document.getElementById('donateImg');
 
@@ -33,9 +29,17 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    if (autoAudio) {
-        await setAudioCheckbox(autoAudio);
-    }
+    await setCheckboxState("autoAudio", "audioActive");
+    await setCheckboxState("showNotification", "showNotification");
+    await setCheckboxState("openProlific", "openProlific");
+    await setCheckboxState("focusProlific", "focusProlific");
+
+    await setInputState("nuPlaces", "nuPlaces");
+    await setInputState("reward", "reward");
+    await setInputState("rewardPerHour", "rewardPerHour");
+
+    await setTabState("settings-tab", "settings");
+    await setTabState("filters-tab", "filters");
 
     if(selectAudio) {
         await setAudioOption(selectAudio);
@@ -49,20 +53,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         playAudio.addEventListener("click", playAlert);
     }
 
-    if(showNotification) {
-        await setShowNotification(showNotification);
-    }
-
-    if(openProlific) {
-        await setOpenProlific(openProlific);
-    }
-
     if (volume) {
         await setVolume(volume);
     }
-    if (focusProlific) {
-        await setFocusProlific(focusProlific);
-    }
+
+
 
 });
 
@@ -98,35 +93,59 @@ async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
     });
 }
 
-async function setAudioCheckbox(autoAudio: HTMLInputElement): Promise<void> {
-    const result = await chrome.storage.sync.get("audioActive");
-    autoAudio.checked = result["audioActive"];
-    autoAudio.addEventListener("click", async function (): Promise<void> {
-        await chrome.storage.sync.set({["audioActive"]: autoAudio.checked});
+async function setTabState(elementId: string, storageValue: string): Promise<void> {
+    const element = document.getElementById(elementId) as HTMLElement;
+    if (!element) return;
+    const result = await chrome.storage.sync.get("activeTab");
+    if (result["activeTab"] === storageValue) {
+        element.classList.add("active");
+        changeTab(storageValue);
+    }
+    element.addEventListener("click", async function (): Promise<void> {
+        changeTab(storageValue);
+        await chrome.storage.sync.set({["activeTab"]: storageValue});
     });
 }
 
-async function setShowNotification(showNotification: HTMLInputElement): Promise<void> {
-    const result = await chrome.storage.sync.get("showNotification");
-    showNotification.checked = result["showNotification"];
-    showNotification.addEventListener("click", async function (): Promise<void> {
-        await chrome.storage.sync.set({["showNotification"]: showNotification.checked});
+function changeTab(activeTab: string): void {
+    const settings = document.getElementById("settings") as HTMLDivElement;
+    const filters = document.getElementById("filters") as HTMLDivElement;
+    const settingsTab = document.getElementById("settings-tab") as HTMLElement;
+    const filtersTab = document.getElementById("filters-tab") as HTMLElement;
+    if (activeTab === "settings") {
+        settingsTab.classList.add("active");
+        filtersTab.classList.remove("active");
+        settings.style.display = "block";
+        filters.style.display = "none";
+    } else {
+        settingsTab.classList.remove("active");
+        filtersTab.classList.add("active");
+        settings.style.display = "none";
+        filters.style.display = "block";
+    }
+}
+
+
+async function setCheckboxState(elementId: string, storageKey: string): Promise<void> {
+    const element = document.getElementById(elementId) as HTMLInputElement;
+    if (!element) return;
+    const result = await chrome.storage.sync.get(storageKey);
+    if (result[storageKey] !== undefined) {
+        element.checked = result[storageKey];
+    }
+    element.addEventListener("click", async function (): Promise<void> {
+        await chrome.storage.sync.set({[storageKey]: element.checked});
     });
 }
 
-async function setOpenProlific(openProlific: HTMLInputElement): Promise<void> {
-    const result = await chrome.storage.sync.get("openProlific");
-    openProlific.checked = result["openProlific"];
-    openProlific.addEventListener("click", async function (): Promise<void> {
-        await chrome.storage.sync.set({["openProlific"]: openProlific.checked});
+async function setInputState(elementId: string, storageKey: string): Promise<void> {
+    const element = document.getElementById(elementId) as HTMLInputElement;
+    if (!element) return;
+    const result = await chrome.storage.sync.get(storageKey);
+    if (result[storageKey] !== undefined) {
+        element.value = result[storageKey];
+    }
+    element.addEventListener("change", async function (): Promise<void> {
+        await chrome.storage.sync.set({[storageKey]: parseFloat(element.value)});
     });
-}
-
-async function setFocusProlific(focusProlific: HTMLInputElement) {
-    const result = await chrome.storage.sync.get("focusProlific");
-    focusProlific.checked = result["focusProlific"];
-    focusProlific.addEventListener("click", async function (): Promise<void> {
-        await chrome.storage.sync.set({["focusProlific"]: focusProlific.checked});
-    });
-
 }

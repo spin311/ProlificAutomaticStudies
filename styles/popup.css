@@ -183,3 +183,62 @@ a:hover::before {
     bottom: 0;
     height: 100%;
 }
+.tabs ul {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 0;
+    margin: 0;
+    list-style-type: none;
+}
+
+.tabs li {
+    padding: 0.5em;
+    font-weight: 600;
+    border: 1px solid #2282ad;
+    display: flex;
+    align-content: center;
+    gap: 0.2em;
+}
+
+.tabs li:hover {
+    cursor: pointer;
+    color: white;
+    background-color: #2282ad;
+}
+.active {
+    background-color: #1a6f8c;
+    color: white;
+    font-weight: bold;
+}
+
+.mb-4 {
+    margin-bottom: 1rem !important;
+}
+
+#filters-tab:not(.active)::after {
+    content: "NEW";
+    position: absolute;
+    top: 104px;
+    right: 8px;
+    background: linear-gradient(45deg, #ff3d00, #ff9100, #f50057);
+    color: white;
+    font-size: 0.7em;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 1px;
+    animation: shine 2s infinite linear;
+    box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+}
+
+/* Shining animation */
+@keyframes shine {
+    0% {
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 255, 0, 0.9);
+    }
+    100% {
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+    }
+}

@@ -28,14 +28,10 @@ document.addEventListener('DOMContentLoaded', function () {
             type: 'clear-badge',
             target: 'background',
         });
-        const autoAudio = document.getElementById("autoAudio");
         const selectAudio = document.getElementById("selectAudio");
         const counter = document.getElementById("counter");
         const playAudio = document.getElementById("playAudio");
-        const showNotification = document.getElementById("showNotification");
         const volume = document.getElementById("volume");
-        const openProlific = document.getElementById("openProlific");
-        const focusProlific = document.getElementById("focusProlific");
         const donateText = document.getElementById('donateText');
         const donateImg = document.getElementById('donateImg');
         if (donateImg && donateText) {
@@ -43,9 +39,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 donateImg.style.visibility = 'visible';
             });
         }
-        if (autoAudio) {
-            yield setAudioCheckbox(autoAudio);
-        }
+        yield setCheckboxState("autoAudio", "audioActive");
+        yield setCheckboxState("showNotification", "showNotification");
+        yield setCheckboxState("openProlific", "openProlific");
+        yield setCheckboxState("focusProlific", "focusProlific");
+        yield setInputState("nuPlaces", "nuPlaces");
+        yield setInputState("reward", "reward");
+        yield setInputState("rewardPerHour", "rewardPerHour");
+        yield setTabState("settings-tab", "settings");
+        yield setTabState("filters-tab", "filters");
         if (selectAudio) {
             yield setAudioOption(selectAudio);
         }
@@ -55,17 +57,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (playAudio) {
             playAudio.addEventListener("click", playAlert);
         }
-        if (showNotification) {
-            yield setShowNotification(showNotification);
-        }
-        if (openProlific) {
-            yield setOpenProlific(openProlific);
-        }
         if (volume) {
             yield setVolume(volume);
-        }
-        if (focusProlific) {
-            yield setFocusProlific(focusProlific);
         }
     });
 });
@@ -106,48 +99,71 @@ function setAudioOption(selectAudio) {
         });
     });
 }
-function setAudioCheckbox(autoAudio) {
+function setTabState(elementId, storageValue) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("audioActive");
-        autoAudio.checked = result["audioActive"];
-        autoAudio.addEventListener("click", function () {
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get("activeTab");
+        if (result["activeTab"] === storageValue) {
+            element.classList.add("active");
+            changeTab(storageValue);
+        }
+        element.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ ["audioActive"]: autoAudio.checked });
+                changeTab(storageValue);
+                yield chrome.storage.sync.set({ ["activeTab"]: storageValue });
             });
         });
     });
 }
-function setShowNotification(showNotification) {
+function changeTab(activeTab) {
+    const settings = document.getElementById("settings");
+    const filters = document.getElementById("filters");
+    const settingsTab = document.getElementById("settings-tab");
+    const filtersTab = document.getElementById("filters-tab");
+    if (activeTab === "settings") {
+        settingsTab.classList.add("active");
+        filtersTab.classList.remove("active");
+        settings.style.display = "block";
+        filters.style.display = "none";
+    }
+    else {
+        settingsTab.classList.remove("active");
+        filtersTab.classList.add("active");
+        settings.style.display = "none";
+        filters.style.display = "block";
+    }
+}
+function setCheckboxState(elementId, storageKey) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("showNotification");
-        showNotification.checked = result["showNotification"];
-        showNotification.addEventListener("click", function () {
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get(storageKey);
+        if (result[storageKey] !== undefined) {
+            element.checked = result[storageKey];
+        }
+        element.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ ["showNotification"]: showNotification.checked });
+                yield chrome.storage.sync.set({ [storageKey]: element.checked });
             });
         });
     });
 }
-function setOpenProlific(openProlific) {
+function setInputState(elementId, storageKey) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("openProlific");
-        openProlific.checked = result["openProlific"];
-        openProlific.addEventListener("click", function () {
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get(storageKey);
+        if (result[storageKey] !== undefined) {
+            element.value = result[storageKey];
+        }
+        element.addEventListener("change", function () {
             return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ ["openProlific"]: openProlific.checked });
+                yield chrome.storage.sync.set({ [storageKey]: parseFloat(element.value) });
             });
         });
     });
 }
-function setFocusProlific(focusProlific) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("focusProlific");
-        focusProlific.checked = result["focusProlific"];
-        focusProlific.addEventListener("click", function () {
-            return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ ["focusProlific"]: focusProlific.checked });
-            });
-        });
-    });
-}
-//# sourceMappingURL=popup.js.map
