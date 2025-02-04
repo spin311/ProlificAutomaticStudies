@@ -8,7 +8,7 @@ type  StudyContent = {
     time: string | null;
     limitedCapacity: boolean | null;
 };
-const targetSelector = 'section[class="available-studies-section"]';
+const targetSelector = 'div[data-testid="studies-list"]';
 
 const NUMBER_OF_IDS_TO_STORE = 50;
 
@@ -20,10 +20,8 @@ function waitForTarget(): Promise<Element | null> {
             let timer = 500;
             const target = document.querySelector(targetSelector);
             if (target || retries <= 0) {
-                console.log("Prolific list element found." + target);
                 resolve(target || null);
             } else {
-                console.log("Prolific list element not found. Retries left: " + retries);
                 retries--;
                 timer += 100;
                 setTimeout(checkTarget, timer);
@@ -35,7 +33,6 @@ function waitForTarget(): Promise<Element | null> {
 
 waitForTarget().then(async (targetNode) => {
     if (!targetNode) {
-        console.error("Prolific list element not found.");
         return;
     }
     const observer = new MutationObserver(async (mutationsList) => {
@@ -43,36 +40,22 @@ waitForTarget().then(async (targetNode) => {
             if (mutations.type === "childList") {
                 const newStudies = await extractStudies(targetNode);
                 if (newStudies.length > 0) {
-                    try {
                         chrome.runtime.sendMessage({
                             target: "background",
                             type: "new-studies",
                             data: newStudies,
                         });
-                    } catch (error) {
-                        console.error("Error sending message to background:", error);
-                    }
-                    newStudies.forEach((study) => {
-                        console.log("New study detected:", study);
-                    });
                 }
             }
         }
     });
     const newStudies = await extractStudies(targetNode);
     if (newStudies.length > 0) {
-        try {
             chrome.runtime.sendMessage({
                 target: "background",
                 type: "new-studies",
                 data: newStudies,
             });
-        } catch (error) {
-            console.error("Error sending message to background:", error);
-        }
-        newStudies.forEach((study) => {
-            console.log("New study detected:", study);
-        });
     }
     observer.observe(targetNode, {childList: true, subtree: true});
 });
@@ -83,8 +66,6 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     if (!studyElements || studyElements.length === 0) {
         return studies;
     }
-    console.log("Extracting studies" + studyElements);
-    try {
         const studyIds: string[] = await getValueFromStorageContentScript<string[]>("studyIds", []);
         let studyIdsNew: string[]  = studyIds;
         studyElements.forEach((study) => {
@@ -128,9 +109,6 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             studyIdsNew = studyIdsNew.slice(-NUMBER_OF_IDS_TO_STORE);
         }
         await chrome.storage.sync.set({["studyIds"]: studyIdsNew});
-    } catch (e) {
-        console.error("Error extracting studies: " + e);
-    }
     return studies;
 }
 

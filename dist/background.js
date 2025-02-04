@@ -29,8 +29,7 @@ let volume;
 let audio;
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.notifications.onClicked.addListener(function (notificationId) {
-    if (!!notificationId && notificationId.includes('study-')) {
-        notificationId = notificationId.split("-")[1];
+    if (!!notificationId) {
         chrome.tabs.create({ url: `https://app.prolific.com/studies/${notificationId}`, active: true });
     }
     else {
@@ -40,8 +39,7 @@ chrome.notifications.onClicked.addListener(function (notificationId) {
 });
 chrome.notifications.onButtonClicked.addListener(function (notificationId, buttonIndex) {
     if (buttonIndex === 0) {
-        if (!!notificationId && notificationId.includes('study-')) {
-            notificationId = notificationId.split("-")[1];
+        if (!!notificationId) {
             chrome.tabs.create({ url: `https://app.prolific.com/studies/${notificationId}`, active: true });
         }
         else {
@@ -99,10 +97,10 @@ function handleMessages(message) {
                         if (numPlaces && study.places && study.places <= numPlaces) {
                             return false;
                         }
-                        if (reward && study.reward && getFloatValue(study.reward) <= reward) {
+                        if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
                             return false;
                         }
-                        return !(rewardPerHour && study.rewardPerHour && parseFloat(study.rewardPerHour) <= rewardPerHour);
+                        return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
                     });
                 }
                 if (studies.length === 0)
@@ -121,13 +119,15 @@ function handleMessages(message) {
                         yield chrome.tabs.create({ url: "https://app.prolific.com/", active: true });
                     }
                 }
-                studies.forEach((study) => {
-                    if (shouldShowNotification) {
+                if (shouldShowNotification) {
+                    studies
+                        .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
+                        .forEach((study) => {
                         setTimeout(() => {
                             sendNotification(study);
                         }, 3000);
-                    }
-                });
+                    });
+                }
                 yield updateCounterAndBadge(studies.length);
                 break;
         }
@@ -168,13 +168,13 @@ function setInitialValues() {
 function sendNotification(study = null) {
     let title = TITLE;
     let message = MESSAGE;
-    let id = Date.now().toString();
+    let id = "";
     if (study) {
         if (study.id) {
-            id = `study-${study.id}`;
+            id = study.id;
         }
         if (study.title && study.researcher) {
-            title = `${study.title} by ${study.researcher}`;
+            title = `${study.title}\nBy ${study.researcher}`;
         }
         if (study.reward && study.time && study.rewardPerHour && study.places) {
             message += `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
@@ -231,15 +231,15 @@ function setupOffscreenDocument(path) {
         }
     });
 }
-function getFloatValue(value) {
+function getFloatValueFromMoneyString(value) {
     const firstWord = value.split(" ")[0];
     if (firstWord.charAt(0) === '£') {
         return parseFloat(firstWord.slice(1));
     }
     else if (firstWord.charAt(0) === '$') {
-        return parseFloat(firstWord.slice(1)) * 1.2;
+        return parseFloat(firstWord.slice(1)) * 0.8;
     }
     else {
-        throw new Error("Unsupported currency symbol");
+        return 0;
     }
 }
