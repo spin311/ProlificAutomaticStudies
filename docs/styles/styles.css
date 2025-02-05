@@ -68,11 +68,64 @@ footer {
 }
 header {
     text-align: center;
-    background-color: #fff;
+    background-color: #d7fafa;
     border-bottom: 5px solid black;
     margin-top: 0 !important;
 }
 
 .activateImg {
     height: 300px;
+}
+
+.donation-section {
+    text-align: center;
+    padding: 50px 20px;
+    background: #e6ffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.donation-section h2 {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.donation-card {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #c8f8f8;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.donation-card h2 {
+    font-size: 1.8rem;
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+.donation-card p {
+    font-size: 1.1rem;
+    color: #555;
+}
+
+.donate-btn {
+    display: inline-block;
+    background: #ff6b6b;
+    color: white;
+    font-size: 1.2rem;
+    padding: 12px 25px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: 0.3s ease;
+    box-shadow: 0 3px 8px rgba(255, 107, 107, 0.4);
+}
+
+.donate-btn:hover {
+    background: #e85d5d;
+    transform: translateY(-2px);
 }

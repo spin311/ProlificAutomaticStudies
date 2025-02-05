@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Prolific automatic studies</title>
     <link href="../styles/popup.css" rel="stylesheet">
 </head>
@@ -8,35 +9,69 @@
 <h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
 
 <h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
+<div class="tabs mb-4">
+    <ul>
+        <li id="settings-tab"><img src="/svgs/gear.svg" alt="gear"> <span>Settings</span></li>
+        <li id="filters-tab"><img src="/svgs/filter.svg" alt="filter"><span>Filters</span></li>
+    </ul>
+</div>
 
 <div class="text-align">
 
+    <div id="settings">
+        <div class="form-check d-flex justify-content-center ml-1">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="openProlific">
+            <label class="form-check-label" for="openProlific">
+                Open Prolific on startup
+            </label>
+        </div>
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="focusProlific">
+            <label class="form-check-label" for="focusProlific">
+                Focus Prolific tab for new studies
+            </label>
+        </div>
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="autoAudio">
+            <label class="form-check-label" for="autoAudio">
+                Play audio for new studies
+            </label>
+        </div>
 
-    <div class="form-check d-flex justify-content-center ml-1">
-        <input class="form-check-input me-2" type="checkbox" value="" id="openProlific">
-        <label class="form-check-label" for="showNotification">
-            Open Prolific on startup
-        </label>
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="showNotification">
+            <label class="form-check-label" for="showNotification">
+                Show notification for new studies
+            </label>
+        </div>
     </div>
-    <div class="form-check d-flex justify-content-center ml-1 my-2">
-        <input class="form-check-input me-2" type="checkbox" value="" id="autoAudio">
-        <label class="form-check-label" for="autoAudio">
-            Play audio for new studies
-        </label>
-    </div>
-
-    <div class="form-check d-flex justify-content-center ml-1 my-2">
-        <input class="form-check-input me-2" type="checkbox" value="" id="showNotification">
-        <label class="form-check-label" for="showNotification">
-            Show notification for new studies
-        </label>
+    <div id="filters">
+        <div class="filters-title mb-2">Show studies with at least:</div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="0" id="nuPlaces" min="0" max="9999">
+            <label class="form-check-label" for="nuPlaces">
+                Number of places
+            </label>
+        </div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="0.0" id="reward" min='0'>
+            <label class="form-check-label" for="reward">
+                Reward (£)
+            </label>
+        </div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="0.0" id="rewardPerHour" min="0">
+            <label class="form-check-label" for="rewardPerHour">
+                Reward per hour(£/h)
+            </label>
+        </div>
     </div>
 
 
 
     <div class="my-2 ml-1">
         <div>
-        <label for="volume">Volume:</label>
+            <label for="volume">Volume:</label>
             <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
         </div>
         <label for="selectAudio" class="form-label">Select Audio:
@@ -45,9 +80,12 @@
             <option value="alert1.mp3">Alert 1</option>
             <option value="alert2.mp3">Alert 2</option>
             <option value="alert3.mp3">Alert 3</option>
+            <option value="alert4.wav">Alert 4</option>
+            <option value="robot.wav">Robot</option>
+            <option value="loud.mp3">LOUD</option>
         </select>
         <button id="playAudio" class="btn btn-success ml-05">
-             Test
+            Test
         </button>
 
     </div>
