@@ -9,77 +9,132 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const targetSelector = 'div[data-testid="studies-list"]';
+let globalObserver = null;
+let isProcessing = false; // A global promise to avoid concurrency issues
 const NUMBER_OF_IDS_TO_STORE = 50;
-function waitForTarget() {
-    return new Promise((resolve) => {
-        let retries = 20;
-        function checkTarget() {
-            let timer = 500;
-            const target = document.querySelector(targetSelector);
-            if (target || retries <= 0) {
-                resolve(target || null);
+function waitForElement(selector) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const useOld = yield getValueFromStorageContentScript("useOld", false);
+        if (useOld)
+            return null;
+        return new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+                const target = document.querySelector(selector);
+                if (target) {
+                    observer.disconnect();
+                    resolve(target);
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            const target = document.querySelector(selector);
+            if (target) {
+                observer.disconnect();
+                resolve(target);
             }
-            else {
-                retries--;
-                timer += 100;
-                setTimeout(checkTarget, timer);
-            }
-        }
-        checkTarget();
+        });
     });
 }
-waitForTarget().then((targetNode) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!targetNode) {
-        return;
+function handleContentMessages(message) {
+    console.log(message);
+    if (message.target !== "content" && message.target !== 'everything') {
+        return Promise.resolve();
     }
-    const observer = new MutationObserver((mutationsList) => __awaiter(void 0, void 0, void 0, function* () {
-        for (const mutations of mutationsList) {
-            if (mutations.type === "childList") {
-                const newStudies = yield extractStudies(targetNode);
-                if (newStudies.length > 0) {
-                    chrome.runtime.sendMessage({
-                        target: "background",
-                        type: "new-studies",
-                        data: newStudies,
-                    });
+    switch (message.type) {
+        case "change-alert-type":
+            if (message.data === "website") {
+                console.log("Changing to website observer");
+                observeStudyChanges();
+            }
+            else {
+                console.log("Disconnecting observer");
+                globalObserver === null || globalObserver === void 0 ? void 0 : globalObserver.disconnect();
+                globalObserver = null;
+            }
+            return Promise.resolve();
+        default:
+            return Promise.resolve();
+    }
+}
+function isObserverActive() {
+    return globalObserver !== null;
+}
+chrome.runtime.onMessage.addListener(handleContentMessages);
+observeStudyChanges();
+function observeStudyChanges() {
+    waitForElement(targetSelector).then((targetNode) => __awaiter(this, void 0, void 0, function* () {
+        if (!targetNode || isObserverActive()) {
+            console.log("targetNode not found or observer already exists");
+            return;
+        }
+        console.log("observer created");
+        // Observe for dynamic content updates within the target element
+        globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
+            if (isProcessing)
+                return;
+            for (const mutation of mutationsList) {
+                if (mutation.type === "childList") {
+                    console.log("Child nodes have changed");
+                    yield extractAndSendStudies(targetNode);
                 }
             }
-        }
+        }));
+        // Initial check if studies are already loaded
+        yield extractAndSendStudies(targetNode);
+        globalObserver.observe(targetNode, { childList: true, subtree: true });
     }));
-    const newStudies = yield extractStudies(targetNode);
-    if (newStudies.length > 0) {
-        chrome.runtime.sendMessage({
-            target: "background",
-            type: "new-studies",
-            data: newStudies,
-        });
-    }
-    observer.observe(targetNode, { childList: true, subtree: true });
-}));
+}
+function extractAndSendStudies(targetNode) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (isProcessing)
+                return;
+            isProcessing = true;
+            console.log(`Extracting studies at time ${new Date().toLocaleTimeString()}`);
+            const studies = yield extractStudies(targetNode);
+            if (studies.length > 0) {
+                console.log(`Extracting studies from ${studies.length} studies`);
+                console.log(studies);
+                chrome.runtime.sendMessage({
+                    target: "background",
+                    type: "new-studies",
+                    data: studies,
+                });
+            }
+            else {
+                console.log("No new studies found");
+            }
+            isProcessing = false;
+        }
+        catch (e) {
+            console.error(e);
+            isProcessing = false;
+        }
+    });
+}
 function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
-        const studies = [];
         const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+        const shouldIgnoreOldStudies = yield getValueFromStorageContentScript("trackIds", false);
         if (!studyElements || studyElements.length === 0) {
-            return studies;
+            if (!shouldIgnoreOldStudies) {
+                yield chrome.storage.sync.set({ ["studyIds"]: [] });
+            }
+            return [];
         }
+        const studies = [];
         const studyIds = yield getValueFromStorageContentScript("studyIds", []);
-        let studyIdsNew = studyIds;
+        let studyIdsNew = [];
         studyElements.forEach((study) => {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            var _a, _b, _c, _d;
             const id = (_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1];
-            if (!id || (studyIds && studyIds.includes(id)))
+            if (!id || (studyIds === null || studyIds === void 0 ? void 0 : studyIds.includes(id)))
                 return;
-            const title = ((_b = study.querySelector('[data-testid="title"]')) === null || _b === void 0 ? void 0 : _b.textContent) || null;
-            const researcher = ((_d = (_c = study
-                .querySelector('[data-testid="host"]')) === null || _c === void 0 ? void 0 : _c.textContent) === null || _d === void 0 ? void 0 : _d.split(" ").slice(1).join(" ")) || null;
-            const places = parseInt(((_f = (_e = study
-                .querySelector('[data-testid="study-tag-places"]')) === null || _e === void 0 ? void 0 : _e.textContent) === null || _f === void 0 ? void 0 : _f.split(" ")[0]) || "0");
-            const reward = ((_g = study
-                .querySelector('[data-testid="study-tag-reward"]')) === null || _g === void 0 ? void 0 : _g.textContent) || null;
-            const rewardPerHour = ((_j = (_h = study
-                .querySelector('[data-testid="study-tag-reward-per-hour"]')) === null || _h === void 0 ? void 0 : _h.textContent) === null || _j === void 0 ? void 0 : _j.replace("/hr", "")) || null;
-            const time = ((_k = study.querySelector('[data-testid="study-tag-completion-time"]')) === null || _k === void 0 ? void 0 : _k.textContent) || null;
+            const title = getTextContent(study, '[data-testid="title"]');
+            const researcher = ((_b = getTextContent(study, '[data-testid="host"]')) === null || _b === void 0 ? void 0 : _b.split(" ").slice(1).join(" ")) || null;
+            const places = parseInt(((_c = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _c === void 0 ? void 0 : _c.split(" ")[0]) || "0");
+            const reward = getTextContent(study, '[data-testid="study-tag-reward"]');
+            const rewardPerHour = ((_d = getTextContent(study, '[data-testid="study-tag-rewardPerHour"]')) === null || _d === void 0 ? void 0 : _d.replace("/hr", "")) || null;
+            const time = getTextContent(study, '[data-testid="study-tag-completion-time"]');
             studies.push({
                 id,
                 title,
@@ -92,6 +147,9 @@ function extractStudies(targetNode) {
             });
             studyIdsNew.push(id);
         });
+        if (shouldIgnoreOldStudies) {
+            studyIdsNew = studyIds.concat(studyIdsNew);
+        }
         if (studyIdsNew.length > NUMBER_OF_IDS_TO_STORE) {
             studyIdsNew = studyIdsNew.slice(-NUMBER_OF_IDS_TO_STORE);
         }
@@ -105,4 +163,8 @@ function getValueFromStorageContentScript(key, defaultValue) {
             resolve((result[key] !== undefined) ? result[key] : defaultValue);
         });
     });
+}
+function getTextContent(element, selector) {
+    var _a;
+    return ((_a = element === null || element === void 0 ? void 0 : element.querySelector(selector)) === null || _a === void 0 ? void 0 : _a.textContent) || null;
 }

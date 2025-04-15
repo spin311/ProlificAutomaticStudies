@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setCheckboxState("showNotification", "showNotification");
     await setCheckboxState("openProlific", "openProlific");
     await setCheckboxState("focusProlific", "focusProlific");
+    await setCheckboxState("trackIds", "trackIds");
 
     await setInputState("nuPlaces", "nuPlaces");
     await setInputState("reward", "reward");
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     await setTabState("settings-tab", "settings");
     await setTabState("filters-tab", "filters");
+    await setAlertState();
 
     if(selectAudio) {
         await setAudioOption(selectAudio);
@@ -123,6 +125,58 @@ function changeTab(activeTab: string): void {
         settings.style.display = "none";
         filters.style.display = "block";
     }
+}
+
+async function setAlertState(): Promise<void> {
+    const websiteButton = document.getElementById("websiteBtn") as HTMLElement;
+    const titleButton = document.getElementById("titleBtn") as HTMLElement;
+    const trackIds = document.getElementById("trackIds") as HTMLInputElement;
+    const trackIdsLabel = document.getElementById("trackIdsLabel") as HTMLElement;
+    const result = await chrome.storage.sync.get("useOld");
+    if (result["useOld"]) {
+        trackIdsLabel.classList.add("disabled-text");
+        trackIds.disabled = true;
+        titleButton.classList.add("active");
+    } else {
+        trackIdsLabel.classList.remove("disabled-text");
+        trackIds.disabled = false;
+        websiteButton.classList.add("active");
+    }
+    websiteButton.addEventListener("click", async function (): Promise<void> {
+        trackIdsLabel.classList.remove("disabled-text");
+        trackIds.disabled = false;
+        websiteButton.classList.add("active");
+        titleButton.classList.remove("active");
+        await chrome.storage.sync.set({["useOld"]: false});
+        const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
+        if (tabs.length > 0) {
+            await chrome.tabs.sendMessage(tabs[0].id!, {
+                type: 'change-alert-type',
+                target: 'everything',
+                data: "website"
+            });
+        }
+    });
+    titleButton.addEventListener("click", async function (): Promise<void> {
+        trackIdsLabel.classList.add("disabled-text");
+        trackIds.disabled = true;
+        titleButton.classList.add("active");
+        websiteButton.classList.remove("active");
+        await chrome.storage.sync.set({["useOld"]: true});
+        const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
+        if (tabs.length > 0) {
+            await chrome.tabs.sendMessage(tabs[0].id!, {
+                type: 'change-alert-type',
+                target: 'content',
+                data: "title"
+            });
+        }
+        await chrome.runtime.sendMessage({
+            type: 'change-alert-type',
+            target: 'background',
+            data: "title"
+        });
+    });
 }
 
 

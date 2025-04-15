@@ -8,6 +8,8 @@
 <body>
 <h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
 
+
+
 <h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
 <div class="tabs mb-4">
     <ul>
@@ -24,12 +26,21 @@
             <label class="form-check-label" for="openProlific">
                 Open Prolific on startup
             </label>
+            <span class="tooltip-icon" data-tooltip="Opens Prolific tab when Chrome is opened">ℹ</span>
         </div>
         <div class="form-check d-flex justify-content-center ml-1 my-2">
             <input class="form-check-input mr-2" type="checkbox" value="" id="focusProlific">
             <label class="form-check-label" for="focusProlific">
                 Focus Prolific tab for new studies
             </label>
+            <span class="tooltip-icon" data-tooltip="Switches to the Prolific tab when a new study becomes available">ℹ</span>
+        </div>
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="trackIds">
+            <label class="form-check-label" for="trackIds" id="trackIdsLabel">
+                Show each study only once
+            </label>
+            <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
         </div>
         <div class="form-check d-flex justify-content-center ml-1 my-2">
             <input class="form-check-input mr-2" type="checkbox" value="" id="autoAudio">
@@ -43,6 +54,19 @@
             <label class="form-check-label" for="showNotification">
                 Show notification for new studies
             </label>
+        </div>
+
+        <div class="d-flex justify-content-center  my-2">
+            <div class="form-check-label mb-2">
+                Alert new studies from:
+                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
+            </div>
+            <div class="alerts mb-4">
+                <ul>
+                    <li id="websiteBtn"> <span>Website (new)</span></li>
+                    <li id="titleBtn"><span>Title (old)</span></li>
+                </ul>
+            </div>
         </div>
     </div>
     <div id="filters">
@@ -69,7 +93,7 @@
 
 
 
-    <div class="my-2 ml-1">
+    <div class="my-2">
         <div>
             <label for="volume">Volume:</label>
             <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">

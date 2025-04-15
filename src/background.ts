@@ -25,9 +25,9 @@ const ACTIVE_TAB = "activeTab";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study is available on Prolific!';
+const USE_OLD = "useOld";
+const PROLIFIC_TITLE = "prolificTitle"
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
-let volume: number | null;
-let audio: string | null;
 
 chrome.runtime.onMessage.addListener(handleMessages);
 
@@ -53,6 +53,8 @@ chrome.notifications.onButtonClicked.addListener(function (notificationId: strin
     chrome.notifications.clear(notificationId);
 });
 
+
+
 chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Promise<void> => {
     if(details.reason === "install"){
         await setInitialValues();
@@ -69,17 +71,85 @@ function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
     });
 }
 
+function setupTitleAlert(): void {
+    const tabsOnUpdatedListener = async (_: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
+        const previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+        if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
+            console.log("Prolific title changed");
+            const newTitle = tab.title.trim();
+            if (newTitle === 'Prolific') {
+                await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+                return;
+            }
+            console.log("Prolific title changed and is different");
+            const titleStorageValues = await chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
+            const useOld = titleStorageValues[USE_OLD] ?? false;
+            if (!useOld) {
+                console.log("Removing listener");
+                chrome.tabs.onUpdated.removeListener(tabsOnUpdatedListener);
+                return;
+            }
+            const previousNumber: number = getNumberFromTitle(previousTitle);
+            const currentNumber: number = getNumberFromTitle(tab.title);
+            const shouldFocusProlific = titleStorageValues[FOCUS_PROLIFIC] ?? false;
+            await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+            console.log(`Previous number: ${previousNumber}, Current number: ${currentNumber}`);
+            if (currentNumber > previousNumber) {
+                const shouldSendNotification = titleStorageValues[SHOW_NOTIFICATION] ?? true;
+                if (shouldSendNotification) {
+                    console.log("sending notification");
+                    sendNotification();
+                }
+                const shouldPlayAudio = titleStorageValues[AUDIO_ACTIVE] ?? true;
+                if (shouldPlayAudio) {
+                    const audio = titleStorageValues[AUDIO] ?? 'alert1.mp3';
+                    const volume = titleStorageValues[VOLUME] ? titleStorageValues[VOLUME] / 100 : 100;
+                    await playAudio(audio, volume);
+                }
+                if (shouldFocusProlific) {
+                    await focusProlific();
+                }
+                await updateCounterAndBadge(currentNumber - previousNumber);
+            }
+        }
+
+    };
+    console.log("Adding listener onTabUpdated");
+    chrome.tabs.onUpdated.addListener(tabsOnUpdatedListener);
+}
+
+function getNumberFromTitle(title: string): number {
+    const match: RegExpMatchArray | null = title.match(/\((\d+)\)/);
+    return match ? parseInt(match[1]) : 0;
+}
+
+async function focusProlific() {
+    const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
+    if (tabs.length > 0) {
+        await chrome.tabs.update(tabs[0].id!, {active: true});
+    } else {
+        await chrome.tabs.create({url: "https://app.prolific.com/", active: true});
+    }
+}
+
+async function handlePlaySound(audio: string | null = null,  volume: number | null = null): Promise<void> {
+    if (!audio || !volume) {
+        const audioValues = await chrome.storage.sync.get([AUDIO, VOLUME]);
+        audio = audioValues[AUDIO] ?? 'alert1.mp3';
+        volume = audioValues[VOLUME] ? audioValues[VOLUME] / 100 : 100;
+    }
+    await playAudio(audio, volume);
+}
+
 async function handleMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
     // Return early if this message isn't meant for the offscreen document.
     if (message.target !== 'background') {
-        return;
+        return Promise.resolve();
     }
     // Dispatch the message to an appropriate handler.
     switch (message.type) {
         case 'play-sound':
-            audio = await getValueFromStorage(AUDIO, 'alert1.mp3');
-            volume = await getValueFromStorage(VOLUME, 100) / 100;
-            await playAudio(audio, volume);
+            await handlePlaySound();
             sendNotification();
             break;
         case 'show-notification':
@@ -88,63 +158,77 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
         case 'clear-badge':
             await chrome.action.setBadgeText({text: ''});
             break;
+        case 'change-alert-type':
+                setupTitleAlert();
+            break;
         case 'new-studies':
-            let studies: Study[] = message.data;
-            if (!studies) break;
-            const shouldShowNotification = await getValueFromStorage(SHOW_NOTIFICATION, true);
-            const shouldPlayAudio = await getValueFromStorage(AUDIO_ACTIVE, true);
-            const shouldFocusProlific = await getValueFromStorage(FOCUS_PROLIFIC, false);
-            const numPlaces = await getValueFromStorage(NU_PLACES, 0);
-            const reward = await getValueFromStorage(REWARD, 0);
-            const rewardPerHour = await getValueFromStorage(REWARD_PER_HOUR, 0);
-            if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
-                studies = studies.filter((study) => {
-                    if (numPlaces && study.places && study.places <= numPlaces) {
-                        return false;
-                    }
-                    if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
-                        return false;
-                    }
-                    return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
-                });
-            }
-            if (studies.length === 0) break;
-            if (shouldPlayAudio) {
-                audio = await getValueFromStorage(AUDIO, 'alert1.mp3');
-                volume = await getValueFromStorage(VOLUME, 100) / 100;
-                await playAudio(audio, volume);
-            }
-            if (shouldFocusProlific) {
-                const tabs = await chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                if (tabs.length > 0) {
-                    await chrome.tabs.update(tabs[0].id!, { active: true });
-                } else {
-                    await chrome.tabs.create({ url: "https://app.prolific.com/", active: true });
-                }
-            }
-            if (shouldShowNotification) {
-                studies
-                    .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
-                    .forEach((study) => {
-
-                    setTimeout(() => {
-                        sendNotification(study);
-                    }, 3000);
-            });
-            }
-
-            await updateCounterAndBadge(studies.length);
+            await handleNewStudies(message.data);
             break;
     }
+}
+
+async function handleNewStudies(studies: Study[]) {
+    if (!studies) return;
+    const studiesStorageValues = await chrome.storage.sync.get([
+        SHOW_NOTIFICATION,
+        AUDIO_ACTIVE,
+        FOCUS_PROLIFIC,
+        NU_PLACES,
+        REWARD,
+        REWARD_PER_HOUR,
+        AUDIO,
+        VOLUME
+    ]);
+    const shouldShowNotification: boolean = studiesStorageValues[SHOW_NOTIFICATION] ?? true;
+    const shouldPlayAudio: boolean = studiesStorageValues[AUDIO_ACTIVE] ?? true;
+    const shouldFocusProlific: boolean = studiesStorageValues[FOCUS_PROLIFIC] ?? false;
+    const numPlaces: number = studiesStorageValues[NU_PLACES] ?? 0;
+    const reward: number = studiesStorageValues[REWARD] ?? 0;
+    const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
+    if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
+        studies = studies.filter((study) => {
+            if (numPlaces && study.places && study.places <= numPlaces) {
+                return false;
+            }
+            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
+                return false;
+            }
+            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
+        });
+    }
+    if (studies.length === 0) return;
+    if (shouldPlayAudio) {
+        const audio = studiesStorageValues[AUDIO] ?? 'alert1.mp3';
+        const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
+        await playAudio(audio, volume);
+    }
+    if (shouldFocusProlific) {
+        await focusProlific();
+    }
+    if (shouldShowNotification) {
+        studies
+            .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
+            .forEach((study) => {
+
+                setTimeout(() => {
+                    sendNotification(study);
+                }, 1000);
+            });
+    }
+    await updateCounterAndBadge(studies.length);
 }
 
 chrome.runtime.onStartup.addListener(async function(): Promise<void> {
     if (await getValueFromStorage(OPEN_PROLIFIC, false)) {
         await chrome.tabs.create({url: "https://app.prolific.com/", active: false});
     }
+    if (await getValueFromStorage(USE_OLD, false)) {
+        console.log("Setting up title alert on startup");
+        setupTitleAlert();
+    }
 });
 
-async function playAudio(audio: string = 'alert1.mp3', volume?: number | null): Promise<void> {
+async function playAudio(audio: string | null = 'alert1.mp3', volume: number | null): Promise<void> {
 
     await setupOffscreenDocument('audio/audio.html');
     const req = {
@@ -180,7 +264,7 @@ function sendNotification(study: Study | null=null): void {
             title = `${study.title}\nBy ${study.researcher}`;
         }
         if (study.reward && study.time && study.rewardPerHour && study.places) {
-            message += `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
+            message = `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
         }
     }
 
