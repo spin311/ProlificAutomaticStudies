@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let isProcessing = false; // A global promise to avoid concurrency issues
+let isObserverInitializing = false;
 const NUMBER_OF_IDS_TO_STORE = 50;
 function waitForElement(selector) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -61,7 +62,11 @@ function isObserverActive() {
 chrome.runtime.onMessage.addListener(handleContentMessages);
 observeStudyChanges();
 function observeStudyChanges() {
+    if (isObserverActive() || isObserverInitializing)
+        return;
+    isObserverInitializing = true;
     waitForElement(targetSelector).then((targetNode) => __awaiter(this, void 0, void 0, function* () {
+        isObserverInitializing = false;
         if (!targetNode || isObserverActive()) {
             console.log("targetNode not found or observer already exists");
             return;
@@ -71,9 +76,15 @@ function observeStudyChanges() {
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
             if (isProcessing)
                 return;
+            let hasChanges = false;
             for (const mutation of mutationsList) {
                 if (mutation.type === "childList") {
-                    console.log("Child nodes have changed");
+                    hasChanges = true;
+                    break;
+                }
+            }
+            if (hasChanges) {
+                if (!isProcessing) {
                     yield extractAndSendStudies(targetNode);
                 }
             }
@@ -133,7 +144,7 @@ function extractStudies(targetNode) {
             const researcher = ((_b = getTextContent(study, '[data-testid="host"]')) === null || _b === void 0 ? void 0 : _b.split(" ").slice(1).join(" ")) || null;
             const places = parseInt(((_c = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _c === void 0 ? void 0 : _c.split(" ")[0]) || "0");
             const reward = getTextContent(study, '[data-testid="study-tag-reward"]');
-            const rewardPerHour = ((_d = getTextContent(study, '[data-testid="study-tag-rewardPerHour"]')) === null || _d === void 0 ? void 0 : _d.replace("/hr", "")) || null;
+            const rewardPerHour = ((_d = getTextContent(study, '[data-testid="study-tag-reward-per-hour"]')) === null || _d === void 0 ? void 0 : _d.replace("/hr", "")) || null;
             const time = getTextContent(study, '[data-testid="study-tag-completion-time"]');
             studies.push({
                 id,

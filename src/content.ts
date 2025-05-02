@@ -11,6 +11,7 @@ type  StudyContent = {
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let isProcessing: boolean = false;  // A global promise to avoid concurrency issues
+let isObserverInitializing: boolean = false;
 const NUMBER_OF_IDS_TO_STORE = 50;
 
 
@@ -37,7 +38,7 @@ async function waitForElement(selector: string): Promise<Element | null> {
 
 function handleContentMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
     console.log(message);
-    
+
     if (message.target !== "content"  && message.target !== 'everything') {
         return Promise.resolve();
     }
@@ -65,7 +66,10 @@ function isObserverActive(): boolean {
 chrome.runtime.onMessage.addListener(handleContentMessages);
 observeStudyChanges();
 function observeStudyChanges(): void {
+    if (isObserverActive() || isObserverInitializing) return;
+    isObserverInitializing = true;
     waitForElement(targetSelector).then(async (targetNode) => {
+        isObserverInitializing = false;
         if (!targetNode || isObserverActive()) {
             console.log("targetNode not found or observer already exists");
             return;
@@ -75,11 +79,17 @@ function observeStudyChanges(): void {
         // Observe for dynamic content updates within the target element
         globalObserver = new MutationObserver(async (mutationsList) => {
             if (isProcessing) return;
+            let hasChanges = false;
             for (const mutation of mutationsList) {
                 if (mutation.type === "childList") {
-                    console.log("Child nodes have changed");
-                    await extractAndSendStudies(targetNode);
+                    hasChanges = true;
+                    break;
                 }
+            }
+            if (hasChanges) {
+                    if (!isProcessing) {
+                        await extractAndSendStudies(targetNode);
+                    }
             }
         });
 
@@ -140,7 +150,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             const places = parseInt(
                 getTextContent(study, '[data-testid="study-tag-places"]')?.split(" ")[0] || "0");
             const reward = getTextContent(study, '[data-testid="study-tag-reward"]');
-            const rewardPerHour = getTextContent(study, '[data-testid="study-tag-rewardPerHour"]')?.replace("/hr", "") || null;
+            const rewardPerHour = getTextContent(study, '[data-testid="study-tag-reward-per-hour"]')?.replace("/hr", "") || null;
             const time =getTextContent(study, '[data-testid="study-tag-completion-time"]');
             studies.push({
                 id,

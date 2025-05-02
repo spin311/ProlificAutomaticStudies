@@ -27,8 +27,10 @@ const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study is available on Prolific!';
 const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle"
+const TRACK_IDS = "trackIds";
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
+initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
 
 chrome.notifications.onClicked.addListener(function (notificationId: string): void {
@@ -72,8 +74,14 @@ function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
 }
 
 function setupTitleAlert(): void {
+    console.log('setting up title alert');
     const tabsOnUpdatedListener = async (_: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
         const previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+        console.log(`PreviousTitle: ${previousTitle}`);
+        if (tab.url && tab.url.includes('https://app.prolific.com/')) {
+            console.log(tab);
+            console.log(`changeInfo: ${_changeInfo}`);
+        }
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
             console.log("Prolific title changed");
             const newTitle = tab.title.trim();
@@ -187,13 +195,13 @@ async function handleNewStudies(studies: Study[]) {
     const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
     if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
         studies = studies.filter((study) => {
-            if (numPlaces && study.places && study.places <= numPlaces) {
+            if (numPlaces && study.places && study.places < numPlaces) {
                 return false;
             }
-            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
+            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
                 return false;
             }
-            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
+            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
         });
     }
     if (studies.length === 0) return;
@@ -209,7 +217,6 @@ async function handleNewStudies(studies: Study[]) {
         studies
             .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
             .forEach((study) => {
-
                 setTimeout(() => {
                     sendNotification(study);
                 }, 1000);
@@ -222,11 +229,13 @@ chrome.runtime.onStartup.addListener(async function(): Promise<void> {
     if (await getValueFromStorage(OPEN_PROLIFIC, false)) {
         await chrome.tabs.create({url: "https://app.prolific.com/", active: false});
     }
-    if (await getValueFromStorage(USE_OLD, false)) {
-        console.log("Setting up title alert on startup");
+});
+
+async function initialize() {
+    if ( await getValueFromStorage(USE_OLD, false)) {
         setupTitleAlert();
     }
-});
+}
 
 async function playAudio(audio: string | null = 'alert1.mp3', volume: number | null): Promise<void> {
 
@@ -249,6 +258,7 @@ async function setInitialValues(): Promise<void> {
         [SHOW_NOTIFICATION]: true,
         [VOLUME]: 100,
         [ACTIVE_TAB]: "settings",
+        [TRACK_IDS]: true
     });
 }
 
@@ -263,8 +273,17 @@ function sendNotification(study: Study | null=null): void {
         if (study.title && study.researcher) {
             title = `${study.title}\nBy ${study.researcher}`;
         }
-        if (study.reward && study.time && study.rewardPerHour && study.places) {
-            message = `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
+        if (study.reward) {
+            message += `\nReward: ${study.reward}`;
+        }
+        if (study.rewardPerHour) {
+            message += `\nReward per hour: ${study.rewardPerHour}`;
+        }
+        if (study.time) {
+            message += `\nTime: ${study.time}`;
+        }
+        if (study.places) {
+            message += ` | Places: ${study.places}`;
         }
     }
 

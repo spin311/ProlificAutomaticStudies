@@ -26,7 +26,9 @@ const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study is available on Prolific!';
 const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle";
+const TRACK_IDS = "trackIds";
 let creating = null; // A global promise to avoid concurrency issues
+initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.notifications.onClicked.addListener(function (notificationId) {
     if (!!notificationId) {
@@ -63,9 +65,15 @@ function getValueFromStorage(key, defaultValue) {
     });
 }
 function setupTitleAlert() {
+    console.log('setting up title alert');
     const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e;
         const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+        console.log(`PreviousTitle: ${previousTitle}`);
+        if (tab.url && tab.url.includes('https://app.prolific.com/')) {
+            console.log(tab);
+            console.log(`changeInfo: ${_changeInfo}`);
+        }
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
             console.log("Prolific title changed");
             const newTitle = tab.title.trim();
@@ -184,13 +192,13 @@ function handleNewStudies(studies) {
         const rewardPerHour = (_f = studiesStorageValues[REWARD_PER_HOUR]) !== null && _f !== void 0 ? _f : 0;
         if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
             studies = studies.filter((study) => {
-                if (numPlaces && study.places && study.places <= numPlaces) {
+                if (numPlaces && study.places && study.places < numPlaces) {
                     return false;
                 }
-                if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
+                if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
                     return false;
                 }
-                return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
+                return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
             });
         }
         if (studies.length === 0)
@@ -220,12 +228,15 @@ chrome.runtime.onStartup.addListener(function () {
         if (yield getValueFromStorage(OPEN_PROLIFIC, false)) {
             yield chrome.tabs.create({ url: "https://app.prolific.com/", active: false });
         }
+    });
+});
+function initialize() {
+    return __awaiter(this, void 0, void 0, function* () {
         if (yield getValueFromStorage(USE_OLD, false)) {
-            console.log("Setting up title alert on startup");
             setupTitleAlert();
         }
     });
-});
+}
 function playAudio() {
     return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume) {
         yield setupOffscreenDocument('audio/audio.html');
@@ -248,6 +259,7 @@ function setInitialValues() {
             [SHOW_NOTIFICATION]: true,
             [VOLUME]: 100,
             [ACTIVE_TAB]: "settings",
+            [TRACK_IDS]: true
         });
     });
 }
@@ -262,8 +274,17 @@ function sendNotification(study = null) {
         if (study.title && study.researcher) {
             title = `${study.title}\nBy ${study.researcher}`;
         }
-        if (study.reward && study.time && study.rewardPerHour && study.places) {
-            message = `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
+        if (study.reward) {
+            message += `\nReward: ${study.reward}`;
+        }
+        if (study.rewardPerHour) {
+            message += `\nReward per hour: ${study.rewardPerHour}`;
+        }
+        if (study.time) {
+            message += `\nTime: ${study.time}`;
+        }
+        if (study.places) {
+            message += ` | Places: ${study.places}`;
         }
     }
     const options = {
