@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setInputState("rewardPerHour", "rewardPerHour");
         yield setTabState("settings-tab", "settings");
         yield setTabState("filters-tab", "filters");
+        yield setTabState("studies-tab", "studies");
         yield setAlertState();
         if (selectAudio) {
             yield setAudioOption(selectAudio);
@@ -108,7 +109,6 @@ function setTabState(elementId, storageValue) {
             return;
         const result = yield chrome.storage.sync.get("activeTab");
         if (result["activeTab"] === storageValue) {
-            element.classList.add("active");
             changeTab(storageValue);
         }
         element.addEventListener("click", function () {
@@ -120,22 +120,24 @@ function setTabState(elementId, storageValue) {
     });
 }
 function changeTab(activeTab) {
-    const settings = document.getElementById("settings");
-    const filters = document.getElementById("filters");
-    const settingsTab = document.getElementById("settings-tab");
-    const filtersTab = document.getElementById("filters-tab");
-    if (activeTab === "settings") {
-        settingsTab.classList.add("active");
-        filtersTab.classList.remove("active");
-        settings.style.display = "block";
-        filters.style.display = "none";
-    }
-    else {
-        settingsTab.classList.remove("active");
-        filtersTab.classList.add("active");
-        settings.style.display = "none";
-        filters.style.display = "block";
-    }
+    const windows = [{ tab: "settings", item: "settings-tab" },
+        { tab: "filters", item: "filters-tab" },
+        { tab: "studies", item: "studies-list" }
+    ];
+    windows.forEach(window => {
+        const currentTab = window.tab;
+        const currentItem = window.item;
+        const currentTabElement = document.getElementById(currentTab);
+        const currentItemElement = document.getElementById(currentItem);
+        if (activeTab === currentTab) {
+            currentTabElement.style.display = "block";
+            currentItemElement.classList.add("active");
+        }
+        else {
+            currentTabElement.style.display = "none";
+            currentItemElement.classList.remove("active");
+        }
+    });
 }
 function setAlertState() {
     return __awaiter(this, void 0, void 0, function* () {

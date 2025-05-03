@@ -39,8 +39,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setInputState("reward", "reward");
     await setInputState("rewardPerHour", "rewardPerHour");
 
-    await setTabState("settings-tab", "settings");
-    await setTabState("filters-tab", "filters");
+    setTabState("settings-tab", "settings");
+    setTabState("filters-tab", "filters");
+    setTabState("studies-tab", "studies");
+    await setCurrentActiveTab();
     await setAlertState();
 
     if(selectAudio) {
@@ -58,8 +60,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (volume) {
         await setVolume(volume);
     }
-
-
 
 });
 
@@ -95,36 +95,39 @@ async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
     });
 }
 
-async function setTabState(elementId: string, storageValue: string): Promise<void> {
+function setTabState(elementId: string, storageValue: string): void  {
     const element = document.getElementById(elementId) as HTMLElement;
     if (!element) return;
-    const result = await chrome.storage.sync.get("activeTab");
-    if (result["activeTab"] === storageValue) {
-        element.classList.add("active");
-        changeTab(storageValue);
-    }
     element.addEventListener("click", async function (): Promise<void> {
         changeTab(storageValue);
         await chrome.storage.sync.set({["activeTab"]: storageValue});
     });
 }
 
+async function setCurrentActiveTab(): Promise<void> {
+    const result = await chrome.storage.sync.get("activeTab");
+        changeTab(result["activeTab"]);
+}
+
 function changeTab(activeTab: string): void {
-    const settings = document.getElementById("settings") as HTMLDivElement;
-    const filters = document.getElementById("filters") as HTMLDivElement;
-    const settingsTab = document.getElementById("settings-tab") as HTMLElement;
-    const filtersTab = document.getElementById("filters-tab") as HTMLElement;
-    if (activeTab === "settings") {
-        settingsTab.classList.add("active");
-        filtersTab.classList.remove("active");
-        settings.style.display = "block";
-        filters.style.display = "none";
-    } else {
-        settingsTab.classList.remove("active");
-        filtersTab.classList.add("active");
-        settings.style.display = "none";
-        filters.style.display = "block";
-    }
+    const windows = [{tab: "settings", item: "settings-tab"},
+        {tab: "filters", item: "filters-tab"},
+        {tab: "studies", item: "studies-list"}
+    ];
+    windows.forEach(window => {
+        const currentTab = window.tab;
+        const currentItem = window.item;
+        const currentTabElement = document.getElementById(currentTab) as HTMLDivElement;
+        const currentItemElement = document.getElementById(currentItem)  as HTMLElement;
+        if(activeTab === currentTab) {
+            currentTabElement.style.display = "block";
+            currentItemElement.classList.add("active");
+        }
+        else {
+            currentTabElement.style.display = "none";
+            currentItemElement.classList.remove("active");
+        }
+    });
 }
 
 async function setAlertState(): Promise<void> {
