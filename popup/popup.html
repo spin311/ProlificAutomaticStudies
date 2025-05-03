@@ -69,6 +69,25 @@
                 </ul>
             </div>
         </div>
+        <div class="my-2">
+            <div>
+                <label for="volume">Volume:</label>
+                <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
+            </div>
+            <label for="selectAudio" class="form-label">Select Audio:
+            </label>
+            <select name="selectAudio" id="selectAudio" class="form-select">
+                <option value="alert1.mp3">Alert 1</option>
+                <option value="alert2.mp3">Alert 2</option>
+                <option value="alert3.mp3">Alert 3</option>
+                <option value="alert4.wav">Alert 4</option>
+                <option value="robot.wav">Robot</option>
+                <option value="loud.mp3">LOUD</option>
+            </select>
+            <button id="playAudio" class="btn btn-success ml-05">
+                Test
+            </button>
+        </div>
     </div>
     <div id="studies">
         Studies list
@@ -95,30 +114,6 @@
             </label>
         </div>
     </div>
-
-
-
-    <div class="my-2">
-        <div>
-            <label for="volume">Volume:</label>
-            <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
-        </div>
-        <label for="selectAudio" class="form-label">Select Audio:
-        </label>
-        <select name="selectAudio" id="selectAudio" class="form-select">
-            <option value="alert1.mp3">Alert 1</option>
-            <option value="alert2.mp3">Alert 2</option>
-            <option value="alert3.mp3">Alert 3</option>
-            <option value="alert4.wav">Alert 4</option>
-            <option value="robot.wav">Robot</option>
-            <option value="loud.mp3">LOUD</option>
-        </select>
-        <button id="playAudio" class="btn btn-success ml-05">
-            Test
-        </button>
-
-    </div>
-
 </div>
 
 <div class="container-fluid mt-2">

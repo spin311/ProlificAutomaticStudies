@@ -112,7 +112,7 @@ async function setCurrentActiveTab(): Promise<void> {
 function changeTab(activeTab: string): void {
     const windows = [{tab: "settings", item: "settings-tab"},
         {tab: "filters", item: "filters-tab"},
-        {tab: "studies", item: "studies-list"}
+        {tab: "studies", item: "studies-tab"}
     ];
     windows.forEach(window => {
         const currentTab = window.tab;

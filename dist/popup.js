@@ -47,9 +47,10 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setInputState("nuPlaces", "nuPlaces");
         yield setInputState("reward", "reward");
         yield setInputState("rewardPerHour", "rewardPerHour");
-        yield setTabState("settings-tab", "settings");
-        yield setTabState("filters-tab", "filters");
-        yield setTabState("studies-tab", "studies");
+        setTabState("settings-tab", "settings");
+        setTabState("filters-tab", "filters");
+        setTabState("studies-tab", "studies");
+        yield setCurrentActiveTab();
         yield setAlertState();
         if (selectAudio) {
             yield setAudioOption(selectAudio);
@@ -103,26 +104,26 @@ function setAudioOption(selectAudio) {
     });
 }
 function setTabState(elementId, storageValue) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const element = document.getElementById(elementId);
-        if (!element)
-            return;
-        const result = yield chrome.storage.sync.get("activeTab");
-        if (result["activeTab"] === storageValue) {
+    const element = document.getElementById(elementId);
+    if (!element)
+        return;
+    element.addEventListener("click", function () {
+        return __awaiter(this, void 0, void 0, function* () {
             changeTab(storageValue);
-        }
-        element.addEventListener("click", function () {
-            return __awaiter(this, void 0, void 0, function* () {
-                changeTab(storageValue);
-                yield chrome.storage.sync.set({ ["activeTab"]: storageValue });
-            });
+            yield chrome.storage.sync.set({ ["activeTab"]: storageValue });
         });
+    });
+}
+function setCurrentActiveTab() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.sync.get("activeTab");
+        changeTab(result["activeTab"]);
     });
 }
 function changeTab(activeTab) {
     const windows = [{ tab: "settings", item: "settings-tab" },
         { tab: "filters", item: "filters-tab" },
-        { tab: "studies", item: "studies-list" }
+        { tab: "studies", item: "studies-tab" }
     ];
     windows.forEach(window => {
         const currentTab = window.tab;
