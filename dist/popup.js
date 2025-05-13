@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setInputState("nuPlaces", "nuPlaces");
         yield setInputState("reward", "reward");
         yield setInputState("rewardPerHour", "rewardPerHour");
+        yield setInputState("studyHistoryLen", "studyHistoryLen");
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
@@ -109,8 +110,8 @@ function setTabState(elementId, storageValue) {
         return;
     element.addEventListener("click", function () {
         return __awaiter(this, void 0, void 0, function* () {
-            changeTab(storageValue);
             yield chrome.storage.sync.set({ ["activeTab"]: storageValue });
+            changeTab(storageValue);
         });
     });
 }
@@ -118,6 +119,48 @@ function setCurrentActiveTab() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("activeTab");
         changeTab(result["activeTab"]);
+    });
+}
+function populateStudies() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const studiesContainer = document.getElementById("studies");
+        studiesContainer.innerHTML = ""; // clear previous content
+        const result = yield chrome.storage.sync.get("currentStudies");
+        const currentStudies = result["currentStudies"];
+        console.log("currentStudies", currentStudies);
+        if (!currentStudies || currentStudies.length === 0) {
+            studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
+            return;
+        }
+        currentStudies.forEach((study, index) => {
+            var _a;
+            const studyCard = document.createElement("div");
+            studyCard.classList.add("study-card");
+            studyCard.innerHTML = `
+            <div class="study-info">
+                <img src="/imgs/placeholder.png" alt="Study Image" class="study-img">
+                <div class="study-details">
+                    <h4 class="study-title">${study.title || "Untitled"}</h4>
+                    <p><strong>Researcher:</strong> ${study.researcher || "Unknown"}</p>
+                    <p><strong>Reward:</strong> ${study.reward || "N/A"}</p>
+                    <p><strong>Reward/hour:</strong> ${study.rewardPerHour || "N/A"}</p>
+                    <p><strong>Time:</strong> ${study.time || "N/A"}</p>
+                    <p><strong>Places:</strong> ${(_a = study.places) !== null && _a !== void 0 ? _a : "N/A"}</p>
+                </div>
+            </div>
+            <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
+        `;
+            studiesContainer === null || studiesContainer === void 0 ? void 0 : studiesContainer.appendChild(studyCard);
+        });
+        document.querySelectorAll(".delete-btn").forEach(button => {
+            button.addEventListener("click", (e) => {
+                const target = e.target;
+                const index = parseInt(target.getAttribute("data-index") || "");
+                currentStudies.splice(index, 1);
+                chrome.storage.sync.set({ currentStudies });
+                populateStudies();
+            });
+        });
     });
 }
 function changeTab(activeTab) {
@@ -138,6 +181,9 @@ function changeTab(activeTab) {
             currentTabElement.style.display = "none";
             currentItemElement.classList.remove("active");
         }
+        if (activeTab === 'studies') {
+            populateStudies();
+        }
     });
 }
 function setAlertState() {
@@ -146,19 +192,27 @@ function setAlertState() {
         const titleButton = document.getElementById("titleBtn");
         const trackIds = document.getElementById("trackIds");
         const trackIdsLabel = document.getElementById("trackIdsLabel");
+        const history = document.getElementById("studyHistoryLen");
+        const historyLabel = document.getElementById("study-history-len-label");
         const result = yield chrome.storage.sync.get("useOld");
         if (result["useOld"]) {
             trackIdsLabel.classList.add("disabled-text");
+            historyLabel.classList.add("disabled-text");
+            history.disabled = true;
             trackIds.disabled = true;
             titleButton.classList.add("active");
         }
         else {
+            historyLabel.classList.remove("disabled-text");
+            history.disabled = false;
             trackIdsLabel.classList.remove("disabled-text");
             trackIds.disabled = false;
             websiteButton.classList.add("active");
         }
         websiteButton.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
+                historyLabel.classList.remove("disabled-text");
+                history.disabled = false;
                 trackIdsLabel.classList.remove("disabled-text");
                 trackIds.disabled = false;
                 websiteButton.classList.add("active");
@@ -176,7 +230,9 @@ function setAlertState() {
         });
         titleButton.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
+                historyLabel.classList.add("disabled-text");
                 trackIdsLabel.classList.add("disabled-text");
+                history.disabled = true;
                 trackIds.disabled = true;
                 titleButton.classList.add("active");
                 websiteButton.classList.remove("active");

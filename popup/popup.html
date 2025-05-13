@@ -37,13 +37,6 @@
             <span class="tooltip-icon" data-tooltip="Switches to the Prolific tab when a new study becomes available">ℹ</span>
         </div>
         <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="trackIds">
-            <label class="form-check-label" for="trackIds" id="trackIdsLabel">
-                Show each study only once
-            </label>
-            <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
-        </div>
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
             <input class="form-check-input mr-2" type="checkbox" value="" id="autoAudio">
             <label class="form-check-label" for="autoAudio">
                 Play audio for new studies
@@ -54,6 +47,21 @@
             <input class="form-check-input mr-2" type="checkbox" value="" id="showNotification">
             <label class="form-check-label" for="showNotification">
                 Show notification for new studies
+            </label>
+        </div>
+
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="trackIds">
+            <label class="form-check-label" for="trackIds" id="trackIdsLabel">
+                Show each study only once
+            </label>
+            <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
+        </div>
+
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
+            <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
+                Number of studies to remember
             </label>
         </div>
 

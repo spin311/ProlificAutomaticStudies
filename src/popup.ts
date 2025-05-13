@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setInputState("nuPlaces", "nuPlaces");
     await setInputState("reward", "reward");
     await setInputState("rewardPerHour", "rewardPerHour");
+    await setInputState("studyHistoryLen","studyHistoryLen")
 
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
@@ -99,14 +100,57 @@ function setTabState(elementId: string, storageValue: string): void  {
     const element = document.getElementById(elementId) as HTMLElement;
     if (!element) return;
     element.addEventListener("click", async function (): Promise<void> {
-        changeTab(storageValue);
         await chrome.storage.sync.set({["activeTab"]: storageValue});
+        changeTab(storageValue);
     });
 }
 
 async function setCurrentActiveTab(): Promise<void> {
     const result = await chrome.storage.sync.get("activeTab");
         changeTab(result["activeTab"]);
+}
+
+async function populateStudies() {
+    const studiesContainer = document.getElementById("studies") as HTMLElement;
+    studiesContainer.innerHTML = ""; // clear previous content
+    const result = await chrome.storage.sync.get("currentStudies");
+    const currentStudies: Study[] = result["currentStudies"];
+    console.log("currentStudies", currentStudies);
+
+    if (!currentStudies || currentStudies.length === 0) {
+        studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
+        return;
+    }
+
+    currentStudies.forEach((study, index) => {
+        const studyCard = document.createElement("div");
+        studyCard.classList.add("study-card");
+        studyCard.innerHTML = `
+            <div class="study-info">
+                <img src="/imgs/placeholder.png" alt="Study Image" class="study-img">
+                <div class="study-details">
+                    <h4 class="study-title">${study.title || "Untitled"}</h4>
+                    <p><strong>Researcher:</strong> ${study.researcher || "Unknown"}</p>
+                    <p><strong>Reward:</strong> ${study.reward || "N/A"}</p>
+                    <p><strong>Reward/hour:</strong> ${study.rewardPerHour || "N/A"}</p>
+                    <p><strong>Time:</strong> ${study.time || "N/A"}</p>
+                    <p><strong>Places:</strong> ${study.places ?? "N/A"}</p>
+                </div>
+            </div>
+            <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
+        `;
+        studiesContainer?.appendChild(studyCard);
+    });
+
+    document.querySelectorAll(".delete-btn").forEach(button => {
+        button.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            const index = parseInt(target.getAttribute("data-index") || "");
+            currentStudies.splice(index, 1);
+            chrome.storage.sync.set({ currentStudies });
+            populateStudies();
+        });
+    });
 }
 
 function changeTab(activeTab: string): void {
@@ -127,6 +171,9 @@ function changeTab(activeTab: string): void {
             currentTabElement.style.display = "none";
             currentItemElement.classList.remove("active");
         }
+        if (activeTab === 'studies') {
+            populateStudies();
+        }
     });
 }
 
@@ -135,17 +182,25 @@ async function setAlertState(): Promise<void> {
     const titleButton = document.getElementById("titleBtn") as HTMLElement;
     const trackIds = document.getElementById("trackIds") as HTMLInputElement;
     const trackIdsLabel = document.getElementById("trackIdsLabel") as HTMLElement;
+    const history = document.getElementById("studyHistoryLen") as HTMLInputElement;
+    const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
     const result = await chrome.storage.sync.get("useOld");
     if (result["useOld"]) {
         trackIdsLabel.classList.add("disabled-text");
+        historyLabel.classList.add("disabled-text");
+        history.disabled = true;
         trackIds.disabled = true;
         titleButton.classList.add("active");
     } else {
+        historyLabel.classList.remove("disabled-text");
+        history.disabled = false;
         trackIdsLabel.classList.remove("disabled-text");
         trackIds.disabled = false;
         websiteButton.classList.add("active");
     }
     websiteButton.addEventListener("click", async function (): Promise<void> {
+        historyLabel.classList.remove("disabled-text");
+        history.disabled = false;
         trackIdsLabel.classList.remove("disabled-text");
         trackIds.disabled = false;
         websiteButton.classList.add("active");
@@ -161,7 +216,9 @@ async function setAlertState(): Promise<void> {
         }
     });
     titleButton.addEventListener("click", async function (): Promise<void> {
+        historyLabel.classList.add("disabled-text");
         trackIdsLabel.classList.add("disabled-text");
+        history.disabled = true;
         trackIds.disabled = true;
         titleButton.classList.add("active");
         websiteButton.classList.remove("active");

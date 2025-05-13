@@ -12,7 +12,7 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let isProcessing: boolean = false;  // A global promise to avoid concurrency issues
 let isObserverInitializing: boolean = false;
-const NUMBER_OF_IDS_TO_STORE = 50;
+const NUMBER_OF_STUDIES_TO_STORE = 50;
 
 
 async function waitForElement(selector: string): Promise<Element | null> {
@@ -83,7 +83,6 @@ function observeStudyChanges(): void {
             for (const mutation of mutationsList) {
                 if (mutation.type === "childList") {
                     hasChanges = true;
-                    break;
                 }
             }
             if (hasChanges) {
@@ -133,13 +132,14 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const shouldIgnoreOldStudies = await getValueFromStorageContentScript<boolean>("trackIds", false);
     if (!studyElements || studyElements.length === 0) {
         if (!shouldIgnoreOldStudies) {
-            await chrome.storage.sync.set({["studyIds"]: []});
+            await chrome.storage.sync.set({["currentStudies"]: []});
         }
         return [];
     }
     const studies: StudyContent[] = [];
-    const studyIds: string[] = await getValueFromStorageContentScript<string[]>("studyIds", []);
-    let studyIdsNew: string[]  = [];
+    const numberOfStudiesToStore = await getValueFromStorageContentScript<number>("studyHistoryLen", NUMBER_OF_STUDIES_TO_STORE);
+    let savedStudies: StudyContent[] = await getValueFromStorageContentScript<StudyContent[]>("currentStudies", []);
+    const studyIds = savedStudies.map((study) => study.id);
         studyElements.forEach((study) => {
             const id = study.getAttribute("data-testid")?.split("-")[1];
             if (!id ||  studyIds?.includes(id)) return;
@@ -162,15 +162,14 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
                 time,
                 limitedCapacity: false,
             });
-            studyIdsNew.push(id);
         });
         if (shouldIgnoreOldStudies) {
-            studyIdsNew = studyIds.concat(studyIdsNew);
+            savedStudies.concat(studies);
         }
-    if (studyIdsNew.length > NUMBER_OF_IDS_TO_STORE) {
-        studyIdsNew = studyIdsNew.slice(-NUMBER_OF_IDS_TO_STORE);
+    if (savedStudies.length > numberOfStudiesToStore) {
+        savedStudies = savedStudies.slice(-numberOfStudiesToStore);
     }
-    await chrome.storage.sync.set({["studyIds"]: studyIdsNew});
+    await chrome.storage.sync.set({["currentStudies"]: savedStudies});
     return studies;
 }
 

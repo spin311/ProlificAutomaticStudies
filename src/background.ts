@@ -28,6 +28,7 @@ const MESSAGE = 'A new study is available on Prolific!';
 const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle"
 const TRACK_IDS = "trackIds";
+const STUDY_HISTORY_LEN = "studyHistoryLen";
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
 initialize();
@@ -62,6 +63,13 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         await setInitialValues();
         await new Promise(resolve => setTimeout(resolve, 1000));
         await chrome.tabs.create({url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true});
+        chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
+    } else if (details.reason === "update") {
+        chrome.action.setBadgeText({text: "New"});
+        chrome.storage.sync.set({
+            [STUDY_HISTORY_LEN]: 50
+        });
+        chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
 });
 
@@ -74,26 +82,19 @@ function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
 }
 
 function setupTitleAlert(): void {
-    console.log('setting up title alert');
     const tabsOnUpdatedListener = async (_: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
         const previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
-        console.log(`PreviousTitle: ${previousTitle}`);
         if (tab.url && tab.url.includes('https://app.prolific.com/')) {
-            console.log(tab);
-            console.log(`changeInfo: ${_changeInfo}`);
         }
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
-            console.log("Prolific title changed");
             const newTitle = tab.title.trim();
             if (newTitle === 'Prolific') {
                 await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
                 return;
             }
-            console.log("Prolific title changed and is different");
             const titleStorageValues = await chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
             const useOld = titleStorageValues[USE_OLD] ?? false;
             if (!useOld) {
-                console.log("Removing listener");
                 chrome.tabs.onUpdated.removeListener(tabsOnUpdatedListener);
                 return;
             }
@@ -101,11 +102,9 @@ function setupTitleAlert(): void {
             const currentNumber: number = getNumberFromTitle(tab.title);
             const shouldFocusProlific = titleStorageValues[FOCUS_PROLIFIC] ?? false;
             await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
-            console.log(`Previous number: ${previousNumber}, Current number: ${currentNumber}`);
             if (currentNumber > previousNumber) {
                 const shouldSendNotification = titleStorageValues[SHOW_NOTIFICATION] ?? true;
                 if (shouldSendNotification) {
-                    console.log("sending notification");
                     sendNotification();
                 }
                 const shouldPlayAudio = titleStorageValues[AUDIO_ACTIVE] ?? true;
@@ -122,7 +121,6 @@ function setupTitleAlert(): void {
         }
 
     };
-    console.log("Adding listener onTabUpdated");
     chrome.tabs.onUpdated.addListener(tabsOnUpdatedListener);
 }
 
@@ -185,7 +183,8 @@ async function handleNewStudies(studies: Study[]) {
         REWARD,
         REWARD_PER_HOUR,
         AUDIO,
-        VOLUME
+        VOLUME,
+        STUDY_HISTORY_LEN
     ]);
     const shouldShowNotification: boolean = studiesStorageValues[SHOW_NOTIFICATION] ?? true;
     const shouldPlayAudio: boolean = studiesStorageValues[AUDIO_ACTIVE] ?? true;
@@ -193,6 +192,7 @@ async function handleNewStudies(studies: Study[]) {
     const numPlaces: number = studiesStorageValues[NU_PLACES] ?? 0;
     const reward: number = studiesStorageValues[REWARD] ?? 0;
     const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
+    const studyHistoryLen: number = studiesStorageValues[STUDY_HISTORY_LEN] ?? 50;
     if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
         studies = studies.filter((study) => {
             if (numPlaces && study.places && study.places < numPlaces) {
@@ -232,7 +232,7 @@ chrome.runtime.onStartup.addListener(async function(): Promise<void> {
 });
 
 async function initialize() {
-    if ( await getValueFromStorage(USE_OLD, false)) {
+    if (await getValueFromStorage(USE_OLD, false)) {
         setupTitleAlert();
     }
 }
@@ -258,7 +258,8 @@ async function setInitialValues(): Promise<void> {
         [SHOW_NOTIFICATION]: true,
         [VOLUME]: 100,
         [ACTIVE_TAB]: "settings",
-        [TRACK_IDS]: true
+        [TRACK_IDS]: true,
+        [STUDY_HISTORY_LEN]: 50
     });
 }
 

@@ -12,7 +12,7 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let isProcessing = false; // A global promise to avoid concurrency issues
 let isObserverInitializing = false;
-const NUMBER_OF_IDS_TO_STORE = 50;
+const NUMBER_OF_STUDIES_TO_STORE = 50;
 function waitForElement(selector) {
     return __awaiter(this, void 0, void 0, function* () {
         const useOld = yield getValueFromStorageContentScript("useOld", false);
@@ -76,15 +76,8 @@ function observeStudyChanges() {
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
             if (isProcessing)
                 return;
-            let hasChanges = false;
             for (const mutation of mutationsList) {
                 if (mutation.type === "childList") {
-                    hasChanges = true;
-                    break;
-                }
-            }
-            if (hasChanges) {
-                if (!isProcessing) {
                     yield extractAndSendStudies(targetNode);
                 }
             }
@@ -128,13 +121,14 @@ function extractStudies(targetNode) {
         const shouldIgnoreOldStudies = yield getValueFromStorageContentScript("trackIds", false);
         if (!studyElements || studyElements.length === 0) {
             if (!shouldIgnoreOldStudies) {
-                yield chrome.storage.sync.set({ ["studyIds"]: [] });
+                yield chrome.storage.sync.set({ ["currentStudies"]: [] });
             }
             return [];
         }
         const studies = [];
-        const studyIds = yield getValueFromStorageContentScript("studyIds", []);
-        let studyIdsNew = [];
+        const numberOfStudiesToStore = yield getValueFromStorageContentScript("studyHistoryLen", NUMBER_OF_STUDIES_TO_STORE);
+        let savedStudies = yield getValueFromStorageContentScript("currentStudies", []);
+        const studyIds = savedStudies.map((study) => study.id);
         studyElements.forEach((study) => {
             var _a, _b, _c, _d;
             const id = (_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1];
@@ -156,15 +150,14 @@ function extractStudies(targetNode) {
                 time,
                 limitedCapacity: false,
             });
-            studyIdsNew.push(id);
         });
         if (shouldIgnoreOldStudies) {
-            studyIdsNew = studyIds.concat(studyIdsNew);
+            savedStudies.concat(studies);
         }
-        if (studyIdsNew.length > NUMBER_OF_IDS_TO_STORE) {
-            studyIdsNew = studyIdsNew.slice(-NUMBER_OF_IDS_TO_STORE);
+        if (savedStudies.length > numberOfStudiesToStore) {
+            savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
-        yield chrome.storage.sync.set({ ["studyIds"]: studyIdsNew });
+        yield chrome.storage.sync.set({ ["currentStudies"]: savedStudies });
         return studies;
     });
 }
