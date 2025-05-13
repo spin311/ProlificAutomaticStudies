@@ -77,13 +77,17 @@ function observeStudyChanges() {
             if (isProcessing)
                 return;
             for (const mutation of mutationsList) {
-                if (mutation.type === "childList") {
+                if (mutation.addedNodes.length ||
+                    mutation.removedNodes.length) {
                     yield extractAndSendStudies(targetNode);
+                    console.log("extracting mutation studies");
+                    break;
                 }
             }
         }));
         // Initial check if studies are already loaded
         yield extractAndSendStudies(targetNode);
+        console.log("extracting initial studies");
         globalObserver.observe(targetNode, { childList: true, subtree: true });
     }));
 }
@@ -113,12 +117,15 @@ function extractAndSendStudies(targetNode) {
             console.error(e);
             isProcessing = false;
         }
+        finally {
+            isProcessing = false;
+        }
     });
 }
 function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         const studyElements = targetNode.querySelectorAll("li[class='list-item']");
-        const shouldIgnoreOldStudies = yield getValueFromStorageContentScript("trackIds", false);
+        const shouldIgnoreOldStudies = yield getValueFromStorageContentScript("trackIds", true);
         if (!studyElements || studyElements.length === 0) {
             if (!shouldIgnoreOldStudies) {
                 yield chrome.storage.sync.set({ ["currentStudies"]: [] });
@@ -152,12 +159,12 @@ function extractStudies(targetNode) {
             });
         });
         if (shouldIgnoreOldStudies) {
-            savedStudies.concat(studies);
+            savedStudies = [...savedStudies, ...studies];
         }
         if (savedStudies.length > numberOfStudiesToStore) {
             savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
-        yield chrome.storage.sync.set({ ["currentStudies"]: savedStudies });
+        yield chrome.storage.sync.set({ "currentStudies": savedStudies });
         return studies;
     });
 }

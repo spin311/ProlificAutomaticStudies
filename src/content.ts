@@ -79,21 +79,21 @@ function observeStudyChanges(): void {
         // Observe for dynamic content updates within the target element
         globalObserver = new MutationObserver(async (mutationsList) => {
             if (isProcessing) return;
-            let hasChanges = false;
             for (const mutation of mutationsList) {
-                if (mutation.type === "childList") {
-                    hasChanges = true;
+                if (
+                    mutation.addedNodes.length ||
+                    mutation.removedNodes.length
+                ) {
+                    await extractAndSendStudies(targetNode);
+                    console.log("extracting mutation studies")
+                    break;
                 }
-            }
-            if (hasChanges) {
-                    if (!isProcessing) {
-                        await extractAndSendStudies(targetNode);
-                    }
             }
         });
 
         // Initial check if studies are already loaded
         await extractAndSendStudies(targetNode);
+        console.log("extracting initial studies")
         globalObserver.observe(targetNode, { childList: true, subtree: true });
     });
 }
@@ -123,13 +123,15 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
     catch (e) {
         console.error(e);
         isProcessing = false;
+    } finally {
+        isProcessing = false;
     }
 
 }
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const studyElements = targetNode.querySelectorAll("li[class='list-item']");
-    const shouldIgnoreOldStudies = await getValueFromStorageContentScript<boolean>("trackIds", false);
+    const shouldIgnoreOldStudies = await getValueFromStorageContentScript<boolean>("trackIds", true);
     if (!studyElements || studyElements.length === 0) {
         if (!shouldIgnoreOldStudies) {
             await chrome.storage.sync.set({["currentStudies"]: []});
@@ -163,13 +165,14 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
                 limitedCapacity: false,
             });
         });
-        if (shouldIgnoreOldStudies) {
-            savedStudies.concat(studies);
-        }
+    if (shouldIgnoreOldStudies) {
+        savedStudies = [...savedStudies, ...studies];
+    }
     if (savedStudies.length > numberOfStudiesToStore) {
         savedStudies = savedStudies.slice(-numberOfStudiesToStore);
     }
-    await chrome.storage.sync.set({["currentStudies"]: savedStudies});
+    await chrome.storage.sync.set({"currentStudies": savedStudies});
+
     return studies;
 }
 
