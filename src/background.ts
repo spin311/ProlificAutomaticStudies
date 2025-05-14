@@ -11,6 +11,19 @@ type Study = {
     limitedCapacity: boolean | null;
 };
 
+//TODO:
+// Add help, contact
+// Add page on portfolio
+// Studies tab:
+// search, sort, filter
+// add to favorites
+//open study in new tab
+// explanation
+// UI, date added
+
+// filters:
+// add name and researcher blacklist
+
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const OPEN_PROLIFIC = "openProlific";
@@ -184,15 +197,15 @@ async function handleNewStudies(studies: Study[]) {
         REWARD_PER_HOUR,
         AUDIO,
         VOLUME,
-        STUDY_HISTORY_LEN
+        USE_OLD
     ]);
+    if (studiesStorageValues[USE_OLD] === true) return;
     const shouldShowNotification: boolean = studiesStorageValues[SHOW_NOTIFICATION] ?? true;
     const shouldPlayAudio: boolean = studiesStorageValues[AUDIO_ACTIVE] ?? true;
     const shouldFocusProlific: boolean = studiesStorageValues[FOCUS_PROLIFIC] ?? false;
     const numPlaces: number = studiesStorageValues[NU_PLACES] ?? 0;
     const reward: number = studiesStorageValues[REWARD] ?? 0;
     const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
-    const studyHistoryLen: number = studiesStorageValues[STUDY_HISTORY_LEN] ?? 50;
     if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
         studies = studies.filter((study) => {
             if (numPlaces && study.places && study.places < numPlaces) {

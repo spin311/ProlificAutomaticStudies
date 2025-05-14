@@ -138,7 +138,7 @@ function populateStudies() {
             studyCard.classList.add("study-card");
             studyCard.innerHTML = `
             <div class="study-info">
-                <img src="/imgs/placeholder.png" alt="Study Image" class="study-img">
+                <img src="/imgs/logo.png" alt="Study Image" class="study-img">
                 <div class="study-details">
                     <h4 class="study-title">${study.title || "Untitled"}</h4>
                     <p><strong>Researcher:</strong> ${study.researcher || "Unknown"}</p>
@@ -181,10 +181,10 @@ function changeTab(activeTab) {
             currentTabElement.style.display = "none";
             currentItemElement.classList.remove("active");
         }
-        if (activeTab === 'studies') {
-            populateStudies();
-        }
     });
+    if (activeTab === 'studies') {
+        populateStudies();
+    }
 }
 function setAlertState() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -219,13 +219,13 @@ function setAlertState() {
                 titleButton.classList.remove("active");
                 yield chrome.storage.sync.set({ ["useOld"]: false });
                 const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                if (tabs.length > 0) {
-                    yield chrome.tabs.sendMessage(tabs[0].id, {
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
                         type: 'change-alert-type',
                         target: 'everything',
                         data: "website"
                     });
-                }
+                });
             });
         });
         titleButton.addEventListener("click", function () {
@@ -238,13 +238,13 @@ function setAlertState() {
                 websiteButton.classList.remove("active");
                 yield chrome.storage.sync.set({ ["useOld"]: true });
                 const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                if (tabs.length > 0) {
-                    yield chrome.tabs.sendMessage(tabs[0].id, {
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
                         type: 'change-alert-type',
                         target: 'content',
                         data: "title"
                     });
-                }
+                });
                 yield chrome.runtime.sendMessage({
                     type: 'change-alert-type',
                     target: 'background',

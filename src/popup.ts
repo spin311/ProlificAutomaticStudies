@@ -127,7 +127,7 @@ async function populateStudies() {
         studyCard.classList.add("study-card");
         studyCard.innerHTML = `
             <div class="study-info">
-                <img src="/imgs/placeholder.png" alt="Study Image" class="study-img">
+                <img src="/imgs/logo.png" alt="Study Image" class="study-img">
                 <div class="study-details">
                     <h4 class="study-title">${study.title || "Untitled"}</h4>
                     <p><strong>Researcher:</strong> ${study.researcher || "Unknown"}</p>
@@ -171,10 +171,10 @@ function changeTab(activeTab: string): void {
             currentTabElement.style.display = "none";
             currentItemElement.classList.remove("active");
         }
-        if (activeTab === 'studies') {
-            populateStudies();
-        }
     });
+    if (activeTab === 'studies') {
+        populateStudies();
+    }
 }
 
 async function setAlertState(): Promise<void> {
@@ -207,13 +207,13 @@ async function setAlertState(): Promise<void> {
         titleButton.classList.remove("active");
         await chrome.storage.sync.set({["useOld"]: false});
         const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
-        if (tabs.length > 0) {
-            await chrome.tabs.sendMessage(tabs[0].id!, {
+        tabs.forEach(tab => {
+            chrome.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',
                 target: 'everything',
                 data: "website"
             });
-        }
+        });
     });
     titleButton.addEventListener("click", async function (): Promise<void> {
         historyLabel.classList.add("disabled-text");
@@ -224,13 +224,13 @@ async function setAlertState(): Promise<void> {
         websiteButton.classList.remove("active");
         await chrome.storage.sync.set({["useOld"]: true});
         const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
-        if (tabs.length > 0) {
-            await chrome.tabs.sendMessage(tabs[0].id!, {
+        tabs.forEach(tab => {
+            chrome.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',
                 target: 'content',
                 data: "title"
             });
-        }
+        });
         await chrome.runtime.sendMessage({
             type: 'change-alert-type',
             target: 'background',

@@ -380,7 +380,6 @@ input[type="number"]:focus {
     margin-right: 1em;
     object-fit: cover;
     border-radius: 5px;
-    background-color: #eee;
 }
 
 .study-details {
