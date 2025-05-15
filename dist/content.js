@@ -76,13 +76,14 @@ function observeStudyChanges() {
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
             if (isProcessing)
                 return;
+            let newChanges = false;
             for (const mutation of mutationsList) {
-                if (mutation.addedNodes.length ||
-                    mutation.removedNodes.length) {
-                    yield extractAndSendStudies(targetNode);
-                    console.log("extracting mutation studies");
-                    break;
+                if (mutation.addedNodes.length || mutation.removedNodes.length) {
+                    newChanges = true;
                 }
+            }
+            if (newChanges) {
+                yield extractAndSendStudies(targetNode);
             }
         }));
         // Initial check if studies are already loaded
@@ -156,6 +157,7 @@ function extractStudies(targetNode) {
                 rewardPerHour,
                 time,
                 limitedCapacity: false,
+                createdAt: new Date().toISOString(),
             });
         });
         if (shouldIgnoreOldStudies) {

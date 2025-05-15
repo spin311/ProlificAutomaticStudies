@@ -9,6 +9,7 @@ type Study = {
     rewardPerHour: string | null;
     time: string | null;
     limitedCapacity: boolean | null;
+    createdAt: string | null;
 };
 
 //TODO:

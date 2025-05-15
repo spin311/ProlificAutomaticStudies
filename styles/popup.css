@@ -163,14 +163,22 @@ body {
     height: 16px;
 }
 
-a {
+a:not(.normal-link) {
     text-decoration: none;
     color: #18272F;
     font-weight: 700;
     position: relative;
 }
 
-a::before {
+.normal-link {
+    text-decoration: none;
+}
+
+.white {
+    color: white;
+}
+
+a:not(.normal-link)::before{
     content: '';
     background-color: hsl(212, 97%, 76%);
     position: absolute;
@@ -185,7 +193,7 @@ a::before {
     visibility: hidden;
 }
 
-a:hover::before {
+a:not(.normal-link):hover::before {
     bottom: 0;
     height: 100%;
 }
@@ -370,24 +378,68 @@ input[type="number"]:focus {
 }
 
 .study-info {
+    display: grid;
+    grid-template-areas: "study-header study-header"
+                                      "researcher researcher"
+                                      "reward reward-hour"
+                                      "time created-at"
+                                       "open-btn delete-btn";
+    grid-row-gap: 0.2em;
+    grid-column-gap: 1em;
+    align-items: start;
+    justify-items: start;
+}
+
+.study-header {
+    grid-area: study-header;
     display: flex;
-    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.6em;
+    align-items: center;
 }
 
-.study-img {
-    width: 60px;
-    height: 60px;
-    margin-right: 1em;
-    object-fit: cover;
-    border-radius: 5px;
+.open-btn {
+    grid-area: open-btn;
 }
 
-.study-details {
-    flex-grow: 1;
+.delete-btn {
+    grid-area: delete-btn;
+}
+.open-btn:hover, .delete-btn:hover {
+    cursor: pointer;
+    opacity: 0.8;
 }
 
 .study-title {
     margin: 0;
     font-size: 1.1em;
     color: #2282ad;
+}
+
+.study-researcher {
+    grid-area: researcher;
+}
+
+.study-reward-hour {
+    grid-area: reward-hour;
+}
+
+.study-reward {
+    grid-area: reward;
+}
+
+.study-time {
+    grid-area: time;
+}
+
+.study-created-at {
+    grid-area: created-at;
+}
+
+.study-img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 5px;
+    margin-left: -12px;
 }

@@ -7,6 +7,7 @@ type  StudyContent = {
     rewardPerHour: string | null;
     time: string | null;
     limitedCapacity: boolean | null;
+    createdAt: string | null;
 };
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
@@ -79,15 +80,14 @@ function observeStudyChanges(): void {
         // Observe for dynamic content updates within the target element
         globalObserver = new MutationObserver(async (mutationsList) => {
             if (isProcessing) return;
+            let newChanges = false;
             for (const mutation of mutationsList) {
-                if (
-                    mutation.addedNodes.length ||
-                    mutation.removedNodes.length
-                ) {
-                    await extractAndSendStudies(targetNode);
-                    console.log("extracting mutation studies")
-                    break;
+                if (mutation.addedNodes.length || mutation.removedNodes.length) {
+                    newChanges = true;
                 }
+            }
+            if (newChanges) {
+                await extractAndSendStudies(targetNode);
             }
         });
 
@@ -163,6 +163,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
                 rewardPerHour,
                 time,
                 limitedCapacity: false,
+                createdAt: new Date().toISOString(),
             });
         });
     if (shouldIgnoreOldStudies) {

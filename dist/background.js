@@ -10,6 +10,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 var Reason = chrome.offscreen.Reason;
 var ContextType = chrome.runtime.ContextType;
+//TODO:
+// Add help, contact
+// Add page on portfolio
+// Studies tab:
+// search, sort, filter
+// add to favorites
+//open study in new tab
+// explanation
+// UI, date added
+// filters:
+// add name and researcher blacklist
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const OPEN_PROLIFIC = "openProlific";

@@ -124,20 +124,23 @@ async function populateStudies() {
 
     currentStudies.forEach((study, index) => {
         const studyCard = document.createElement("div");
+        const link = `https://app.prolific.com/studies/${study.id}`;
         studyCard.classList.add("study-card");
         studyCard.innerHTML = `
             <div class="study-info">
-                <img src="/imgs/logo.png" alt="Study Image" class="study-img">
-                <div class="study-details">
-                    <h4 class="study-title">${study.title || "Untitled"}</h4>
-                    <p><strong>Researcher:</strong> ${study.researcher || "Unknown"}</p>
-                    <p><strong>Reward:</strong> ${study.reward || "N/A"}</p>
-                    <p><strong>Reward/hour:</strong> ${study.rewardPerHour || "N/A"}</p>
-                    <p><strong>Time:</strong> ${study.time || "N/A"}</p>
-                    <p><strong>Places:</strong> ${study.places ?? "N/A"}</p>
-                </div>
+            <div class="study-header">
+                 <img src="/imgs/logo.png" alt="Study Image" class="study-img">
+                <div class="study-title">${study.title || "Untitled"}</div>      
             </div>
-            <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
+                    <div class="study-researcher">By: ${study.researcher || "Unknown"}</div>
+                    <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
+                    <div class="study-reward-hour">${study.rewardPerHour || "N/A"}  &#47;hr</div>
+                    <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
+                    <div class="study-created-at"><strong>Created:</strong> ${study.createdAt || "N/A"}</div>
+                    <button class="btn btn-success open-btn" data-index="${index}"><a href=${link} target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a></button>
+                    <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
+            </div>
+
         `;
         studiesContainer?.appendChild(studyCard);
     });
