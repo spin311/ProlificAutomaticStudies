@@ -280,15 +280,15 @@ async function setInputState(elementId: string, storageKey: string): Promise<voi
 }
 
 async function handleBlacklistInputs() {
-    await handleBlacklistInput("blacklist-name", "nameBlacklist");
-    await handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+    await handleBlacklistInput("blacklist-name", "nameBlacklist", "name-list");
+    await handleBlacklistInput("blacklist-researcher", "researcherBlacklist", "researcher-list");
 }
 
-async function handleBlacklistInput(elementId: string, storageKey: string): Promise<void> {
-    const blacklistInput = document.getElementById(elementId) as HTMLInputElement;
+async function handleBlacklistInput(inputId: string, storageKey: string, listId: string): Promise<void> {
+    const blacklistInput = document.getElementById(inputId) as HTMLInputElement;
     await appendBlacklistInput(blacklistInput?.value, storageKey);
     blacklistInput.value = '';
-    await populateBlacklist(elementId, storageKey);
+    await populateBlacklist(listId, storageKey);
 }
 
 async function setBlacklist() {
@@ -298,12 +298,12 @@ async function setBlacklist() {
 
     blacklistNameInput.addEventListener("keydown", async (e) => {
         if (e.key === "Enter") {
-            await handleBlacklistInput("blacklist-name", "nameBlacklist");
+            await handleBlacklistInput("blacklist-name", "nameBlacklist", "name-list");
         }
     });
     blacklistResearcherInput.addEventListener("keydown", async (e) => {
         if (e.key === "Enter") {
-            await handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+            await handleBlacklistInput("blacklist-researcher", "researcherBlacklist", "researcher-list");
         }
     });
 
@@ -316,13 +316,14 @@ async function setBlacklist() {
 
 async function appendBlacklistInput(value: string, storageKey: string): Promise<void> {
     if (!value) return;
+    const currentValue = value.toLowerCase();
     let newValues;
     const currentValues = await chrome.storage.sync.get(storageKey);
     const result = currentValues[storageKey];
-    if (result !== undefined) {
-        newValues = [...result, value];
+    if (result !== undefined && !result.includes(currentValue)) {
+        newValues = [...result, currentValue];
     } else {
-        newValues = [value];
+        newValues = [currentValue];
     }
     await chrome.storage.sync.set({ [storageKey]: newValues });
 }
@@ -331,9 +332,9 @@ async function populateBlacklist(elementId: string, storageKey: string, values: 
     const blacklistContainer = document.getElementById(elementId) as HTMLElement;
     blacklistContainer.innerHTML = "";
     let currentItems;
-    if (!values) {
+    if (values.length === 0) {
         const result = await chrome.storage.sync.get(storageKey);
-        currentItems = result?.items || [];
+        currentItems = result[storageKey] || [];
     } else {
         currentItems = values;
     }

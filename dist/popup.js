@@ -299,16 +299,16 @@ function setInputState(elementId, storageKey) {
 }
 function handleBlacklistInputs() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield handleBlacklistInput("blacklist-name", "nameBlacklist");
-        yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+        yield handleBlacklistInput("blacklist-name", "nameBlacklist", "name-list");
+        yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist", "researcher-list");
     });
 }
-function handleBlacklistInput(elementId, storageKey) {
+function handleBlacklistInput(inputId, storageKey, listId) {
     return __awaiter(this, void 0, void 0, function* () {
-        const blacklistInput = document.getElementById(elementId);
+        const blacklistInput = document.getElementById(inputId);
         yield appendBlacklistInput(blacklistInput === null || blacklistInput === void 0 ? void 0 : blacklistInput.value, storageKey);
         blacklistInput.value = '';
-        yield populateBlacklist(elementId, storageKey);
+        yield populateBlacklist(listId, storageKey);
     });
 }
 function setBlacklist() {
@@ -318,12 +318,12 @@ function setBlacklist() {
         const blacklistResearcherInput = document.getElementById("blacklist-researcher");
         blacklistNameInput.addEventListener("keydown", (e) => __awaiter(this, void 0, void 0, function* () {
             if (e.key === "Enter") {
-                yield handleBlacklistInput("blacklist-name", "nameBlacklist");
+                yield handleBlacklistInput("blacklist-name", "nameBlacklist", "name-list");
             }
         }));
         blacklistResearcherInput.addEventListener("keydown", (e) => __awaiter(this, void 0, void 0, function* () {
             if (e.key === "Enter") {
-                yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+                yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist", "researcher-list");
             }
         }));
         if (!blacklistButton)
@@ -339,14 +339,15 @@ function appendBlacklistInput(value, storageKey) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!value)
             return;
+        const currentValue = value.toLowerCase();
         let newValues;
         const currentValues = yield chrome.storage.sync.get(storageKey);
         const result = currentValues[storageKey];
-        if (result !== undefined) {
-            newValues = [...result, value];
+        if (result !== undefined && !result.includes(currentValue)) {
+            newValues = [...result, currentValue];
         }
         else {
-            newValues = [value];
+            newValues = [currentValue];
         }
         yield chrome.storage.sync.set({ [storageKey]: newValues });
     });
@@ -356,9 +357,9 @@ function populateBlacklist(elementId_1, storageKey_1) {
         const blacklistContainer = document.getElementById(elementId);
         blacklistContainer.innerHTML = "";
         let currentItems;
-        if (!values) {
+        if (values.length === 0) {
             const result = yield chrome.storage.sync.get(storageKey);
-            currentItems = (result === null || result === void 0 ? void 0 : result.items) || [];
+            currentItems = result[storageKey] || [];
         }
         else {
             currentItems = values;
