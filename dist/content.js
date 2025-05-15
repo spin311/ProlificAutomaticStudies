@@ -12,7 +12,7 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let isProcessing = false; // A global promise to avoid concurrency issues
 let isObserverInitializing = false;
-const NUMBER_OF_STUDIES_TO_STORE = 50;
+const NUMBER_OF_STUDIES_TO_STORE = 100;
 function waitForElement(selector) {
     return __awaiter(this, void 0, void 0, function* () {
         const useOld = yield getValueFromStorageContentScript("useOld", false);

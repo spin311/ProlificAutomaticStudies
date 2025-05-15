@@ -13,7 +13,7 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let isProcessing: boolean = false;  // A global promise to avoid concurrency issues
 let isObserverInitializing: boolean = false;
-const NUMBER_OF_STUDIES_TO_STORE = 50;
+const NUMBER_OF_STUDIES_TO_STORE = 100;
 
 
 async function waitForElement(selector: string): Promise<Element | null> {
