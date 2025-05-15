@@ -104,12 +104,6 @@
     <div id="filters">
         <div class="filters-title mb-2">Show studies with at least:</div>
         <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="0" id="nuPlaces" min="0" max="9999">
-            <label class="form-check-label" for="nuPlaces">
-                Number of places
-            </label>
-        </div>
-        <div class="form-number d-flex justify-content-center">
             <input class="mr-2" type="number" value="0.0" id="reward" min='0'>
             <label class="form-check-label" for="reward">
                 Reward (£)
@@ -121,6 +115,24 @@
                 Reward per hour (£/h)
             </label>
         </div>
+        <div class="filters-title mb-2">Blacklist studies that contain:</div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="text"  id="blacklist-name">
+            <label class="form-check-label" for="blacklist-name">
+                Name
+            </label>
+        </div>
+        <div id="name-list" class="mb-2"></div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="text"  id="blacklist-researcher">
+            <label class="form-check-label" for="blacklist-researcher">
+                Researcher
+            </label>
+        </div>
+        <button id="submit-blacklist" class="btn btn-success ml-05">
+            Add
+        </button>
+        <div id="researcher-list"></div>
     </div>
 </div>
 

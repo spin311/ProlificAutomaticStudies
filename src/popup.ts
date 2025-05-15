@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setCheckboxState("focusProlific", "focusProlific");
     await setCheckboxState("trackIds", "trackIds");
 
-    await setInputState("nuPlaces", "nuPlaces");
     await setInputState("reward", "reward");
     await setInputState("rewardPerHour", "rewardPerHour");
     await setInputState("studyHistoryLen","studyHistoryLen")
@@ -45,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     setTabState("studies-tab", "studies");
     await setCurrentActiveTab();
     await setAlertState();
+    await setBlacklist();
 
     if(selectAudio) {
         await setAudioOption(selectAudio);
@@ -88,6 +88,16 @@ async function playAlert(): Promise<void> {
     }, 500);
 }
 
+function formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate().toString();
+    const month = (date.getMonth() + 1) < 10 ? '0' + (date.getMonth() + 1) : (date.getMonth() + 1).toString();
+    const year = date.getFullYear();
+    const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours().toString();
+    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes().toString();
+
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
 async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
     const result = await chrome.storage.sync.get("audio");
     selectAudio.value = result["audio"];
@@ -115,7 +125,6 @@ async function populateStudies() {
     studiesContainer.innerHTML = ""; // clear previous content
     const result = await chrome.storage.sync.get("currentStudies");
     const currentStudies: Study[] = result["currentStudies"];
-    console.log("currentStudies", currentStudies);
 
     if (!currentStudies || currentStudies.length === 0) {
         studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
@@ -125,6 +134,7 @@ async function populateStudies() {
     currentStudies.forEach((study, index) => {
         const studyCard = document.createElement("div");
         const link = `https://app.prolific.com/studies/${study.id}`;
+        const formattedDate = study.createdAt ? formatDate(study.createdAt): 'N/A';
         studyCard.classList.add("study-card");
         studyCard.innerHTML = `
             <div class="study-info">
@@ -136,7 +146,7 @@ async function populateStudies() {
                     <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
                     <div class="study-reward-hour">${study.rewardPerHour || "N/A"}  &#47;hr</div>
                     <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
-                    <div class="study-created-at"><strong>Created:</strong> ${study.createdAt || "N/A"}</div>
+                    <div class="study-created-at"><strong>Created:</strong> ${formattedDate}</div>
                     <button class="btn btn-success open-btn" data-index="${index}"><a href=${link} target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a></button>
                     <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
             </div>
@@ -145,7 +155,7 @@ async function populateStudies() {
         studiesContainer?.appendChild(studyCard);
     });
 
-    document.querySelectorAll(".delete-btn").forEach(button => {
+    studiesContainer.querySelectorAll(".delete-btn").forEach(button => {
         button.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             const index = parseInt(target.getAttribute("data-index") || "");
@@ -201,6 +211,7 @@ async function setAlertState(): Promise<void> {
         trackIds.disabled = false;
         websiteButton.classList.add("active");
     }
+
     websiteButton.addEventListener("click", async function (): Promise<void> {
         historyLabel.classList.remove("disabled-text");
         history.disabled = false;
@@ -218,6 +229,7 @@ async function setAlertState(): Promise<void> {
             });
         });
     });
+
     titleButton.addEventListener("click", async function (): Promise<void> {
         historyLabel.classList.add("disabled-text");
         trackIdsLabel.classList.add("disabled-text");
@@ -264,5 +276,83 @@ async function setInputState(elementId: string, storageKey: string): Promise<voi
     }
     element.addEventListener("change", async function (): Promise<void> {
         await chrome.storage.sync.set({[storageKey]: parseFloat(element.value)});
+    });
+}
+
+async function handleBlacklistInputs() {
+    await handleBlacklistInput("blacklist-name", "nameBlacklist");
+    await handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+}
+
+async function handleBlacklistInput(elementId: string, storageKey: string): Promise<void> {
+    const blacklistInput = document.getElementById(elementId) as HTMLInputElement;
+    await appendBlacklistInput(blacklistInput?.value, storageKey);
+    blacklistInput.value = '';
+    await populateBlacklist(elementId, storageKey);
+}
+
+async function setBlacklist() {
+    const blacklistButton = document.getElementById("submit-blacklist") as HTMLButtonElement;
+    const blacklistNameInput = document.getElementById("blacklist-name") as HTMLInputElement;
+    const blacklistResearcherInput = document.getElementById("blacklist-researcher") as HTMLInputElement;
+
+    blacklistNameInput.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter") {
+            await handleBlacklistInput("blacklist-name", "nameBlacklist");
+        }
+    });
+    blacklistResearcherInput.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter") {
+            await handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+        }
+    });
+
+    if (!blacklistButton) return;
+
+    blacklistButton.addEventListener("click", async function (): Promise<void> {
+        await handleBlacklistInputs();
+    });
+}
+
+async function appendBlacklistInput(value: string, storageKey: string): Promise<void> {
+    if (!value) return;
+    let newValues;
+    const currentValues = await chrome.storage.sync.get(storageKey);
+    const result = currentValues[storageKey];
+    if (result !== undefined) {
+        newValues = [...result, value];
+    } else {
+        newValues = [value];
+    }
+    await chrome.storage.sync.set({ [storageKey]: newValues });
+}
+
+async function populateBlacklist(elementId: string, storageKey: string, values: string[]=[]): Promise<void> {
+    const blacklistContainer = document.getElementById(elementId) as HTMLElement;
+    blacklistContainer.innerHTML = "";
+    let currentItems;
+    if (!values) {
+        const result = await chrome.storage.sync.get(storageKey);
+        currentItems = result?.items || [];
+    } else {
+        currentItems = values;
+    }
+
+    currentItems.forEach((item: string, index: number) => {
+        const itemCard = document.createElement('div');
+        itemCard.classList.add("blacklist-card");
+        itemCard.innerHTML = `
+        <span>${item}</span> <span class="remove-btn" data-index="${index}">X</span>
+        `;
+        blacklistContainer.appendChild(itemCard);
+    });
+    blacklistContainer.querySelectorAll(".remove-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            const index = parseInt(target.getAttribute("data-index") || "");
+            currentItems.splice(index, 1);
+            chrome.storage.sync.set({ [storageKey]: currentItems });
+            populateBlacklist(elementId, storageKey, currentItems);
+        });
     });
 }

@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setCheckboxState("openProlific", "openProlific");
         yield setCheckboxState("focusProlific", "focusProlific");
         yield setCheckboxState("trackIds", "trackIds");
-        yield setInputState("nuPlaces", "nuPlaces");
         yield setInputState("reward", "reward");
         yield setInputState("rewardPerHour", "rewardPerHour");
         yield setInputState("studyHistoryLen", "studyHistoryLen");
@@ -53,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("studies-tab", "studies");
         yield setCurrentActiveTab();
         yield setAlertState();
+        yield setBlacklist();
         if (selectAudio) {
             yield setAudioOption(selectAudio);
         }
@@ -93,6 +93,15 @@ function playAlert() {
         }, 500);
     });
 }
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate().toString();
+    const month = (date.getMonth() + 1) < 10 ? '0' + (date.getMonth() + 1) : (date.getMonth() + 1).toString();
+    const year = date.getFullYear();
+    const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours().toString();
+    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes().toString();
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
 function setAudioOption(selectAudio) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("audio");
@@ -127,7 +136,6 @@ function populateStudies() {
         studiesContainer.innerHTML = ""; // clear previous content
         const result = yield chrome.storage.sync.get("currentStudies");
         const currentStudies = result["currentStudies"];
-        console.log("currentStudies", currentStudies);
         if (!currentStudies || currentStudies.length === 0) {
             studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
             return;
@@ -135,6 +143,7 @@ function populateStudies() {
         currentStudies.forEach((study, index) => {
             const studyCard = document.createElement("div");
             const link = `https://app.prolific.com/studies/${study.id}`;
+            const formattedDate = study.createdAt ? formatDate(study.createdAt) : 'N/A';
             studyCard.classList.add("study-card");
             studyCard.innerHTML = `
             <div class="study-info">
@@ -146,7 +155,7 @@ function populateStudies() {
                     <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
                     <div class="study-reward-hour">${study.rewardPerHour || "N/A"}  &#47;hr</div>
                     <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
-                    <div class="study-created-at"><strong>Created:</strong> ${study.createdAt || "N/A"}</div>
+                    <div class="study-created-at"><strong>Created:</strong> ${formattedDate}</div>
                     <button class="btn btn-success open-btn" data-index="${index}"><a href=${link} target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a></button>
                     <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
             </div>
@@ -154,7 +163,7 @@ function populateStudies() {
         `;
             studiesContainer === null || studiesContainer === void 0 ? void 0 : studiesContainer.appendChild(studyCard);
         });
-        document.querySelectorAll(".delete-btn").forEach(button => {
+        studiesContainer.querySelectorAll(".delete-btn").forEach(button => {
             button.addEventListener("click", (e) => {
                 const target = e.target;
                 const index = parseInt(target.getAttribute("data-index") || "");
@@ -284,6 +293,91 @@ function setInputState(elementId, storageKey) {
         element.addEventListener("change", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 yield chrome.storage.sync.set({ [storageKey]: parseFloat(element.value) });
+            });
+        });
+    });
+}
+function handleBlacklistInputs() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield handleBlacklistInput("blacklist-name", "nameBlacklist");
+        yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+    });
+}
+function handleBlacklistInput(elementId, storageKey) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const blacklistInput = document.getElementById(elementId);
+        yield appendBlacklistInput(blacklistInput === null || blacklistInput === void 0 ? void 0 : blacklistInput.value, storageKey);
+        blacklistInput.value = '';
+        yield populateBlacklist(elementId, storageKey);
+    });
+}
+function setBlacklist() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const blacklistButton = document.getElementById("submit-blacklist");
+        const blacklistNameInput = document.getElementById("blacklist-name");
+        const blacklistResearcherInput = document.getElementById("blacklist-researcher");
+        blacklistNameInput.addEventListener("keydown", (e) => __awaiter(this, void 0, void 0, function* () {
+            if (e.key === "Enter") {
+                yield handleBlacklistInput("blacklist-name", "nameBlacklist");
+            }
+        }));
+        blacklistResearcherInput.addEventListener("keydown", (e) => __awaiter(this, void 0, void 0, function* () {
+            if (e.key === "Enter") {
+                yield handleBlacklistInput("blacklist-researcher", "researcherBlacklist");
+            }
+        }));
+        if (!blacklistButton)
+            return;
+        blacklistButton.addEventListener("click", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield handleBlacklistInputs();
+            });
+        });
+    });
+}
+function appendBlacklistInput(value, storageKey) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!value)
+            return;
+        let newValues;
+        const currentValues = yield chrome.storage.sync.get(storageKey);
+        const result = currentValues[storageKey];
+        if (result !== undefined) {
+            newValues = [...result, value];
+        }
+        else {
+            newValues = [value];
+        }
+        yield chrome.storage.sync.set({ [storageKey]: newValues });
+    });
+}
+function populateBlacklist(elementId_1, storageKey_1) {
+    return __awaiter(this, arguments, void 0, function* (elementId, storageKey, values = []) {
+        const blacklistContainer = document.getElementById(elementId);
+        blacklistContainer.innerHTML = "";
+        let currentItems;
+        if (!values) {
+            const result = yield chrome.storage.sync.get(storageKey);
+            currentItems = (result === null || result === void 0 ? void 0 : result.items) || [];
+        }
+        else {
+            currentItems = values;
+        }
+        currentItems.forEach((item, index) => {
+            const itemCard = document.createElement('div');
+            itemCard.classList.add("blacklist-card");
+            itemCard.innerHTML = `
+        <span>${item}</span> <span class="remove-btn" data-index="${index}">X</span>
+        `;
+            blacklistContainer.appendChild(itemCard);
+        });
+        blacklistContainer.querySelectorAll(".remove-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                const target = e.target;
+                const index = parseInt(target.getAttribute("data-index") || "");
+                currentItems.splice(index, 1);
+                chrome.storage.sync.set({ [storageKey]: currentItems });
+                populateBlacklist(elementId, storageKey, currentItems);
             });
         });
     });

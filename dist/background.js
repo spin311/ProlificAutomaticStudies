@@ -28,7 +28,6 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
-const NU_PLACES = "nuPlaces";
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
 const ACTIVE_TAB = "activeTab";
@@ -182,14 +181,13 @@ function handleMessages(message) {
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f;
         if (!studies)
             return;
         const studiesStorageValues = yield chrome.storage.sync.get([
             SHOW_NOTIFICATION,
             AUDIO_ACTIVE,
             FOCUS_PROLIFIC,
-            NU_PLACES,
             REWARD,
             REWARD_PER_HOUR,
             AUDIO,
@@ -201,14 +199,10 @@ function handleNewStudies(studies) {
         const shouldShowNotification = (_a = studiesStorageValues[SHOW_NOTIFICATION]) !== null && _a !== void 0 ? _a : true;
         const shouldPlayAudio = (_b = studiesStorageValues[AUDIO_ACTIVE]) !== null && _b !== void 0 ? _b : true;
         const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
-        const numPlaces = (_d = studiesStorageValues[NU_PLACES]) !== null && _d !== void 0 ? _d : 0;
-        const reward = (_e = studiesStorageValues[REWARD]) !== null && _e !== void 0 ? _e : 0;
-        const rewardPerHour = (_f = studiesStorageValues[REWARD_PER_HOUR]) !== null && _f !== void 0 ? _f : 0;
-        if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
+        const reward = (_d = studiesStorageValues[REWARD]) !== null && _d !== void 0 ? _d : 0;
+        const rewardPerHour = (_e = studiesStorageValues[REWARD_PER_HOUR]) !== null && _e !== void 0 ? _e : 0;
+        if (reward > 0 || rewardPerHour > 0) {
             studies = studies.filter((study) => {
-                if (numPlaces && study.places && study.places < numPlaces) {
-                    return false;
-                }
                 if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
                     return false;
                 }
@@ -218,7 +212,7 @@ function handleNewStudies(studies) {
         if (studies.length === 0)
             return;
         if (shouldPlayAudio) {
-            const audio = (_g = studiesStorageValues[AUDIO]) !== null && _g !== void 0 ? _g : 'alert1.mp3';
+            const audio = (_f = studiesStorageValues[AUDIO]) !== null && _f !== void 0 ? _f : 'alert1.mp3';
             const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
             yield playAudio(audio, volume);
         }

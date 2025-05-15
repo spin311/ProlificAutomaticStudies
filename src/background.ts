@@ -32,7 +32,6 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
-const NU_PLACES = "nuPlaces";
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
 const ACTIVE_TAB = "activeTab";
@@ -194,7 +193,6 @@ async function handleNewStudies(studies: Study[]) {
         SHOW_NOTIFICATION,
         AUDIO_ACTIVE,
         FOCUS_PROLIFIC,
-        NU_PLACES,
         REWARD,
         REWARD_PER_HOUR,
         AUDIO,
@@ -205,14 +203,10 @@ async function handleNewStudies(studies: Study[]) {
     const shouldShowNotification: boolean = studiesStorageValues[SHOW_NOTIFICATION] ?? true;
     const shouldPlayAudio: boolean = studiesStorageValues[AUDIO_ACTIVE] ?? true;
     const shouldFocusProlific: boolean = studiesStorageValues[FOCUS_PROLIFIC] ?? false;
-    const numPlaces: number = studiesStorageValues[NU_PLACES] ?? 0;
     const reward: number = studiesStorageValues[REWARD] ?? 0;
     const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
-    if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
+    if ( reward > 0 || rewardPerHour > 0) {
         studies = studies.filter((study) => {
-            if (numPlaces && study.places && study.places < numPlaces) {
-                return false;
-            }
             if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
                 return false;
             }
