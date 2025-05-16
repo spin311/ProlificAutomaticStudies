@@ -36,18 +36,15 @@ function waitForElement(selector) {
     });
 }
 function handleContentMessages(message) {
-    console.log(message);
     if (message.target !== "content" && message.target !== 'everything') {
         return Promise.resolve();
     }
     switch (message.type) {
         case "change-alert-type":
             if (message.data === "website") {
-                console.log("Changing to website observer");
                 observeStudyChanges();
             }
             else {
-                console.log("Disconnecting observer");
                 globalObserver === null || globalObserver === void 0 ? void 0 : globalObserver.disconnect();
                 globalObserver = null;
             }
@@ -68,10 +65,8 @@ function observeStudyChanges() {
     waitForElement(targetSelector).then((targetNode) => __awaiter(this, void 0, void 0, function* () {
         isObserverInitializing = false;
         if (!targetNode || isObserverActive()) {
-            console.log("targetNode not found or observer already exists");
             return;
         }
-        console.log("observer created");
         // Observe for dynamic content updates within the target element
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
             if (isProcessing)
@@ -88,7 +83,6 @@ function observeStudyChanges() {
         }));
         // Initial check if studies are already loaded
         yield extractAndSendStudies(targetNode);
-        console.log("extracting initial studies");
         globalObserver.observe(targetNode, { childList: true, subtree: true });
     }));
 }
@@ -98,24 +92,14 @@ function extractAndSendStudies(targetNode) {
             if (isProcessing)
                 return;
             isProcessing = true;
-            console.log(`Extracting studies at time ${new Date().toLocaleTimeString()}`);
             const studies = yield extractStudies(targetNode);
             if (studies.length > 0) {
-                console.log(`Extracting studies from ${studies.length} studies`);
-                console.log(studies);
                 chrome.runtime.sendMessage({
                     target: "background",
                     type: "new-studies",
                     data: studies,
                 });
             }
-            else {
-                console.log("No new studies found");
-            }
-            isProcessing = false;
-        }
-        catch (e) {
-            console.error(e);
             isProcessing = false;
         }
         finally {

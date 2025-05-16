@@ -7,14 +7,17 @@
 </head>
 <body>
 <h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
-
-
+<div class="container-fluid">
+    <a href="https://spin311.github.io/ProlificAutomaticStudies/" target="_blank">Help</a>
+    <a class="my-1 links" href="https://chromewebstore.google.com/search/spin311" target="_blank">Extensions</a>
+    <a href="https://svitspindler.com/contact" target="_blank">Contact Me</a>
+</div>
 
 <h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
 <div class="tabs mb-4">
     <ul>
         <li id="settings-tab"><img src="/svgs/gear.svg" alt="gear"> <span>Settings</span></li>
-        <li id="studies-tab"><img src="/svgs/gear.svg" alt="study"> <span>Studies</span></li>
+        <li id="studies-tab"><img src="/svgs/study.svg" alt="study"> <span>Studies</span></li>
         <li id="filters-tab"><img src="/svgs/filter.svg" alt="filter"><span>Filters</span></li>
     </ul>
 </div>
@@ -82,8 +85,7 @@
                 <label for="volume">Volume:</label>
                 <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
             </div>
-            <label for="selectAudio" class="form-label">Select Audio:
-            </label>
+            <label for="selectAudio" class="form-label">Select Audio:</label>
             <select name="selectAudio" id="selectAudio" class="form-select">
                 <option value="alert1.mp3">Alert 1</option>
                 <option value="alert2.mp3">Alert 2</option>
@@ -98,8 +100,28 @@
         </div>
     </div>
     <div id="studies">
-        Studies list
+        <div>
+            <span class="search-container">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+                <input type="text" placeholder="Search" id="search-studies" class="input-search">
+            </span>
+            <label for="sort-studies" class="form-label">Sort:</label>
+            <select name="sortStudies" id="sort-studies" class="form-select">
+                <option value="created+">Newest</option>
+                <option value="created-">Oldest</option>
+                <option value="pay+">Highest pay</option>
+                <option value="pay-">Lowest pay</option>
+                <option value="payH+">Highest pay / h</option>
+                <option value="payH-">Lowest pay / h</option>
+                <option value="time+">Shortest</option>
+                <option value="time-">Longest</option>
+            </select>
 
+        </div>
+        <div id="studies-container"></div>
     </div>
     <div id="filters">
         <div class="filters-title mb-2">Show studies with at least:</div>
@@ -121,14 +143,14 @@
         </div>
 
         <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="text"  id="blacklist-name">
+            <input class="mr-2 blacklist-input" type="text"  id="blacklist-name">
             <label class="form-check-label" for="blacklist-name">
                 Name
             </label>
         </div>
         <div id="name-list"></div>
         <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="text"  id="blacklist-researcher">
+            <input class="mr-2 blacklist-input" type="text"  id="blacklist-researcher">
             <label class="form-check-label" for="blacklist-researcher">
                 Researcher
             </label>

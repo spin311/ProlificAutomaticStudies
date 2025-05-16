@@ -38,7 +38,6 @@ async function waitForElement(selector: string): Promise<Element | null> {
 }
 
 function handleContentMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
-    console.log(message);
 
     if (message.target !== "content"  && message.target !== 'everything') {
         return Promise.resolve();
@@ -46,10 +45,8 @@ function handleContentMessages(message: { target: string; type: any; data?: any;
     switch (message.type) {
         case "change-alert-type":
             if (message.data === "website") {
-                console.log("Changing to website observer");
                 observeStudyChanges();
             } else {
-                console.log("Disconnecting observer");
                 globalObserver?.disconnect();
                 globalObserver = null;
             }
@@ -72,11 +69,9 @@ function observeStudyChanges(): void {
     waitForElement(targetSelector).then(async (targetNode) => {
         isObserverInitializing = false;
         if (!targetNode || isObserverActive()) {
-            console.log("targetNode not found or observer already exists");
             return;
         }
 
-        console.log("observer created");
         // Observe for dynamic content updates within the target element
         globalObserver = new MutationObserver(async (mutationsList) => {
             if (isProcessing) return;
@@ -93,7 +88,6 @@ function observeStudyChanges(): void {
 
         // Initial check if studies are already loaded
         await extractAndSendStudies(targetNode);
-        console.log("extracting initial studies")
         globalObserver.observe(targetNode, { childList: true, subtree: true });
     });
 }
@@ -104,26 +98,17 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
     try {
         if (isProcessing) return;
         isProcessing = true;
-        console.log(`Extracting studies at time ${new Date().toLocaleTimeString()}`);
         const studies = await extractStudies(targetNode);
         if (studies.length > 0) {
-            console.log(`Extracting studies from ${studies.length} studies`);
-            console.log(studies);
             chrome.runtime.sendMessage({
                 target: "background",
                 type: "new-studies",
                 data: studies,
             });
         }
-        else {
-            console.log("No new studies found");
-        }
         isProcessing = false;
     }
-    catch (e) {
-        console.error(e);
-        isProcessing = false;
-    } finally {
+    finally {
         isProcessing = false;
     }
 

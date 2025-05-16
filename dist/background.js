@@ -10,16 +10,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 var Reason = chrome.offscreen.Reason;
 var ContextType = chrome.runtime.ContextType;
-//TODO:
-// Add help, contact
-// Add page on portfolio
-// Studies tab:
-// search, sort, filter
-// add to favorites
-// explanation
-// UI,
-// NEW badge until open, number of studies for study tab
-// add minutes filter
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const OPEN_PROLIFIC = "openProlific";
@@ -39,6 +29,7 @@ const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
 const NAME_BLACKLIST = 'nameBlacklist';
 const RESEARCHER_BLACKLIST = 'researcherBlacklist';
+const SORT_STUDIES = 'sortStudies';
 let creating = null; // A global promise to avoid concurrency issues
 initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
@@ -74,6 +65,7 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         chrome.storage.sync.set({
             [STUDY_HISTORY_LEN]: 100,
             [TRACK_IDS]: true,
+            [SORT_STUDIES]: "created+"
         });
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
@@ -167,9 +159,6 @@ function handleMessages(message) {
                 break;
             case 'show-notification':
                 sendNotification();
-                break;
-            case 'clear-badge':
-                yield chrome.action.setBadgeText({ text: '' });
                 break;
             case 'change-alert-type':
                 setupTitleAlert();
@@ -277,7 +266,8 @@ function setInitialValues() {
             [VOLUME]: 100,
             [ACTIVE_TAB]: "settings",
             [TRACK_IDS]: true,
-            [STUDY_HISTORY_LEN]: 100
+            [STUDY_HISTORY_LEN]: 100,
+            [SORT_STUDIES]: "created+"
         });
     });
 }
@@ -318,9 +308,6 @@ function updateBadge(counter) {
     return __awaiter(this, void 0, void 0, function* () {
         yield chrome.action.setBadgeText({ text: counter.toString() });
         yield chrome.action.setBadgeBackgroundColor({ color: "#9dec14" });
-        setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-            yield chrome.action.setBadgeText({ text: '' });
-        }), 20000);
     });
 }
 function updateCounterAndBadge() {

@@ -1,5 +1,12 @@
 import Reason = chrome.offscreen.Reason;
 import ContextType = chrome.runtime.ContextType;
+
+//TODO:
+// Add page on portfolio
+// Studies tab:
+// study image
+// NEW badge until open, number of studies for study tab
+// add minutes filter
 type Study = {
     id: string | null;
     title: string | null;
@@ -12,16 +19,6 @@ type Study = {
     createdAt: string | null;
 };
 
-//TODO:
-// Add help, contact
-// Add page on portfolio
-// Studies tab:
-// search, sort, filter
-// add to favorites
-// explanation
-// UI,
-// NEW badge until open, number of studies for study tab
-// add minutes filter
 
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
@@ -42,6 +39,7 @@ const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
 const NAME_BLACKLIST = 'nameBlacklist';
 const RESEARCHER_BLACKLIST = 'researcherBlacklist';
+const SORT_STUDIES = 'sortStudies';
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
 initialize();
@@ -82,6 +80,7 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         chrome.storage.sync.set({
             [STUDY_HISTORY_LEN]: 100,
             [TRACK_IDS]: true,
+            [SORT_STUDIES]: "created+"
         });
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
@@ -174,9 +173,6 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
             break;
         case 'show-notification':
             sendNotification();
-            break;
-        case 'clear-badge':
-            await chrome.action.setBadgeText({text: ''});
             break;
         case 'change-alert-type':
                 setupTitleAlert();
@@ -277,7 +273,8 @@ async function setInitialValues(): Promise<void> {
         [VOLUME]: 100,
         [ACTIVE_TAB]: "settings",
         [TRACK_IDS]: true,
-        [STUDY_HISTORY_LEN]: 100
+        [STUDY_HISTORY_LEN]: 100,
+        [SORT_STUDIES]: "created+"
     });
 }
 
@@ -318,10 +315,6 @@ function sendNotification(study: Study | null=null): void {
 async function updateBadge(counter: number): Promise<void> {
     await chrome.action.setBadgeText({text: counter.toString()});
     await chrome.action.setBadgeBackgroundColor({color: "#9dec14"});
-
-    setTimeout(async (): Promise<void> => {
-        await chrome.action.setBadgeText({text: ''});
-    }, 20000);
 }
 
 async function updateCounterAndBadge(count: number = 1): Promise<void> {

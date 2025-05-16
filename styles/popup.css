@@ -21,7 +21,8 @@ button:hover {
     justify-content: center;
     color: #2282ad;
     font-size: 1.3em;
-    text-shadow: 2px 2px 4px #d3e6ef
+    text-shadow: 2px 2px 4px #d3e6ef;
+    margin-bottom: 0;
 }
 .container-fluid {
     margin-right: auto;
@@ -261,20 +262,20 @@ a:not(.normal-link):hover::before {
     margin-bottom: 0.5rem !important;
 }
 
-#studies-tab:not(.active)::after {
-    content: "NEW";
-    position: absolute;
-    top: 104px;
-    right: 126px;
-    background: linear-gradient(45deg, #ff3d00, #ff9100, #f50057);
-    color: white;
-    font-size: 0.6em;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 1px;
-    animation: shine 2s infinite linear;
-    box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
-}
+/*#studies-tab:not(.active)::after {*/
+/*    content: "NEW";*/
+/*    position: absolute;*/
+/*    top: 104px;*/
+/*    right: 126px;*/
+/*    background: linear-gradient(45deg, #ff3d00, #ff9100, #f50057);*/
+/*    color: white;*/
+/*    font-size: 0.6em;*/
+/*    font-weight: bold;*/
+/*    padding: 2px 6px;*/
+/*    border-radius: 1px;*/
+/*    animation: shine 2s infinite linear;*/
+/*    box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);*/
+/*}*/
 
 /* Shining animation */
 @keyframes shine {
@@ -293,7 +294,30 @@ a:not(.normal-link):hover::before {
     font-size: 1.2em;
 }
 
-input[type="number"], input[type="text"] {
+.search-container {
+    position: relative;
+    display: inline-block;
+}
+
+.search-icon {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    transform: translateY(-50%);
+    height: 18px;
+    width: 18px;
+    pointer-events: none;
+}
+
+.input-search {
+    width: 8em;
+    padding-left: 30px;
+    border: none;
+    background: unset;
+    border-bottom: 2px solid #2282ad;
+}
+
+input[type="number"], .blacklist-input {
     padding: 0.375rem 0.75rem;
     margin: 5px 0;
     font-size: 1rem;
@@ -309,7 +333,7 @@ input[type="number"] {
     width: 5em;
 }
 
-input[type="text"] {
+.blacklist-input{
     width: 8.5em;
 }
 
@@ -415,7 +439,10 @@ input[type="number"]:focus, input[type="text"]:focus  {
 }
 
 .delete-btn {
+    display: flex;
+    padding-left: 0.5em;
     grid-area: delete-btn;
+    background-color: #d9534f;
 }
 .open-btn:hover, .delete-btn:hover {
     cursor: pointer;
@@ -457,12 +484,14 @@ input[type="number"]:focus, input[type="text"]:focus  {
 }
 
 .blacklist-card {
-    border-radius: 10%;
-    padding: 2px 5px;
+    border-radius: 5px;
     background-color: #5896b1;
+    padding: 1px 5px 2px;
 }
 
 .remove-btn {
+    margin-left: 0.1em;
+    margin-bottom: 0.1em;
     padding: 0.1em;
     color: white;
 }
@@ -473,6 +502,7 @@ input[type="number"]:focus, input[type="text"]:focus  {
 
 #name-list, #researcher-list {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.3em;
     margin-top: 0.5em;
     margin-bottom: 0.5em;

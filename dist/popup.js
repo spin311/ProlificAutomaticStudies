@@ -24,11 +24,7 @@ function setVolume(volume) {
 }
 document.addEventListener('DOMContentLoaded', function () {
     return __awaiter(this, void 0, void 0, function* () {
-        yield chrome.runtime.sendMessage({
-            type: 'clear-badge',
-            target: 'background',
-        });
-        const selectAudio = document.getElementById("selectAudio");
+        yield chrome.action.setBadgeText({ text: '' });
         const counter = document.getElementById("counter");
         const playAudio = document.getElementById("playAudio");
         const volume = document.getElementById("volume");
@@ -53,9 +49,9 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setCurrentActiveTab();
         yield setAlertState();
         yield setBlacklist();
-        if (selectAudio) {
-            yield setAudioOption(selectAudio);
-        }
+        yield setSelectState("selectAudio", "audio");
+        yield setSelectState("sort-studies", "sortStudies", populateStudies);
+        yield setupSearch();
         if (counter) {
             yield setCounter(counter);
         }
@@ -102,16 +98,35 @@ function formatDate(dateStr) {
     const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes().toString();
     return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
-function setAudioOption(selectAudio) {
+function setSelectState(elementId, storageKey, callback) {
     return __awaiter(this, void 0, void 0, function* () {
-        const result = yield chrome.storage.sync.get("audio");
-        selectAudio.value = result["audio"];
-        selectAudio.addEventListener("change", function () {
-            return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ ["audio"]: selectAudio.value });
-            });
-        });
+        const element = document.getElementById(elementId);
+        if (!element)
+            return;
+        const result = yield chrome.storage.sync.get(storageKey);
+        element.value = result[storageKey];
+        element.addEventListener("change", () => __awaiter(this, void 0, void 0, function* () {
+            yield chrome.storage.sync.set({ [storageKey]: element.value });
+            if (callback) {
+                callback();
+            }
+        }));
     });
+}
+function parseMoney(value) {
+    return parseFloat((value === null || value === void 0 ? void 0 : value.replace(/[^\d.]/g, "")) || "0");
+}
+function parseTime(value) {
+    if (!value)
+        return 0;
+    const hourMatch = value.match(/(\d+)\s*hour/);
+    const minMatch = value.match(/(\d+)\s*min/);
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+    const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+    return hours * 60 + minutes;
+}
+function parseDate(value) {
+    return new Date(value || "").getTime() || 0;
 }
 function setTabState(elementId, storageValue) {
     const element = document.getElementById(elementId);
@@ -120,53 +135,95 @@ function setTabState(elementId, storageValue) {
     element.addEventListener("click", function () {
         return __awaiter(this, void 0, void 0, function* () {
             yield chrome.storage.sync.set({ ["activeTab"]: storageValue });
-            changeTab(storageValue);
+            yield changeTab(storageValue);
         });
     });
 }
 function setCurrentActiveTab() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("activeTab");
-        changeTab(result["activeTab"]);
+        yield changeTab(result["activeTab"]);
     });
 }
 function populateStudies() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const studiesContainer = document.getElementById("studies");
+    return __awaiter(this, arguments, void 0, function* (search = '', sort = "") {
+        if (!search) {
+            const searchInput = document.getElementById("search-studies");
+            search = searchInput.value;
+        }
+        if (!sort) {
+            const result = yield chrome.storage.sync.get("sortStudies");
+            sort = result["sortStudies"];
+        }
+        const studiesContainer = document.getElementById("studies-container");
         studiesContainer.innerHTML = ""; // clear previous content
         const result = yield chrome.storage.sync.get("currentStudies");
-        const currentStudies = result["currentStudies"];
+        let currentStudies = result["currentStudies"];
         if (!currentStudies || currentStudies.length === 0) {
             studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
             return;
         }
+        if (search.trim() !== "") {
+            const searchLower = search.toLowerCase();
+            currentStudies = currentStudies.filter(study => {
+                var _a, _b;
+                const title = ((_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase()) || "";
+                const researcher = ((_b = study.researcher) === null || _b === void 0 ? void 0 : _b.toLowerCase()) || "";
+                return title.includes(searchLower) || researcher.includes(searchLower);
+            });
+        }
+        currentStudies.sort((a, b) => {
+            switch (sort) {
+                case "created+":
+                    return parseDate(b.createdAt) - parseDate(a.createdAt);
+                case "created-":
+                    return parseDate(a.createdAt) - parseDate(b.createdAt);
+                case "pay+":
+                    return parseMoney(b.reward) - parseMoney(a.reward);
+                case "pay-":
+                    return parseMoney(a.reward) - parseMoney(b.reward);
+                case "payH+":
+                    return parseMoney(b.rewardPerHour) - parseMoney(a.rewardPerHour);
+                case "payH-":
+                    return parseMoney(a.rewardPerHour) - parseMoney(b.rewardPerHour);
+                case "time+":
+                    return parseTime(a.time) - parseTime(b.time);
+                case "time-":
+                    return parseTime(b.time) - parseTime(a.time);
+                default:
+                    return 0;
+            }
+        });
         currentStudies.forEach((study, index) => {
             const studyCard = document.createElement("div");
             const link = `https://app.prolific.com/studies/${study.id}`;
             const formattedDate = study.createdAt ? formatDate(study.createdAt) : 'N/A';
             studyCard.classList.add("study-card");
             studyCard.innerHTML = `
-            <div class="study-info">
-            <div class="study-header">
-                 <img src="/imgs/logo.png" alt="Study Image" class="study-img">
-                <div class="study-title">${study.title || "Untitled"}</div>      
-            </div>
-                    <div class="study-researcher">By: ${study.researcher || "Unknown"}</div>
-                    <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
-                    <div class="study-reward-hour">${study.rewardPerHour || "N/A"}  &#47;hr</div>
-                    <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
-                    <div class="study-created-at"><strong>Created:</strong> ${formattedDate}</div>
-                    <button class="btn btn-success open-btn" data-index="${index}"><a href=${link} target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a></button>
-                    <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
-            </div>
-
-        `;
-            studiesContainer === null || studiesContainer === void 0 ? void 0 : studiesContainer.appendChild(studyCard);
+      <div class="study-info">
+        <div class="study-header">
+          <img src="/imgs/logo.png" alt="Study Image" class="study-img">
+          <div class="study-title">${study.title || "Untitled"}</div>      
+        </div>
+        <div class="study-researcher">${study.researcher || "Unknown"}</div>
+        <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
+        <div class="study-reward-hour">${study.rewardPerHour || "N/A"} &#47;hr</div>
+        <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
+        <div class="study-created-at">${formattedDate}</div>
+        <button class="btn btn-success open-btn" data-index="${index}">
+          <a href="${link}" target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a>
+        </button>
+        <button class="btn delete-btn" data-index="${index}">
+          <img src="/svgs/trash.svg" alt="trash"> Delete
+        </button>
+      </div>
+    `;
+            studiesContainer.appendChild(studyCard);
         });
         studiesContainer.querySelectorAll(".delete-btn").forEach(button => {
             button.addEventListener("click", (e) => {
-                const target = e.target;
-                const index = parseInt(target.getAttribute("data-index") || "");
+                const target = e.currentTarget;
+                const index = parseInt(target.getAttribute("data-index") || "", 10);
                 currentStudies.splice(index, 1);
                 chrome.storage.sync.set({ currentStudies });
                 populateStudies();
@@ -174,31 +231,48 @@ function populateStudies() {
         });
     });
 }
+function setupSearch() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const searchInput = document.getElementById("search-studies");
+        if (!searchInput)
+            return;
+        searchInput.addEventListener("input", function () {
+            return __awaiter(this, void 0, void 0, function* () {
+                const searchValue = searchInput.value;
+                yield populateStudies(searchValue);
+            });
+        });
+        const result = yield chrome.storage.sync.get("searchStudies");
+        searchInput.value = result["searchStudies"] || "";
+    });
+}
 function changeTab(activeTab) {
-    const windows = [{ tab: "settings", item: "settings-tab" },
-        { tab: "filters", item: "filters-tab" },
-        { tab: "studies", item: "studies-tab" }
-    ];
-    windows.forEach(window => {
-        const currentTab = window.tab;
-        const currentItem = window.item;
-        const currentTabElement = document.getElementById(currentTab);
-        const currentItemElement = document.getElementById(currentItem);
-        if (activeTab === currentTab) {
-            currentTabElement.style.display = "block";
-            currentItemElement.classList.add("active");
+    return __awaiter(this, void 0, void 0, function* () {
+        const windows = [{ tab: "settings", item: "settings-tab" },
+            { tab: "filters", item: "filters-tab" },
+            { tab: "studies", item: "studies-tab" }
+        ];
+        windows.forEach(window => {
+            const currentTab = window.tab;
+            const currentItem = window.item;
+            const currentTabElement = document.getElementById(currentTab);
+            const currentItemElement = document.getElementById(currentItem);
+            if (activeTab === currentTab) {
+                currentTabElement.style.display = "block";
+                currentItemElement.classList.add("active");
+            }
+            else {
+                currentTabElement.style.display = "none";
+                currentItemElement.classList.remove("active");
+            }
+        });
+        if (activeTab === 'studies') {
+            yield populateStudies();
         }
-        else {
-            currentTabElement.style.display = "none";
-            currentItemElement.classList.remove("active");
+        else if (activeTab === 'filters') {
+            yield populateBlacklists();
         }
     });
-    if (activeTab === 'studies') {
-        populateStudies();
-    }
-    else if (activeTab === 'filters') {
-        populateBlacklists();
-    }
 }
 function setAlertState() {
     return __awaiter(this, void 0, void 0, function* () {

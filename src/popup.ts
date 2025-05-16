@@ -11,12 +11,8 @@ async function setVolume(volume: HTMLInputElement) {
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
-    await chrome.runtime.sendMessage({
-        type: 'clear-badge',
-        target: 'background',
-    });
+    await chrome.action.setBadgeText({text: ''});
 
-    const selectAudio = document.getElementById("selectAudio") as HTMLSelectElement;
     const counter = document.getElementById("counter") as HTMLSpanElement;
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
     const volume = document.getElementById("volume") as HTMLInputElement;
@@ -46,9 +42,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setAlertState();
     await setBlacklist();
 
-    if(selectAudio) {
-        await setAudioOption(selectAudio);
-    }
+    await setSelectState("selectAudio", "audio");
+    await setSelectState("sort-studies", "sortStudies", populateStudies);
+    await setupSearch();
 
     if(counter) {
         await setCounter(counter);
@@ -98,12 +94,37 @@ function formatDate(dateStr: string): string {
 
     return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
-async function setAudioOption(selectAudio: HTMLSelectElement): Promise<void> {
-    const result = await chrome.storage.sync.get("audio");
-    selectAudio.value = result["audio"];
-    selectAudio.addEventListener("change", async function (): Promise<void> {
-        await chrome.storage.sync.set({["audio"]: selectAudio.value});
-    });
+
+async function setSelectState(elementId: string, storageKey: string, callback?: () => void) {
+    const element = document.getElementById(elementId) as HTMLSelectElement;
+    if (!element) return;
+    const result = await chrome.storage.sync.get(storageKey);
+    element.value = result[storageKey];
+    element.addEventListener("change", async (): Promise<void> => {
+        await chrome.storage.sync.set({[storageKey]: element.value});
+        if (callback) {
+            callback();
+        }
+    })
+}
+
+function parseMoney(value: string | null): number {
+    return parseFloat(value?.replace(/[^\d.]/g, "") || "0");
+}
+
+function parseTime(value: string | null): number {
+    if (!value) return 0;
+    const hourMatch = value.match(/(\d+)\s*hour/);
+    const minMatch = value.match(/(\d+)\s*min/);
+
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+    const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+
+    return hours * 60 + minutes;
+}
+
+function parseDate(value: string | null): number {
+    return new Date(value || "").getTime() || 0;
 }
 
 function setTabState(elementId: string, storageValue: string): void  {
@@ -111,25 +132,65 @@ function setTabState(elementId: string, storageValue: string): void  {
     if (!element) return;
     element.addEventListener("click", async function (): Promise<void> {
         await chrome.storage.sync.set({["activeTab"]: storageValue});
-        changeTab(storageValue);
+        await changeTab(storageValue);
     });
 }
 
 async function setCurrentActiveTab(): Promise<void> {
     const result = await chrome.storage.sync.get("activeTab");
-        changeTab(result["activeTab"]);
+        await changeTab(result["activeTab"]);
 }
 
-async function populateStudies() {
-    const studiesContainer = document.getElementById("studies") as HTMLElement;
+async function populateStudies(search: string = '', sort: string = "") {
+    if (!search) {
+        const searchInput = document.getElementById("search-studies") as HTMLInputElement;
+        search = searchInput.value;
+    }
+    if (!sort) {
+        const result = await chrome.storage.sync.get("sortStudies");
+        sort = result["sortStudies"];
+    }
+    const studiesContainer = document.getElementById("studies-container") as HTMLElement;
     studiesContainer.innerHTML = ""; // clear previous content
     const result = await chrome.storage.sync.get("currentStudies");
-    const currentStudies: Study[] = result["currentStudies"];
+    let currentStudies: Study[] = result["currentStudies"];
 
     if (!currentStudies || currentStudies.length === 0) {
         studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
         return;
     }
+
+    if (search.trim() !== "") {
+        const searchLower = search.toLowerCase();
+        currentStudies = currentStudies.filter(study => {
+            const title = study.title?.toLowerCase() || "";
+            const researcher = study.researcher?.toLowerCase() || "";
+            return title.includes(searchLower) || researcher.includes(searchLower);
+        });
+    }
+
+    currentStudies.sort((a, b) => {
+        switch (sort) {
+            case "created+":
+                return parseDate(b.createdAt) - parseDate(a.createdAt);
+            case "created-":
+                return parseDate(a.createdAt) - parseDate(b.createdAt);
+            case "pay+":
+                return parseMoney(b.reward) - parseMoney(a.reward);
+            case "pay-":
+                return parseMoney(a.reward) - parseMoney(b.reward);
+            case "payH+":
+                return parseMoney(b.rewardPerHour) - parseMoney(a.rewardPerHour);
+            case "payH-":
+                return parseMoney(a.rewardPerHour) - parseMoney(b.rewardPerHour);
+            case "time+":
+                return parseTime(a.time) - parseTime(b.time);
+            case "time-":
+                return parseTime(b.time) - parseTime(a.time);
+            default:
+                return 0;
+        }
+    });
 
     currentStudies.forEach((study, index) => {
         const studyCard = document.createElement("div");
@@ -137,28 +198,31 @@ async function populateStudies() {
         const formattedDate = study.createdAt ? formatDate(study.createdAt): 'N/A';
         studyCard.classList.add("study-card");
         studyCard.innerHTML = `
-            <div class="study-info">
-            <div class="study-header">
-                 <img src="/imgs/logo.png" alt="Study Image" class="study-img">
-                <div class="study-title">${study.title || "Untitled"}</div>      
-            </div>
-                    <div class="study-researcher">By: ${study.researcher || "Unknown"}</div>
-                    <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
-                    <div class="study-reward-hour">${study.rewardPerHour || "N/A"}  &#47;hr</div>
-                    <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
-                    <div class="study-created-at"><strong>Created:</strong> ${formattedDate}</div>
-                    <button class="btn btn-success open-btn" data-index="${index}"><a href=${link} target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a></button>
-                    <button class="btn btn-fail delete-btn" data-index="${index}">Delete</button>
-            </div>
-
-        `;
-        studiesContainer?.appendChild(studyCard);
+      <div class="study-info">
+        <div class="study-header">
+          <img src="/imgs/logo.png" alt="Study Image" class="study-img">
+          <div class="study-title">${study.title || "Untitled"}</div>      
+        </div>
+        <div class="study-researcher">${study.researcher || "Unknown"}</div>
+        <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
+        <div class="study-reward-hour">${study.rewardPerHour || "N/A"} &#47;hr</div>
+        <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
+        <div class="study-created-at">${formattedDate}</div>
+        <button class="btn btn-success open-btn" data-index="${index}">
+          <a href="${link}" target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a>
+        </button>
+        <button class="btn delete-btn" data-index="${index}">
+          <img src="/svgs/trash.svg" alt="trash"> Delete
+        </button>
+      </div>
+    `;
+        studiesContainer.appendChild(studyCard);
     });
 
     studiesContainer.querySelectorAll(".delete-btn").forEach(button => {
         button.addEventListener("click", (e) => {
-            const target = e.target as HTMLElement;
-            const index = parseInt(target.getAttribute("data-index") || "");
+            const target = e.currentTarget as HTMLElement;
+            const index = parseInt(target.getAttribute("data-index") || "", 10);
             currentStudies.splice(index, 1);
             chrome.storage.sync.set({ currentStudies });
             populateStudies();
@@ -166,7 +230,19 @@ async function populateStudies() {
     });
 }
 
-function changeTab(activeTab: string): void {
+async function setupSearch() {
+    const searchInput = document.getElementById("search-studies") as HTMLInputElement;
+    if (!searchInput) return;
+    searchInput.addEventListener("input", async function (): Promise<void> {
+        const searchValue = searchInput.value;
+        await populateStudies(searchValue);
+    });
+    const result = await chrome.storage.sync.get("searchStudies");
+    searchInput.value = result["searchStudies"] || "";
+
+}
+
+async function changeTab(activeTab: string): Promise<void> {
     const windows = [{tab: "settings", item: "settings-tab"},
         {tab: "filters", item: "filters-tab"},
         {tab: "studies", item: "studies-tab"}
@@ -186,9 +262,9 @@ function changeTab(activeTab: string): void {
         }
     });
     if (activeTab === 'studies') {
-        populateStudies();
+        await populateStudies();
     } else if (activeTab === 'filters') {
-        populateBlacklists();
+        await populateBlacklists();
     }
 }
 
