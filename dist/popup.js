@@ -196,6 +196,9 @@ function changeTab(activeTab) {
     if (activeTab === 'studies') {
         populateStudies();
     }
+    else if (activeTab === 'filters') {
+        populateBlacklists();
+    }
 }
 function setAlertState() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -352,9 +355,15 @@ function appendBlacklistInput(value, storageKey) {
         yield chrome.storage.sync.set({ [storageKey]: newValues });
     });
 }
-function populateBlacklist(elementId_1, storageKey_1) {
-    return __awaiter(this, arguments, void 0, function* (elementId, storageKey, values = []) {
-        const blacklistContainer = document.getElementById(elementId);
+function populateBlacklists() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield populateBlacklist("name-list", "nameBlacklist");
+        yield populateBlacklist("researcher-list", "researcherBlacklist");
+    });
+}
+function populateBlacklist(listId_1, storageKey_1) {
+    return __awaiter(this, arguments, void 0, function* (listId, storageKey, values = []) {
+        const blacklistContainer = document.getElementById(listId);
         blacklistContainer.innerHTML = "";
         let currentItems;
         if (values.length === 0) {
@@ -368,7 +377,7 @@ function populateBlacklist(elementId_1, storageKey_1) {
             const itemCard = document.createElement('div');
             itemCard.classList.add("blacklist-card");
             itemCard.innerHTML = `
-        <span>${item}</span> <span class="remove-btn" data-index="${index}">X</span>
+        <span>${item}</span> <span class="remove-btn" data-index="${index}">x</span>
         `;
             blacklistContainer.appendChild(itemCard);
         });
@@ -378,7 +387,7 @@ function populateBlacklist(elementId_1, storageKey_1) {
                 const index = parseInt(target.getAttribute("data-index") || "");
                 currentItems.splice(index, 1);
                 chrome.storage.sync.set({ [storageKey]: currentItems });
-                populateBlacklist(elementId, storageKey, currentItems);
+                populateBlacklist(listId, storageKey, currentItems);
             });
         });
     });

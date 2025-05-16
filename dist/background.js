@@ -16,11 +16,10 @@ var ContextType = chrome.runtime.ContextType;
 // Studies tab:
 // search, sort, filter
 // add to favorites
-//open study in new tab
 // explanation
-// UI, date added
-// filters:
-// add name and researcher blacklist
+// UI,
+// NEW badge until open, number of studies for study tab
+// add minutes filter
 const AUDIO_ACTIVE = "audioActive";
 const SHOW_NOTIFICATION = "showNotification";
 const OPEN_PROLIFIC = "openProlific";
@@ -38,6 +37,8 @@ const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle";
 const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
+const NAME_BLACKLIST = 'nameBlacklist';
+const RESEARCHER_BLACKLIST = 'researcherBlacklist';
 let creating = null; // A global promise to avoid concurrency issues
 initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
@@ -181,8 +182,8 @@ function handleMessages(message) {
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f;
-        if (!studies)
+        var _a, _b, _c, _d, _e, _f, _g, _h;
+        if (!studies || studies.length === 0)
             return;
         const studiesStorageValues = yield chrome.storage.sync.get([
             SHOW_NOTIFICATION,
@@ -192,7 +193,9 @@ function handleNewStudies(studies) {
             REWARD_PER_HOUR,
             AUDIO,
             VOLUME,
-            USE_OLD
+            USE_OLD,
+            NAME_BLACKLIST,
+            RESEARCHER_BLACKLIST
         ]);
         if (studiesStorageValues[USE_OLD] === true)
             return;
@@ -201,18 +204,24 @@ function handleNewStudies(studies) {
         const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
         const reward = (_d = studiesStorageValues[REWARD]) !== null && _d !== void 0 ? _d : 0;
         const rewardPerHour = (_e = studiesStorageValues[REWARD_PER_HOUR]) !== null && _e !== void 0 ? _e : 0;
-        if (reward > 0 || rewardPerHour > 0) {
+        const nameBlacklist = (_f = studiesStorageValues[NAME_BLACKLIST]) !== null && _f !== void 0 ? _f : [];
+        const researcherBlacklist = (_g = studiesStorageValues[RESEARCHER_BLACKLIST]) !== null && _g !== void 0 ? _g : [];
+        if (reward > 0 || rewardPerHour > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0) {
             studies = studies.filter((study) => {
                 if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
+                    return false;
+                }
+                if (nameBlacklist.some((name) => { var _a; return (_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(name); })) {
+                    return false;
+                }
+                if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); })) {
                     return false;
                 }
                 return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
             });
         }
-        if (studies.length === 0)
-            return;
         if (shouldPlayAudio) {
-            const audio = (_f = studiesStorageValues[AUDIO]) !== null && _f !== void 0 ? _f : 'alert1.mp3';
+            const audio = (_h = studiesStorageValues[AUDIO]) !== null && _h !== void 0 ? _h : 'alert1.mp3';
             const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
             yield playAudio(audio, volume);
         }

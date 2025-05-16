@@ -187,6 +187,8 @@ function changeTab(activeTab: string): void {
     });
     if (activeTab === 'studies') {
         populateStudies();
+    } else if (activeTab === 'filters') {
+        populateBlacklists();
     }
 }
 
@@ -328,8 +330,13 @@ async function appendBlacklistInput(value: string, storageKey: string): Promise<
     await chrome.storage.sync.set({ [storageKey]: newValues });
 }
 
-async function populateBlacklist(elementId: string, storageKey: string, values: string[]=[]): Promise<void> {
-    const blacklistContainer = document.getElementById(elementId) as HTMLElement;
+async function populateBlacklists() {
+    await populateBlacklist("name-list", "nameBlacklist");
+    await populateBlacklist("researcher-list", "researcherBlacklist");
+}
+
+async function populateBlacklist(listId: string, storageKey: string, values: string[]=[]): Promise<void> {
+    const blacklistContainer = document.getElementById(listId) as HTMLElement;
     blacklistContainer.innerHTML = "";
     let currentItems;
     if (values.length === 0) {
@@ -343,7 +350,7 @@ async function populateBlacklist(elementId: string, storageKey: string, values: 
         const itemCard = document.createElement('div');
         itemCard.classList.add("blacklist-card");
         itemCard.innerHTML = `
-        <span>${item}</span> <span class="remove-btn" data-index="${index}">X</span>
+        <span>${item}</span> <span class="remove-btn" data-index="${index}">x</span>
         `;
         blacklistContainer.appendChild(itemCard);
     });
@@ -353,7 +360,7 @@ async function populateBlacklist(elementId: string, storageKey: string, values: 
             const index = parseInt(target.getAttribute("data-index") || "");
             currentItems.splice(index, 1);
             chrome.storage.sync.set({ [storageKey]: currentItems });
-            populateBlacklist(elementId, storageKey, currentItems);
+            populateBlacklist(listId, storageKey, currentItems);
         });
     });
 }
