@@ -33,7 +33,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     await setInputState("reward", "reward");
     await setInputState("rewardPerHour", "rewardPerHour");
-    await setInputState("studyHistoryLen","studyHistoryLen")
+    await setInputState("time", "time");
+    await setInputState("studyHistoryLen","studyHistoryLen");
 
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
@@ -184,8 +185,14 @@ async function populateStudies(search: string = '', sort: string = "") {
             case "payH-":
                 return parseMoney(a.rewardPerHour) - parseMoney(b.rewardPerHour);
             case "time+":
+                if (a.timeInMinutes && b.timeInMinutes) {
+                    return a.timeInMinutes - b.timeInMinutes;
+                }
                 return parseTime(a.time) - parseTime(b.time);
             case "time-":
+                if (a.timeInMinutes && b.timeInMinutes) {
+                    return b.timeInMinutes - a.timeInMinutes;
+                }
                 return parseTime(b.time) - parseTime(a.time);
             default:
                 return 0;

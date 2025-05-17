@@ -17,8 +17,6 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
-const REWARD = "reward";
-const REWARD_PER_HOUR = "rewardPerHour";
 const ACTIVE_TAB = "activeTab";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
@@ -27,8 +25,6 @@ const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle";
 const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
-const NAME_BLACKLIST = 'nameBlacklist';
-const RESEARCHER_BLACKLIST = 'researcherBlacklist';
 const SORT_STUDIES = 'sortStudies';
 let creating = null; // A global promise to avoid concurrency issues
 initialize();
@@ -171,46 +167,24 @@ function handleMessages(message) {
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+        var _a, _b, _c, _d;
         if (!studies || studies.length === 0)
             return;
         const studiesStorageValues = yield chrome.storage.sync.get([
             SHOW_NOTIFICATION,
             AUDIO_ACTIVE,
             FOCUS_PROLIFIC,
-            REWARD,
-            REWARD_PER_HOUR,
             AUDIO,
             VOLUME,
             USE_OLD,
-            NAME_BLACKLIST,
-            RESEARCHER_BLACKLIST
         ]);
         if (studiesStorageValues[USE_OLD] === true)
             return;
         const shouldShowNotification = (_a = studiesStorageValues[SHOW_NOTIFICATION]) !== null && _a !== void 0 ? _a : true;
         const shouldPlayAudio = (_b = studiesStorageValues[AUDIO_ACTIVE]) !== null && _b !== void 0 ? _b : true;
         const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
-        const reward = (_d = studiesStorageValues[REWARD]) !== null && _d !== void 0 ? _d : 0;
-        const rewardPerHour = (_e = studiesStorageValues[REWARD_PER_HOUR]) !== null && _e !== void 0 ? _e : 0;
-        const nameBlacklist = (_f = studiesStorageValues[NAME_BLACKLIST]) !== null && _f !== void 0 ? _f : [];
-        const researcherBlacklist = (_g = studiesStorageValues[RESEARCHER_BLACKLIST]) !== null && _g !== void 0 ? _g : [];
-        if (reward > 0 || rewardPerHour > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0) {
-            studies = studies.filter((study) => {
-                if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
-                    return false;
-                }
-                if (nameBlacklist.some((name) => { var _a; return (_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(name); })) {
-                    return false;
-                }
-                if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); })) {
-                    return false;
-                }
-                return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
-            });
-        }
         if (shouldPlayAudio) {
-            const audio = (_h = studiesStorageValues[AUDIO]) !== null && _h !== void 0 ? _h : 'alert1.mp3';
+            const audio = (_d = studiesStorageValues[AUDIO]) !== null && _d !== void 0 ? _d : 'alert1.mp3';
             const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
             yield playAudio(audio, volume);
         }
@@ -220,10 +194,10 @@ function handleNewStudies(studies) {
         if (shouldShowNotification) {
             studies
                 .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
-                .forEach((study) => {
+                .forEach((study, index) => {
                 setTimeout(() => {
                     sendNotification(study);
-                }, 1000);
+                }, index === 0 ? 0 : 1000);
             });
         }
         yield updateCounterAndBadge(studies.length);
@@ -290,9 +264,6 @@ function sendNotification(study = null) {
         }
         if (study.time) {
             message += `\nTime: ${study.time}`;
-        }
-        if (study.places) {
-            message += ` | Places: ${study.places}`;
         }
     }
     const options = {

@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setCheckboxState("trackIds", "trackIds");
         yield setInputState("reward", "reward");
         yield setInputState("rewardPerHour", "rewardPerHour");
+        yield setInputState("time", "time");
         yield setInputState("studyHistoryLen", "studyHistoryLen");
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
@@ -187,8 +188,14 @@ function populateStudies() {
                 case "payH-":
                     return parseMoney(a.rewardPerHour) - parseMoney(b.rewardPerHour);
                 case "time+":
+                    if (a.timeInMinutes && b.timeInMinutes) {
+                        return a.timeInMinutes - b.timeInMinutes;
+                    }
                     return parseTime(a.time) - parseTime(b.time);
                 case "time-":
+                    if (a.timeInMinutes && b.timeInMinutes) {
+                        return b.timeInMinutes - a.timeInMinutes;
+                    }
                     return parseTime(b.time) - parseTime(a.time);
                 default:
                     return 0;

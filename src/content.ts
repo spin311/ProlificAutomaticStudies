@@ -2,10 +2,10 @@ type  StudyContent = {
     id: string | null;
     title: string | null;
     researcher: string | null;
-    places: number | null;
     reward: string | null;
     rewardPerHour: string | null;
     time: string | null;
+    timeInMinutes: number | null;
     limitedCapacity: boolean | null;
     createdAt: string | null;
 };
@@ -13,7 +13,13 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let isProcessing: boolean = false;  // A global promise to avoid concurrency issues
 let isObserverInitializing: boolean = false;
+
 const NUMBER_OF_STUDIES_TO_STORE = 100;
+const REWARD = "reward";
+const REWARD_PER_HOUR = "rewardPerHour";
+const TIME = 'time';
+const NAME_BLACKLIST = "nameBlacklist";
+const RESEARCHER_BLACKLIST = "researcherBlacklist";
 
 
 async function waitForElement(selector: string): Promise<Element | null> {
@@ -107,25 +113,59 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
             });
         }
         isProcessing = false;
-    }
-    finally {
+    } finally {
         isProcessing = false;
     }
 
 }
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
+    function shouldIncludeStudy(study: StudyContent) {
+        if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
+            return false;
+        }
+        if (time && study.timeInMinutes && study.timeInMinutes < time) {
+            return false;
+        }
+        if (nameBlacklist.some((name) => study.title?.toLowerCase().includes(name))) {
+            return false;
+        }
+        if (researcherBlacklist.some((researcher) => study.researcher?.toLowerCase().includes(researcher))) {
+            return false;
+        }
+        return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
+    }
+
+    function shouldFilterStudies() {
+        return reward > 0 || rewardPerHour > 0 || time > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0;
+    }
+
     const studyElements = targetNode.querySelectorAll("li[class='list-item']");
-    const shouldIgnoreOldStudies = await getValueFromStorageContentScript<boolean>("trackIds", true);
+    const storageValues = await chrome.storage.sync.get([
+        "trackIds",
+        "studyHistoryLen",
+        "currentStudies",
+        REWARD,
+        REWARD_PER_HOUR,
+        TIME,
+        NAME_BLACKLIST,
+        RESEARCHER_BLACKLIST,
+    ])
+    const shouldIgnoreOldStudies: boolean = storageValues["trackIds"] ?? true;
     if (!studyElements || studyElements.length === 0) {
         if (!shouldIgnoreOldStudies) {
             await chrome.storage.sync.set({["currentStudies"]: []});
         }
         return [];
     }
-    const studies: StudyContent[] = [];
-    const numberOfStudiesToStore = await getValueFromStorageContentScript<number>("studyHistoryLen", NUMBER_OF_STUDIES_TO_STORE);
-    let savedStudies: StudyContent[] = await getValueFromStorageContentScript<StudyContent[]>("currentStudies", []);
+    let studies: StudyContent[] = [];
+    const numberOfStudiesToStore = storageValues["studyHistoryLen"] ?? NUMBER_OF_STUDIES_TO_STORE;
+    let savedStudies: StudyContent[] = storageValues["currentStudies"] ?? [];
+    const reward: number = storageValues[REWARD] ?? 0;
+    const rewardPerHour: number = storageValues[REWARD_PER_HOUR] ?? 0;
+    const time: number = storageValues[TIME] ?? 0;
+    const nameBlacklist: string[] = storageValues[NAME_BLACKLIST] ?? [];
+    const researcherBlacklist: string[] = storageValues[RESEARCHER_BLACKLIST] ?? [];
     const studyIds = savedStudies.map((study) => study.id);
         studyElements.forEach((study) => {
             const id = study.getAttribute("data-testid")?.split("-")[1];
@@ -134,23 +174,28 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             const researcher = getTextContent(study, '[data-testid="host"]')?.split(" ")
                 .slice(1)
                 .join(" ") || null;
-            const places = parseInt(
-                getTextContent(study, '[data-testid="study-tag-places"]')?.split(" ")[0] || "0");
             const reward = getTextContent(study, '[data-testid="study-tag-reward"]');
             const rewardPerHour = getTextContent(study, '[data-testid="study-tag-reward-per-hour"]')?.replace("/hr", "") || null;
             const time =getTextContent(study, '[data-testid="study-tag-completion-time"]');
+            const timeInMinutes = parseTimeContent(time);
             studies.push({
                 id,
                 title,
                 researcher,
-                places,
                 reward,
                 rewardPerHour,
                 time,
+                timeInMinutes,
                 limitedCapacity: false,
                 createdAt: new Date().toISOString(),
             });
         });
+
+    if (shouldFilterStudies()) {
+        studies = studies.filter((study) => {
+            return shouldIncludeStudy(study);
+        });
+    }
     if (shouldIgnoreOldStudies) {
         savedStudies = [...savedStudies, ...studies];
     }
@@ -172,4 +217,15 @@ function getValueFromStorageContentScript<T>(key: string, defaultValue: T): Prom
 
 function getTextContent(element: Element | null, selector: string): string | null {
     return element?.querySelector(selector)?.textContent || null;
+}
+
+function parseTimeContent(value: string | null): number {
+    if (!value) return 0;
+    const hourMatch = value.match(/(\d+)\s*hour/);
+    const minMatch = value.match(/(\d+)\s*min/);
+
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+    const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+
+    return hours * 60 + minutes;
 }

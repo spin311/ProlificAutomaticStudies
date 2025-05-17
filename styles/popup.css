@@ -262,31 +262,35 @@ a:not(.normal-link):hover::before {
     margin-bottom: 0.5rem !important;
 }
 
-/*#studies-tab:not(.active)::after {*/
-/*    content: "NEW";*/
-/*    position: absolute;*/
-/*    top: 104px;*/
-/*    right: 126px;*/
-/*    background: linear-gradient(45deg, #ff3d00, #ff9100, #f50057);*/
-/*    color: white;*/
-/*    font-size: 0.6em;*/
-/*    font-weight: bold;*/
-/*    padding: 2px 6px;*/
-/*    border-radius: 1px;*/
-/*    animation: shine 2s infinite linear;*/
-/*    box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);*/
-/*}*/
+#studies-tab, #filters-tab {
+    position: relative;
+}
+
+#studies-tab:not(.active)::after, #filters-tab:not(.active)::after {
+    content: "NEW";
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: linear-gradient(45deg, #1cd579, #00bfff, #5582df);
+    color: white;
+    font-size: 0.6em;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 1px;
+    animation: shine 2s infinite linear;
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
+}
 
 /* Shining animation */
 @keyframes shine {
     0% {
-        box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+        box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
     }
     50% {
-        box-shadow: 0 0 15px rgba(255, 255, 0, 0.9);
+        box-shadow: 0 0 15px rgba(0, 191, 255, 0.9);
     }
     100% {
-        box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+        box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
     }
 }
 

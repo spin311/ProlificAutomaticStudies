@@ -1,20 +1,14 @@
 import Reason = chrome.offscreen.Reason;
 import ContextType = chrome.runtime.ContextType;
 
-//TODO:
-// Add page on portfolio
-// Studies tab:
-// study image
-// NEW badge until open, number of studies for study tab
-// add minutes filter
 type Study = {
     id: string | null;
     title: string | null;
     researcher: string | null;
-    places: number | null;
     reward: string | null;
     rewardPerHour: string | null;
     time: string | null;
+    timeInMinutes: number | null;
     limitedCapacity: boolean | null;
     createdAt: string | null;
 };
@@ -27,8 +21,7 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
-const REWARD = "reward";
-const REWARD_PER_HOUR = "rewardPerHour";
+
 const ACTIVE_TAB = "activeTab";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
@@ -37,8 +30,7 @@ const USE_OLD = "useOld";
 const PROLIFIC_TITLE = "prolificTitle"
 const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
-const NAME_BLACKLIST = 'nameBlacklist';
-const RESEARCHER_BLACKLIST = 'researcherBlacklist';
+
 const SORT_STUDIES = 'sortStudies';
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
@@ -189,36 +181,15 @@ async function handleNewStudies(studies: Study[]) {
         SHOW_NOTIFICATION,
         AUDIO_ACTIVE,
         FOCUS_PROLIFIC,
-        REWARD,
-        REWARD_PER_HOUR,
         AUDIO,
         VOLUME,
         USE_OLD,
-        NAME_BLACKLIST,
-        RESEARCHER_BLACKLIST
     ]);
     if (studiesStorageValues[USE_OLD] === true) return;
     const shouldShowNotification: boolean = studiesStorageValues[SHOW_NOTIFICATION] ?? true;
     const shouldPlayAudio: boolean = studiesStorageValues[AUDIO_ACTIVE] ?? true;
     const shouldFocusProlific: boolean = studiesStorageValues[FOCUS_PROLIFIC] ?? false;
-    const reward: number = studiesStorageValues[REWARD] ?? 0;
-    const rewardPerHour: number = studiesStorageValues[REWARD_PER_HOUR] ?? 0;
-    const nameBlacklist: string[] = studiesStorageValues[NAME_BLACKLIST] ?? [];
-    const researcherBlacklist: string[] = studiesStorageValues[RESEARCHER_BLACKLIST] ?? [];
-    if ( reward > 0 || rewardPerHour > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0) {
-        studies = studies.filter((study) => {
-            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
-                return false;
-            }
-            if (nameBlacklist.some((name) => study.title?.toLowerCase().includes(name))) {
-                return false;
-            }
-            if (researcherBlacklist.some((researcher) => study.researcher?.toLowerCase().includes(researcher))) {
-                return false;
-            }
-            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
-        });
-    }
+
     if (shouldPlayAudio) {
         const audio = studiesStorageValues[AUDIO] ?? 'alert1.mp3';
         const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
@@ -230,10 +201,10 @@ async function handleNewStudies(studies: Study[]) {
     if (shouldShowNotification) {
         studies
             .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
-            .forEach((study) => {
+            .forEach((study, index) => {
                 setTimeout(() => {
                     sendNotification(study);
-                }, 1000);
+                }, index === 0 ? 0 : 1000);
             });
     }
     await updateCounterAndBadge(studies.length);
@@ -297,9 +268,6 @@ function sendNotification(study: Study | null=null): void {
         }
         if (study.time) {
             message += `\nTime: ${study.time}`;
-        }
-        if (study.places) {
-            message += ` | Places: ${study.places}`;
         }
     }
 
