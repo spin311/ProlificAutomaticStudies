@@ -9,93 +9,192 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const targetSelector = 'div[data-testid="studies-list"]';
-const NUMBER_OF_IDS_TO_STORE = 50;
-function waitForTarget() {
-    return new Promise((resolve) => {
-        let retries = 20;
-        function checkTarget() {
-            let timer = 500;
-            const target = document.querySelector(targetSelector);
-            if (target || retries <= 0) {
-                resolve(target || null);
+let globalObserver = null;
+let isProcessing = false; // A global promise to avoid concurrency issues
+let isObserverInitializing = false;
+const NUMBER_OF_STUDIES_TO_STORE = 100;
+const REWARD = "reward";
+const REWARD_PER_HOUR = "rewardPerHour";
+const TIME = 'time';
+const NAME_BLACKLIST = "nameBlacklist";
+const RESEARCHER_BLACKLIST = "researcherBlacklist";
+function waitForElement(selector) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const useOld = yield getValueFromStorageContentScript("useOld", false);
+        if (useOld)
+            return null;
+        return new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+                const target = document.querySelector(selector);
+                if (target) {
+                    observer.disconnect();
+                    resolve(target);
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            const target = document.querySelector(selector);
+            if (target) {
+                observer.disconnect();
+                resolve(target);
             }
-            else {
-                retries--;
-                timer += 100;
-                setTimeout(checkTarget, timer);
-            }
-        }
-        checkTarget();
+        });
     });
 }
-waitForTarget().then((targetNode) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!targetNode) {
-        return;
+function handleContentMessages(message) {
+    if (message.target !== "content" && message.target !== 'everything') {
+        return Promise.resolve();
     }
-    const observer = new MutationObserver((mutationsList) => __awaiter(void 0, void 0, void 0, function* () {
-        for (const mutations of mutationsList) {
-            if (mutations.type === "childList") {
-                const newStudies = yield extractStudies(targetNode);
-                if (newStudies.length > 0) {
-                    chrome.runtime.sendMessage({
-                        target: "background",
-                        type: "new-studies",
-                        data: newStudies,
-                    });
+    switch (message.type) {
+        case "change-alert-type":
+            if (message.data === "website") {
+                observeStudyChanges();
+            }
+            else {
+                globalObserver === null || globalObserver === void 0 ? void 0 : globalObserver.disconnect();
+                globalObserver = null;
+            }
+            return Promise.resolve();
+        default:
+            return Promise.resolve();
+    }
+}
+function isObserverActive() {
+    return globalObserver !== null;
+}
+chrome.runtime.onMessage.addListener(handleContentMessages);
+observeStudyChanges();
+function observeStudyChanges() {
+    if (isObserverActive() || isObserverInitializing)
+        return;
+    isObserverInitializing = true;
+    waitForElement(targetSelector).then((targetNode) => __awaiter(this, void 0, void 0, function* () {
+        isObserverInitializing = false;
+        if (!targetNode || isObserverActive()) {
+            return;
+        }
+        // Observe for dynamic content updates within the target element
+        globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
+            if (isProcessing)
+                return;
+            let newChanges = false;
+            for (const mutation of mutationsList) {
+                if (mutation.addedNodes.length || mutation.removedNodes.length || mutation.type === "childList") {
+                    newChanges = true;
                 }
             }
-        }
+            if (newChanges) {
+                yield extractAndSendStudies(targetNode);
+            }
+        }));
+        // Initial check if studies are already loaded
+        yield extractAndSendStudies(targetNode);
+        globalObserver.observe(targetNode, { childList: true, subtree: true });
     }));
-    const newStudies = yield extractStudies(targetNode);
-    if (newStudies.length > 0) {
-        chrome.runtime.sendMessage({
-            target: "background",
-            type: "new-studies",
-            data: newStudies,
-        });
-    }
-    observer.observe(targetNode, { childList: true, subtree: true });
-}));
+}
+function extractAndSendStudies(targetNode) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (isProcessing)
+                return;
+            isProcessing = true;
+            const studies = yield extractStudies(targetNode);
+            if (studies.length > 0) {
+                chrome.runtime.sendMessage({
+                    target: "background",
+                    type: "new-studies",
+                    data: studies,
+                });
+            }
+            isProcessing = false;
+        }
+        finally {
+            isProcessing = false;
+        }
+    });
+}
 function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
-        const studies = [];
-        const studyElements = targetNode.querySelectorAll("li[class='list-item']");
-        if (!studyElements || studyElements.length === 0) {
-            return studies;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
+        function shouldIncludeStudy(study) {
+            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
+                return false;
+            }
+            if (time && study.timeInMinutes && study.timeInMinutes < time) {
+                return false;
+            }
+            if (nameBlacklist.some((name) => { var _a; return (_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(name); })) {
+                return false;
+            }
+            if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); })) {
+                return false;
+            }
+            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
         }
-        const studyIds = yield getValueFromStorageContentScript("studyIds", []);
-        let studyIdsNew = studyIds;
+        function shouldFilterStudies() {
+            return reward > 0 || rewardPerHour > 0 || time > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0;
+        }
+        const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+        const storageValues = yield chrome.storage.sync.get([
+            "trackIds",
+            "studyHistoryLen",
+            "currentStudies",
+            REWARD,
+            REWARD_PER_HOUR,
+            TIME,
+            NAME_BLACKLIST,
+            RESEARCHER_BLACKLIST,
+        ]);
+        const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
+        if (!studyElements || studyElements.length === 0) {
+            if (!shouldIgnoreOldStudies) {
+                yield chrome.storage.sync.set({ ["currentStudies"]: [] });
+            }
+            return [];
+        }
+        let studies = [];
+        const numberOfStudiesToStore = (_b = storageValues["studyHistoryLen"]) !== null && _b !== void 0 ? _b : NUMBER_OF_STUDIES_TO_STORE;
+        let savedStudies = (_c = storageValues["currentStudies"]) !== null && _c !== void 0 ? _c : [];
+        const reward = (_d = storageValues[REWARD]) !== null && _d !== void 0 ? _d : 0;
+        const rewardPerHour = (_e = storageValues[REWARD_PER_HOUR]) !== null && _e !== void 0 ? _e : 0;
+        const time = (_f = storageValues[TIME]) !== null && _f !== void 0 ? _f : 0;
+        const nameBlacklist = (_g = storageValues[NAME_BLACKLIST]) !== null && _g !== void 0 ? _g : [];
+        const researcherBlacklist = (_h = storageValues[RESEARCHER_BLACKLIST]) !== null && _h !== void 0 ? _h : [];
+        const studyIds = savedStudies.map((study) => study.id);
         studyElements.forEach((study) => {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            var _a, _b, _c;
             const id = (_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1];
-            if (!id || (studyIds && studyIds.includes(id)))
+            if (!id || (studyIds === null || studyIds === void 0 ? void 0 : studyIds.includes(id)))
                 return;
-            const title = ((_b = study.querySelector('[data-testid="title"]')) === null || _b === void 0 ? void 0 : _b.textContent) || null;
-            const researcher = ((_d = (_c = study
-                .querySelector('[data-testid="host"]')) === null || _c === void 0 ? void 0 : _c.textContent) === null || _d === void 0 ? void 0 : _d.split(" ").slice(1).join(" ")) || null;
-            const places = parseInt(((_f = (_e = study
-                .querySelector('[data-testid="study-tag-places"]')) === null || _e === void 0 ? void 0 : _e.textContent) === null || _f === void 0 ? void 0 : _f.split(" ")[0]) || "0");
-            const reward = ((_g = study
-                .querySelector('[data-testid="study-tag-reward"]')) === null || _g === void 0 ? void 0 : _g.textContent) || null;
-            const rewardPerHour = ((_j = (_h = study
-                .querySelector('[data-testid="study-tag-reward-per-hour"]')) === null || _h === void 0 ? void 0 : _h.textContent) === null || _j === void 0 ? void 0 : _j.replace("/hr", "")) || null;
-            const time = ((_k = study.querySelector('[data-testid="study-tag-completion-time"]')) === null || _k === void 0 ? void 0 : _k.textContent) || null;
+            const title = getTextContent(study, '[data-testid="title"]');
+            const researcher = ((_b = getTextContent(study, '[data-testid="host"]')) === null || _b === void 0 ? void 0 : _b.split(" ").slice(1).join(" ")) || null;
+            const reward = getTextContent(study, '[data-testid="study-tag-reward"]');
+            const rewardPerHour = ((_c = getTextContent(study, '[data-testid="study-tag-reward-per-hour"]')) === null || _c === void 0 ? void 0 : _c.replace("/hr", "")) || null;
+            const time = getTextContent(study, '[data-testid="study-tag-completion-time"]');
+            const timeInMinutes = parseTimeContent(time);
             studies.push({
                 id,
                 title,
                 researcher,
-                places,
                 reward,
                 rewardPerHour,
                 time,
+                timeInMinutes,
                 limitedCapacity: false,
+                createdAt: new Date().toISOString(),
             });
-            studyIdsNew.push(id);
         });
-        if (studyIdsNew.length > NUMBER_OF_IDS_TO_STORE) {
-            studyIdsNew = studyIdsNew.slice(-NUMBER_OF_IDS_TO_STORE);
+        if (shouldFilterStudies()) {
+            studies = studies.filter((study) => {
+                return shouldIncludeStudy(study);
+            });
         }
-        yield chrome.storage.sync.set({ ["studyIds"]: studyIdsNew });
+        if (shouldIgnoreOldStudies) {
+            savedStudies = [...savedStudies, ...studies];
+        }
+        if (savedStudies.length > numberOfStudiesToStore) {
+            savedStudies = savedStudies.slice(-numberOfStudiesToStore);
+        }
+        yield chrome.storage.sync.set({ "currentStudies": savedStudies });
         return studies;
     });
 }
@@ -105,4 +204,17 @@ function getValueFromStorageContentScript(key, defaultValue) {
             resolve((result[key] !== undefined) ? result[key] : defaultValue);
         });
     });
+}
+function getTextContent(element, selector) {
+    var _a;
+    return ((_a = element === null || element === void 0 ? void 0 : element.querySelector(selector)) === null || _a === void 0 ? void 0 : _a.textContent) || null;
+}
+function parseTimeContent(value) {
+    if (!value)
+        return 0;
+    const hourMatch = value.match(/(\d+)\s*hour/);
+    const minMatch = value.match(/(\d+)\s*min/);
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+    const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+    return hours * 60 + minutes;
 }

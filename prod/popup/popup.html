@@ -7,11 +7,17 @@
 </head>
 <body>
 <h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
+<div class="container-fluid">
+    <a href="https://svitspindler.com/prolific-studies-notifier" target="_blank">Help</a>
+    <a class="my-1 links" href="https://chromewebstore.google.com/search/spin311" target="_blank">Extensions</a>
+    <a href="https://svitspindler.com/contact" target="_blank">Contact Me</a>
+</div>
 
 <h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
 <div class="tabs mb-4">
     <ul>
         <li id="settings-tab"><img src="/svgs/gear.svg" alt="gear"> <span>Settings</span></li>
+        <li id="studies-tab"><img src="/svgs/study.svg" alt="study"> <span>Studies</span></li>
         <li id="filters-tab"><img src="/svgs/filter.svg" alt="filter"><span>Filters</span></li>
     </ul>
 </div>
@@ -24,12 +30,14 @@
             <label class="form-check-label" for="openProlific">
                 Open Prolific on startup
             </label>
+            <span class="tooltip-icon" data-tooltip="Opens Prolific tab when Chrome is opened">ℹ</span>
         </div>
         <div class="form-check d-flex justify-content-center ml-1 my-2">
             <input class="form-check-input mr-2" type="checkbox" value="" id="focusProlific">
             <label class="form-check-label" for="focusProlific">
                 Focus Prolific tab for new studies
             </label>
+            <span class="tooltip-icon" data-tooltip="Switches to the Prolific tab when a new study becomes available">ℹ</span>
         </div>
         <div class="form-check d-flex justify-content-center ml-1 my-2">
             <input class="form-check-input mr-2" type="checkbox" value="" id="autoAudio">
@@ -44,15 +52,79 @@
                 Show notification for new studies
             </label>
         </div>
+
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="trackIds">
+            <label class="form-check-label" for="trackIds" id="trackIdsLabel">
+                Show each study only once
+            </label>
+            <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
+        </div>
+
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
+            <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
+                Number of studies to remember
+            </label>
+        </div>
+
+        <div class="d-flex justify-content-center  my-2">
+            <div class="form-check-label mb-2">
+                Alert new studies from:
+                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
+            </div>
+            <div class="alerts mb-4">
+                <ul>
+                    <li id="websiteBtn"> <span>Website (new)</span></li>
+                    <li id="titleBtn"><span>Title (old)</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="my-2">
+            <div>
+                <label for="volume">Volume:</label>
+                <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
+            </div>
+            <label for="selectAudio" class="form-label">Select Audio:</label>
+            <select name="selectAudio" id="selectAudio" class="form-select">
+                <option value="alert1.mp3">Alert 1</option>
+                <option value="alert2.mp3">Alert 2</option>
+                <option value="alert3.mp3">Alert 3</option>
+                <option value="alert4.wav">Alert 4</option>
+                <option value="robot.wav">Robot</option>
+                <option value="loud.mp3">LOUD</option>
+            </select>
+            <button id="playAudio" class="btn btn-success ml-05">
+                Test
+            </button>
+        </div>
+    </div>
+    <div id="studies">
+        <div>
+            <span class="search-container">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+                <input type="text" placeholder="Search" id="search-studies" class="input-search">
+            </span>
+            <label for="sort-studies" class="form-label">Sort:</label>
+            <select name="sortStudies" id="sort-studies" class="form-select">
+                <option value="created+">Newest</option>
+                <option value="created-">Oldest</option>
+                <option value="pay+">Highest pay</option>
+                <option value="pay-">Lowest pay</option>
+                <option value="payH+">Highest pay / h</option>
+                <option value="payH-">Lowest pay / h</option>
+                <option value="time+">Shortest</option>
+                <option value="time-">Longest</option>
+            </select>
+
+        </div>
+        <div id="studies-container"></div>
     </div>
     <div id="filters">
         <div class="filters-title mb-2">Show studies with at least:</div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="0" id="nuPlaces" min="0" max="9999">
-            <label class="form-check-label" for="nuPlaces">
-                Number of places
-            </label>
-        </div>
         <div class="form-number d-flex justify-content-center">
             <input class="mr-2" type="number" value="0.0" id="reward" min='0'>
             <label class="form-check-label" for="reward">
@@ -62,34 +134,38 @@
         <div class="form-number d-flex justify-content-center">
             <input class="mr-2" type="number" value="0.0" id="rewardPerHour" min="0">
             <label class="form-check-label" for="rewardPerHour">
-                Reward per hour(£/h)
+                Reward per hour (£/h)
             </label>
         </div>
-    </div>
-
-
-
-    <div class="my-2 ml-1">
-        <div>
-            <label for="volume">Volume:</label>
-            <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2" type="number" value="0" id="time" min="0">
+            <label class="form-check-label" for="rewardPerHour">
+                Time (mins)
+            </label>
         </div>
-        <label for="selectAudio" class="form-label">Select Audio:
-        </label>
-        <select name="selectAudio" id="selectAudio" class="form-select">
-            <option value="alert1.mp3">Alert 1</option>
-            <option value="alert2.mp3">Alert 2</option>
-            <option value="alert3.mp3">Alert 3</option>
-            <option value="alert4.wav">Alert 4</option>
-            <option value="robot.wav">Robot</option>
-            <option value="loud.mp3">LOUD</option>
-        </select>
-        <button id="playAudio" class="btn btn-success ml-05">
-            Test
+        <div class="flex">
+            <div class="filters-title mb-2">Blacklist studies that contain:</div>
+            <span class="tooltip-icon" data-tooltip="Won't show studies that contain inputted words. Not case sensitive">ℹ</span>
+        </div>
+
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2 blacklist-input" type="text"  id="blacklist-name">
+            <label class="form-check-label" for="blacklist-name">
+                Name
+            </label>
+        </div>
+        <div id="name-list"></div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2 blacklist-input" type="text"  id="blacklist-researcher">
+            <label class="form-check-label" for="blacklist-researcher">
+                Researcher
+            </label>
+        </div>
+        <div id="researcher-list"></div>
+        <button id="submit-blacklist" class="btn btn-success ml-05">
+            Add
         </button>
-
     </div>
-
 </div>
 
 <div class="container-fluid mt-2">
@@ -99,7 +175,7 @@
     </span>
     <a class="my-1 links" href="https://app.prolific.com/" target="_blank">Prolific</a>
     <span class="float-end" style="display: flex; align-items: center;">
-    <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="" target="_blank" id="donateText">Donate</a>
+    <a href="https://svitspindler.com/donate" class="" target="_blank" id="donateText">Donate</a>
     <img src="/imgs/justAGirlSmol.png" alt="Cat" id="donateImg">
   </span>
 </div>

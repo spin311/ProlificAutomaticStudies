@@ -1,15 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Prolific Studies Notifier",
-  "version": "2.0.0",
+  "version": "3.0.1",
   "description": "Google extension for Prolific to notify you when studies are available",
 
   "permissions": [
     "storage",
     "notifications",
     "offscreen",
-    "tabs",
-    "scripting"
+    "tabs"
   ],
   "host_permissions": [
     "https://app.prolific.com/*"
@@ -17,8 +16,7 @@
   "content_scripts": [
     {
       "matches": ["https://app.prolific.com/*"],
-      "js": ["dist/content.js"],
-      "run_at": "document_end"
+      "js": ["dist/content.js"]
     }
   ],
   "background": {

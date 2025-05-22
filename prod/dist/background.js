@@ -17,16 +17,17 @@ const AUDIO = "audio";
 const VOLUME = "volume";
 const COUNTER = "counter";
 const FOCUS_PROLIFIC = "focusProlific";
-const NU_PLACES = "nuPlaces";
-const REWARD = "reward";
-const REWARD_PER_HOUR = "rewardPerHour";
 const ACTIVE_TAB = "activeTab";
 const ICON_URL = 'imgs/logo.png';
 const TITLE = 'Prolific Automatic Studies';
 const MESSAGE = 'A new study is available on Prolific!';
+const USE_OLD = "useOld";
+const PROLIFIC_TITLE = "prolificTitle";
+const TRACK_IDS = "trackIds";
+const STUDY_HISTORY_LEN = "studyHistoryLen";
+const SORT_STUDIES = 'sortStudies';
 let creating = null; // A global promise to avoid concurrency issues
-let volume;
-let audio;
+initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.notifications.onClicked.addListener(function (notificationId) {
     if (!!notificationId) {
@@ -52,7 +53,17 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     if (details.reason === "install") {
         yield setInitialValues();
         yield new Promise(resolve => setTimeout(resolve, 1000));
-        yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true });
+        yield chrome.tabs.create({ url: "https://svitspindler.com/prolific-studies-notifier", active: true });
+        chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
+    }
+    else if (details.reason === "update") {
+        chrome.action.setBadgeText({ text: "New" });
+        chrome.storage.sync.set({
+            [STUDY_HISTORY_LEN]: 100,
+            [TRACK_IDS]: true,
+            [SORT_STUDIES]: "created+"
+        });
+        chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
 }));
 function getValueFromStorage(key, defaultValue) {
@@ -62,75 +73,134 @@ function getValueFromStorage(key, defaultValue) {
         });
     });
 }
+function setupTitleAlert() {
+    const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d, _e;
+        const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+        if (tab.url && tab.url.includes('https://app.prolific.com/')) {
+        }
+        if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
+            const newTitle = tab.title.trim();
+            if (newTitle === 'Prolific') {
+                yield chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+                return;
+            }
+            const titleStorageValues = yield chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
+            const useOld = (_a = titleStorageValues[USE_OLD]) !== null && _a !== void 0 ? _a : false;
+            if (!useOld) {
+                chrome.tabs.onUpdated.removeListener(tabsOnUpdatedListener);
+                return;
+            }
+            const previousNumber = getNumberFromTitle(previousTitle);
+            const currentNumber = getNumberFromTitle(tab.title);
+            const shouldFocusProlific = (_b = titleStorageValues[FOCUS_PROLIFIC]) !== null && _b !== void 0 ? _b : false;
+            yield chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+            if (currentNumber > previousNumber) {
+                const shouldSendNotification = (_c = titleStorageValues[SHOW_NOTIFICATION]) !== null && _c !== void 0 ? _c : true;
+                if (shouldSendNotification) {
+                    sendNotification();
+                }
+                const shouldPlayAudio = (_d = titleStorageValues[AUDIO_ACTIVE]) !== null && _d !== void 0 ? _d : true;
+                if (shouldPlayAudio) {
+                    const audio = (_e = titleStorageValues[AUDIO]) !== null && _e !== void 0 ? _e : 'alert1.mp3';
+                    const volume = titleStorageValues[VOLUME] ? titleStorageValues[VOLUME] / 100 : 100;
+                    yield playAudio(audio, volume);
+                }
+                if (shouldFocusProlific) {
+                    yield focusProlific();
+                }
+                yield updateCounterAndBadge(currentNumber - previousNumber);
+            }
+        }
+    });
+    chrome.tabs.onUpdated.addListener(tabsOnUpdatedListener);
+}
+function getNumberFromTitle(title) {
+    const match = title.match(/\((\d+)\)/);
+    return match ? parseInt(match[1]) : 0;
+}
+function focusProlific() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
+        if (tabs.length > 0) {
+            yield chrome.tabs.update(tabs[0].id, { active: true });
+        }
+        else {
+            yield chrome.tabs.create({ url: "https://app.prolific.com/", active: true });
+        }
+    });
+}
+function handlePlaySound() {
+    return __awaiter(this, arguments, void 0, function* (audio = null, volume = null) {
+        var _a;
+        if (!audio || !volume) {
+            const audioValues = yield chrome.storage.sync.get([AUDIO, VOLUME]);
+            audio = (_a = audioValues[AUDIO]) !== null && _a !== void 0 ? _a : 'alert1.mp3';
+            volume = audioValues[VOLUME] ? audioValues[VOLUME] / 100 : 100;
+        }
+        yield playAudio(audio, volume);
+    });
+}
 function handleMessages(message) {
     return __awaiter(this, void 0, void 0, function* () {
         // Return early if this message isn't meant for the offscreen document.
         if (message.target !== 'background') {
-            return;
+            return Promise.resolve();
         }
         // Dispatch the message to an appropriate handler.
         switch (message.type) {
             case 'play-sound':
-                audio = yield getValueFromStorage(AUDIO, 'alert1.mp3');
-                volume = (yield getValueFromStorage(VOLUME, 100)) / 100;
-                yield playAudio(audio, volume);
+                yield handlePlaySound();
                 sendNotification();
                 break;
             case 'show-notification':
                 sendNotification();
                 break;
-            case 'clear-badge':
-                yield chrome.action.setBadgeText({ text: '' });
+            case 'change-alert-type':
+                setupTitleAlert();
                 break;
             case 'new-studies':
-                let studies = message.data;
-                if (!studies)
-                    break;
-                const shouldShowNotification = yield getValueFromStorage(SHOW_NOTIFICATION, true);
-                const shouldPlayAudio = yield getValueFromStorage(AUDIO_ACTIVE, true);
-                const shouldFocusProlific = yield getValueFromStorage(FOCUS_PROLIFIC, false);
-                const numPlaces = yield getValueFromStorage(NU_PLACES, 0);
-                const reward = yield getValueFromStorage(REWARD, 0);
-                const rewardPerHour = yield getValueFromStorage(REWARD_PER_HOUR, 0);
-                if (numPlaces > 0 || reward > 0 || rewardPerHour > 0) {
-                    studies = studies.filter((study) => {
-                        if (numPlaces && study.places && study.places <= numPlaces) {
-                            return false;
-                        }
-                        if (reward && study.reward && getFloatValueFromMoneyString(study.reward) <= reward) {
-                            return false;
-                        }
-                        return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) <= rewardPerHour);
-                    });
-                }
-                if (studies.length === 0)
-                    break;
-                if (shouldPlayAudio) {
-                    audio = yield getValueFromStorage(AUDIO, 'alert1.mp3');
-                    volume = (yield getValueFromStorage(VOLUME, 100)) / 100;
-                    yield playAudio(audio, volume);
-                }
-                if (shouldFocusProlific) {
-                    const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                    if (tabs.length > 0) {
-                        yield chrome.tabs.update(tabs[0].id, { active: true });
-                    }
-                    else {
-                        yield chrome.tabs.create({ url: "https://app.prolific.com/", active: true });
-                    }
-                }
-                if (shouldShowNotification) {
-                    studies
-                        .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
-                        .forEach((study) => {
-                        setTimeout(() => {
-                            sendNotification(study);
-                        }, 3000);
-                    });
-                }
-                yield updateCounterAndBadge(studies.length);
+                yield handleNewStudies(message.data);
                 break;
         }
+    });
+}
+function handleNewStudies(studies) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d;
+        if (!studies || studies.length === 0)
+            return;
+        const studiesStorageValues = yield chrome.storage.sync.get([
+            SHOW_NOTIFICATION,
+            AUDIO_ACTIVE,
+            FOCUS_PROLIFIC,
+            AUDIO,
+            VOLUME,
+            USE_OLD,
+        ]);
+        if (studiesStorageValues[USE_OLD] === true)
+            return;
+        const shouldShowNotification = (_a = studiesStorageValues[SHOW_NOTIFICATION]) !== null && _a !== void 0 ? _a : true;
+        const shouldPlayAudio = (_b = studiesStorageValues[AUDIO_ACTIVE]) !== null && _b !== void 0 ? _b : true;
+        const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
+        if (shouldPlayAudio) {
+            const audio = (_d = studiesStorageValues[AUDIO]) !== null && _d !== void 0 ? _d : 'alert1.mp3';
+            const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
+            yield playAudio(audio, volume);
+        }
+        if (shouldFocusProlific) {
+            yield focusProlific();
+        }
+        if (shouldShowNotification) {
+            studies
+                .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
+                .forEach((study, index) => {
+                setTimeout(() => {
+                    sendNotification(study);
+                }, index === 0 ? 0 : 1000);
+            });
+        }
+        yield updateCounterAndBadge(studies.length);
     });
 }
 chrome.runtime.onStartup.addListener(function () {
@@ -140,6 +210,13 @@ chrome.runtime.onStartup.addListener(function () {
         }
     });
 });
+function initialize() {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (yield getValueFromStorage(USE_OLD, false)) {
+            setupTitleAlert();
+        }
+    });
+}
 function playAudio() {
     return __awaiter(this, arguments, void 0, function* (audio = 'alert1.mp3', volume) {
         yield setupOffscreenDocument('audio/audio.html');
@@ -162,6 +239,9 @@ function setInitialValues() {
             [SHOW_NOTIFICATION]: true,
             [VOLUME]: 100,
             [ACTIVE_TAB]: "settings",
+            [TRACK_IDS]: true,
+            [STUDY_HISTORY_LEN]: 100,
+            [SORT_STUDIES]: "created+"
         });
     });
 }
@@ -176,8 +256,14 @@ function sendNotification(study = null) {
         if (study.title && study.researcher) {
             title = `${study.title}\nBy ${study.researcher}`;
         }
-        if (study.reward && study.time && study.rewardPerHour && study.places) {
-            message += `\nReward: ${study.reward}\nReward per hour: ${study.rewardPerHour}\nTime: ${study.time} | Places: ${study.places}`;
+        if (study.reward) {
+            message += `\nReward: ${study.reward}`;
+        }
+        if (study.rewardPerHour) {
+            message += `\nReward per hour: ${study.rewardPerHour}`;
+        }
+        if (study.time) {
+            message += `\nTime: ${study.time}`;
         }
     }
     const options = {
@@ -193,9 +279,6 @@ function updateBadge(counter) {
     return __awaiter(this, void 0, void 0, function* () {
         yield chrome.action.setBadgeText({ text: counter.toString() });
         yield chrome.action.setBadgeBackgroundColor({ color: "#9dec14" });
-        setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-            yield chrome.action.setBadgeText({ text: '' });
-        }), 20000);
     });
 }
 function updateCounterAndBadge() {

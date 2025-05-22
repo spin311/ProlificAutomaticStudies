@@ -60,12 +60,11 @@ chrome.notifications.onButtonClicked.addListener(function (notificationId: strin
 });
 
 
-
 chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Promise<void> => {
     if(details.reason === "install"){
         await setInitialValues();
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await chrome.tabs.create({url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true});
+        await chrome.tabs.create({url: "https://svitspindler.com/prolific-studies-notifier", active: true});
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     } else if (details.reason === "update") {
         chrome.action.setBadgeText({text: "New"});

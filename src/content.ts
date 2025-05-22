@@ -83,7 +83,7 @@ function observeStudyChanges(): void {
             if (isProcessing) return;
             let newChanges = false;
             for (const mutation of mutationsList) {
-                if (mutation.addedNodes.length || mutation.removedNodes.length) {
+                if (mutation.addedNodes.length || mutation.removedNodes.length || mutation.type === "childList") {
                     newChanges = true;
                 }
             }

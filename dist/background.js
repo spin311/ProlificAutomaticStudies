@@ -53,7 +53,7 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     if (details.reason === "install") {
         yield setInitialValues();
         yield new Promise(resolve => setTimeout(resolve, 1000));
-        yield chrome.tabs.create({ url: "https://spin311.github.io/ProlificAutomaticStudies/", active: true });
+        yield chrome.tabs.create({ url: "https://svitspindler.com/prolific-studies-notifier", active: true });
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
     else if (details.reason === "update") {
