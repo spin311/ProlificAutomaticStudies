@@ -1,0 +1,36 @@
+{
+  "manifest_version": 2,
+  "name": "Prolific Studies Notifier",
+  "version": "3.0.1",
+  "description": "Firefox extension for Prolific to notify you when studies are available",
+
+  "permissions": [
+    "storage",
+    "notifications",
+    "tabs",
+    "https://app.prolific.com/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["https://app.prolific.com/*"],
+      "js": ["dist/content.js"]
+    }
+  ],
+
+  "background": {
+    "scripts": ["dist/background.js"],
+    "persistent": true
+  },
+
+  "browser_action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Prolific get studies automatically"
+  },
+
+  "icons": {
+    "16": "imgs/logo.png",
+    "48": "imgs/logo.png",
+    "128": "imgs/logo.png"
+  }
+}
