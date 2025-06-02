@@ -58,11 +58,7 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
     }
     else if (details.reason === "update") {
         chrome.action.setBadgeText({ text: "New" });
-        chrome.storage.sync.set({
-            [STUDY_HISTORY_LEN]: 100,
-            [TRACK_IDS]: true,
-            [SORT_STUDIES]: "created+"
-        });
+        chrome.storage.sync.set({});
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
 }));
@@ -77,8 +73,6 @@ function setupTitleAlert() {
     const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e;
         const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
-        if (tab.url && tab.url.includes('https://app.prolific.com/')) {
-        }
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
             const newTitle = tab.title.trim();
             if (newTitle === 'Prolific') {
@@ -266,14 +260,13 @@ function sendNotification(study = null) {
             message += `\nTime: ${study.time}`;
         }
     }
-    const options = {
+    chrome.notifications.create(id, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL(ICON_URL),
         title: title,
         message: message,
         buttons: [{ title: 'Open Study' }, { title: 'Dismiss' }],
-    };
-    chrome.notifications.create(id, options);
+    });
 }
 function updateBadge(counter) {
     return __awaiter(this, void 0, void 0, function* () {

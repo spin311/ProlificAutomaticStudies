@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
-let isProcessing = false; // A global promise to avoid concurrency issues
+let isProcessing = false;
 let isObserverInitializing = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
@@ -116,7 +116,7 @@ function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         function shouldIncludeStudy(study) {
-            if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
+            if (reward && study.reward && getFloatValueFromMoneyStringContent(study.reward) < reward) {
                 return false;
             }
             if (time && study.timeInMinutes && study.timeInMinutes < time) {
@@ -128,7 +128,7 @@ function extractStudies(targetNode) {
             if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); })) {
                 return false;
             }
-            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
+            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyStringContent(study.rewardPerHour) < rewardPerHour);
         }
         function shouldFilterStudies() {
             return reward > 0 || rewardPerHour > 0 || time > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0;
@@ -217,4 +217,16 @@ function parseTimeContent(value) {
     const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
     const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
     return hours * 60 + minutes;
+}
+function getFloatValueFromMoneyStringContent(value) {
+    const firstWord = value.split(" ")[0];
+    if (firstWord.charAt(0) === '£') {
+        return parseFloat(firstWord.slice(1));
+    }
+    else if (firstWord.charAt(0) === '$') {
+        return parseFloat(firstWord.slice(1)) * 0.8;
+    }
+    else {
+        return 0;
+    }
 }

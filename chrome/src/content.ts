@@ -11,7 +11,7 @@ type  StudyContent = {
 };
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
-let isProcessing: boolean = false;  // A global promise to avoid concurrency issues
+let isProcessing: boolean = false;
 let isObserverInitializing: boolean = false;
 
 const NUMBER_OF_STUDIES_TO_STORE = 100;
@@ -121,7 +121,7 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     function shouldIncludeStudy(study: StudyContent) {
-        if (reward && study.reward && getFloatValueFromMoneyString(study.reward) < reward) {
+        if (reward && study.reward && getFloatValueFromMoneyStringContent(study.reward) < reward) {
             return false;
         }
         if (time && study.timeInMinutes && study.timeInMinutes < time) {
@@ -133,7 +133,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
         if (researcherBlacklist.some((researcher) => study.researcher?.toLowerCase().includes(researcher))) {
             return false;
         }
-        return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyString(study.rewardPerHour) < rewardPerHour);
+        return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyStringContent(study.rewardPerHour) < rewardPerHour);
     }
 
     function shouldFilterStudies() {
@@ -228,4 +228,15 @@ function parseTimeContent(value: string | null): number {
     const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
 
     return hours * 60 + minutes;
+}
+
+function getFloatValueFromMoneyStringContent(value: string): number {
+    const firstWord = value.split(" ")[0];
+    if (firstWord.charAt(0) === '£') {
+        return parseFloat(firstWord.slice(1));
+    } else if (firstWord.charAt(0) === '$') {
+        return parseFloat(firstWord.slice(1)) * 0.8;
+    } else {
+        return 0;
+    }
 }

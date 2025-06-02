@@ -6,3 +6,4 @@ package-lock.json
 .idea/*
 *.xml
 docs/imgs/Screenshot_4.png
+/chrome/.idea
