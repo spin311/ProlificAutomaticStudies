@@ -7,3 +7,4 @@ package-lock.json
 *.xml
 docs/imgs/Screenshot_4.png
 /chrome/.idea
+/firefox/.idea
