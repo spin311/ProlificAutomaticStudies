@@ -516,3 +516,81 @@ input[type="number"]:focus, input[type="text"]:focus  {
     display: flex;
     align-items: center;
 }
+
+.earn-title {
+    margin-left: 1em;
+    color: #18272F;
+    font-weight: 700;
+    font-size: 1.4em;
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    text-align: center;
+}
+
+.earn-title::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -75%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+            120deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.5) 50%,
+            rgba(255, 255, 255, 0) 100%
+    );
+    transform: skewX(-25deg);
+    animation: shine-new 6s infinite;
+}
+
+@keyframes shine-new {
+    0% {
+        left: -75%;
+    }
+    40% {
+        left: 125%;
+    }
+    100% {
+        left: 125%;
+    }
+}
+
+.earn {
+    text-align: left;
+}
+
+.earn-list {
+    padding-left: 0.9em;
+    margin-top: 0.2em;
+}
+
+.earn-list > li a{
+    color: #18272F;
+}
+
+.earn-list > li {
+    padding: 0.65em;
+    font-weight: 600;
+    display: flex;
+    align-content: center;
+    gap: 0.2em;
+    font-size: 14px;
+}
+
+.earn-list > li:hover {
+    cursor: pointer;
+    color: white;
+    background-color: #2282ad;
+}
+
+.earn-logo {
+    width: 22px;
+    height: 22px;
+    margin-right: 0.5em;
+}
+
+.underline {
+    text-decoration: underline;
+}

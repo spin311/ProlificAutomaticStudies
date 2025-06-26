@@ -68,9 +68,6 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     } else if (details.reason === "update") {
         chrome.action.setBadgeText({text: "New"});
-        chrome.storage.sync.set({
-        });
-        chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
 });
 

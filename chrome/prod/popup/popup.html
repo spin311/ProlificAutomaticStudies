@@ -25,6 +25,20 @@
 <div class="text-align">
 
     <div id="settings">
+
+        <div class="d-flex justify-content-center  my-2">
+            <div class="form-check-label mb-2">
+                Alert new studies from:
+                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
+            </div>
+            <div class="alerts mb-4">
+                <ul>
+                    <li id="websiteBtn"> <span>Website (new)</span></li>
+                    <li id="titleBtn"><span>Title (old)</span></li>
+                </ul>
+            </div>
+        </div>
+
         <div class="form-check d-flex justify-content-center ml-1">
             <input class="form-check-input mr-2" type="checkbox" value="" id="openProlific">
             <label class="form-check-label" for="openProlific">
@@ -61,24 +75,20 @@
             <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
         </div>
 
+        <div class="earn">
+            <div class="earn-title">Earn money</div>
+            <ul class="earn-list">
+                <li><img src="../imgs/svgs/survey-svgrepo-com.svg" alt="survey" class="earn-logo"> <a href="https://www.swagbucks.com/p/register?rb=213613392&rp=1" class="normal-link" target="_blank"><span class="underline">Swagbucks</span>: Paid surveys</a></li>
+                <li><img src="../imgs/svgs/bitcoin-btc-logo.svg" alt="bitcoin" class="earn-logo"><a href="https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00C984KKZ8" class="normal-link" target="_blank"><span class="underline">Binance</span>: Deposit 50$ to get 100$</a></li>
+                <li><img src="../imgs/svgs/money-svgrepo-com.svg" alt="money" class="earn-logo"><a href="https://refnocode.trade.re/qxg5kxbx" class="normal-link" target="_blank"><span class="underline">Trade Republic</span>: Deposit 30$ to get 30$</a></li>
+            </ul>
+        </div>
+
         <div class="form-number d-flex justify-content-center">
             <input class="mr-2" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
             <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
                 Number of studies to remember
             </label>
-        </div>
-
-        <div class="d-flex justify-content-center  my-2">
-            <div class="form-check-label mb-2">
-                Alert new studies from:
-                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
-            </div>
-            <div class="alerts mb-4">
-                <ul>
-                    <li id="websiteBtn"> <span>Website (new)</span></li>
-                    <li id="titleBtn"><span>Title (old)</span></li>
-                </ul>
-            </div>
         </div>
         <div class="my-2">
             <div>
