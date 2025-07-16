@@ -54,9 +54,9 @@ function disconnectObserver() {
 }
 
 chrome.runtime.onMessage.addListener(handleContentMessages);
-observeStudyChanges();
+void observeStudyChanges();
 
-function observeStudyChanges(): void {
+async function observeStudyChanges(): Promise<void> {
     if (isObserverActive()) return;
 
     globalObserver = new MutationObserver(async (mutationsList) => {
@@ -75,12 +75,15 @@ function observeStudyChanges(): void {
     globalObserver.observe(document.body, { childList: true, subtree: true });
 
     // Setup polling fallback
+    const result = await chrome.storage.sync.get(["refreshRate"]);
+    const timer = (result["refreshRate"] ?? 5) * 1000;
+
     globalInterval = setInterval(async () => {
-        const node = document.querySelector(targetSelector);
+        const node = await waitForElement(targetSelector);
         if (node && !isProcessing) {
             await extractAndSendStudies(node);
         }
-    }, 5000);
+    }, timer);
 }
 
 async function extractAndSendStudies(targetNode: Element): Promise<void> {
@@ -98,6 +101,24 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
     } finally {
         isProcessing = false;
     }
+}
+
+async function waitForElement(selector: string): Promise<Element | null> {
+    return new Promise((resolve) => {
+        const observer = new MutationObserver(() => {
+            const target = document.querySelector(selector);
+            if (target) {
+                observer.disconnect();
+                resolve(target);
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        const target = document.querySelector(selector);
+        if (target) {
+            observer.disconnect();
+            resolve(target);
+        }
+    });
 }
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {

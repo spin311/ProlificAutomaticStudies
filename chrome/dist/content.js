@@ -47,27 +47,32 @@ function disconnectObserver() {
     }
 }
 chrome.runtime.onMessage.addListener(handleContentMessages);
-observeStudyChanges();
+void observeStudyChanges();
 function observeStudyChanges() {
-    if (isObserverActive())
-        return;
-    globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
-        const targetNode = document.querySelector(targetSelector);
-        if (!targetNode || isProcessing)
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        if (isObserverActive())
             return;
-        const hasChanges = mutationsList.some(mutation => mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList');
-        if (hasChanges) {
-            yield extractAndSendStudies(targetNode);
-        }
-    }));
-    globalObserver.observe(document.body, { childList: true, subtree: true });
-    // Setup polling fallback
-    globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
-        const node = document.querySelector(targetSelector);
-        if (node && !isProcessing) {
-            yield extractAndSendStudies(node);
-        }
-    }), 5000);
+        globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
+            const targetNode = document.querySelector(targetSelector);
+            if (!targetNode || isProcessing)
+                return;
+            const hasChanges = mutationsList.some(mutation => mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList');
+            if (hasChanges) {
+                yield extractAndSendStudies(targetNode);
+            }
+        }));
+        globalObserver.observe(document.body, { childList: true, subtree: true });
+        // Setup polling fallback
+        const result = yield chrome.storage.sync.get(["refreshRate"]);
+        const timer = ((_a = result["refreshRate"]) !== null && _a !== void 0 ? _a : 5) * 1000;
+        globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
+            const node = yield waitForElement(targetSelector);
+            if (node && !isProcessing) {
+                yield extractAndSendStudies(node);
+            }
+        }), timer);
+    });
 }
 function extractAndSendStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -87,6 +92,25 @@ function extractAndSendStudies(targetNode) {
         finally {
             isProcessing = false;
         }
+    });
+}
+function waitForElement(selector) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+                const target = document.querySelector(selector);
+                if (target) {
+                    observer.disconnect();
+                    resolve(target);
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            const target = document.querySelector(selector);
+            if (target) {
+                observer.disconnect();
+                resolve(target);
+            }
+        });
     });
 }
 function extractStudies(targetNode) {
