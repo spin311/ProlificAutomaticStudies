@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     const counter = document.getElementById("counter") as HTMLSpanElement;
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
-    const volume = document.getElementById("volume") as HTMLInputElement;
+    const resetValuesBtn = document.getElementById("resetValues") as HTMLButtonElement;
     const donateText: HTMLElement | null = document.getElementById('donateText');
     const donateImg: HTMLElement | null = document.getElementById('donateImg');
 
@@ -24,23 +24,12 @@ document.addEventListener('DOMContentLoaded', async function () {
             donateImg.style.visibility = 'visible';
         });
     }
-
-    await setCheckboxState("autoAudio", "audioActive");
-    await setCheckboxState("showNotification", "showNotification");
-    await setCheckboxState("openProlific", "openProlific");
-    await setCheckboxState("focusProlific", "focusProlific");
-    await setCheckboxState("trackIds", "trackIds");
-
-    await setInputState("reward", "reward");
-    await setInputState("rewardPerHour", "rewardPerHour");
-    await setInputState("time", "time");
-    await setInputState("studyHistoryLen","studyHistoryLen");
+    await renderPopup();
 
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
     setTabState("studies-tab", "studies");
     await setCurrentActiveTab();
-    await setAlertState();
     await setBlacklist();
 
     await setSelectState("selectAudio", "audio");
@@ -55,8 +44,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         playAudio.addEventListener("click", playAlert);
     }
 
-    if (volume) {
-        await setVolume(volume);
+    if (resetValuesBtn) {
+        resetValuesBtn.addEventListener("dblclick", resetValues);
     }
 
 });
@@ -83,6 +72,16 @@ async function playAlert(): Promise<void> {
         playAudio.classList.remove("btn-fail");
         playAudio.classList.add("btn-success");
     }, 500);
+}
+
+async function resetValues(): Promise<void> {
+    await chrome.runtime.sendMessage({
+        type: 'resetValues',
+        target: 'background',
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await renderPopup();
 }
 
 function formatDate(dateStr: string): string {
@@ -282,30 +281,38 @@ async function setAlertState(): Promise<void> {
     const trackIdsLabel = document.getElementById("trackIdsLabel") as HTMLElement;
     const history = document.getElementById("studyHistoryLen") as HTMLInputElement;
     const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
+    const refreshRate = document.getElementById("refreshRate") as HTMLInputElement;
+    const refreshRateLabel = document.getElementById("refreshRate-label") as HTMLElement;
+
+    const enableControls = () => {
+        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
+        [history, refreshRate, trackIds].forEach(el => el.disabled = false);
+    };
+
+    const disableControls = () => {
+        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.add("disabled-text"));
+        [history, refreshRate, trackIds].forEach(el => el.disabled = true);
+    };
+
+    const setActiveButton = (activeBtn: HTMLElement, inactiveBtn: HTMLElement) => {
+        activeBtn.classList.add("active");
+        inactiveBtn.classList.remove("active");
+    };
+
     const result = await chrome.storage.sync.get("useOld");
     if (result["useOld"]) {
-        trackIdsLabel.classList.add("disabled-text");
-        historyLabel.classList.add("disabled-text");
-        history.disabled = true;
-        trackIds.disabled = true;
-        titleButton.classList.add("active");
+        disableControls();
+        setActiveButton(titleButton, websiteButton);
     } else {
-        historyLabel.classList.remove("disabled-text");
-        history.disabled = false;
-        trackIdsLabel.classList.remove("disabled-text");
-        trackIds.disabled = false;
-        websiteButton.classList.add("active");
+        enableControls();
+        setActiveButton(websiteButton, titleButton);
     }
 
-    websiteButton.addEventListener("click", async function (): Promise<void> {
-        historyLabel.classList.remove("disabled-text");
-        history.disabled = false;
-        trackIdsLabel.classList.remove("disabled-text");
-        trackIds.disabled = false;
-        websiteButton.classList.add("active");
-        titleButton.classList.remove("active");
-        await chrome.storage.sync.set({["useOld"]: false});
-        const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
+    websiteButton.addEventListener("click", async () => {
+        enableControls();
+        setActiveButton(websiteButton, titleButton);
+        await chrome.storage.sync.set({ useOld: false });
+        const tabs = await chrome.tabs.query({ url: "*://app.prolific.com/*" });
         tabs.forEach(tab => {
             chrome.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',
@@ -315,15 +322,11 @@ async function setAlertState(): Promise<void> {
         });
     });
 
-    titleButton.addEventListener("click", async function (): Promise<void> {
-        historyLabel.classList.add("disabled-text");
-        trackIdsLabel.classList.add("disabled-text");
-        history.disabled = true;
-        trackIds.disabled = true;
-        titleButton.classList.add("active");
-        websiteButton.classList.remove("active");
-        await chrome.storage.sync.set({["useOld"]: true});
-        const tabs = await chrome.tabs.query({url: "*://app.prolific.com/*"});
+    titleButton.addEventListener("click", async () => {
+        disableControls();
+        setActiveButton(titleButton, websiteButton);
+        await chrome.storage.sync.set({ useOld: true });
+        const tabs = await chrome.tabs.query({ url: "*://app.prolific.com/*" });
         tabs.forEach(tab => {
             chrome.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',
@@ -331,7 +334,7 @@ async function setAlertState(): Promise<void> {
                 data: "title"
             });
         });
-        await chrome.runtime.sendMessage({
+        chrome.runtime.sendMessage({
             type: 'change-alert-type',
             target: 'background',
             data: "title"
@@ -446,4 +449,29 @@ async function populateBlacklist(listId: string, storageKey: string, values: str
             populateBlacklist(listId, storageKey, currentItems);
         });
     });
+}
+
+async function renderPopup() {
+    await setCheckboxState("autoAudio", "audioActive");
+    await setCheckboxState("showNotification", "showNotification");
+    await setCheckboxState("openProlific", "openProlific");
+    await setCheckboxState("focusProlific", "focusProlific");
+    await setCheckboxState("trackIds", "trackIds");
+
+    await setInputState("reward", "reward");
+    await setInputState("rewardPerHour", "rewardPerHour");
+    await setInputState("time", "time");
+    await setInputState("studyHistoryLen","studyHistoryLen");
+    await setInputState("refreshRate", "refreshRate");
+
+    await setAlertState();
+    await setSelectState("selectAudio", "audio");
+    await setSelectState("sort-studies", "sortStudies", populateStudies);
+
+    const volume = document.getElementById("volume") as HTMLInputElement;
+    if (volume) {
+        await setVolume(volume);
+    }
+
+    await populateBlacklists();
 }

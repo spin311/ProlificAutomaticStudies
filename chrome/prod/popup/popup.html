@@ -33,8 +33,8 @@
             </div>
             <div class="alerts mb-4">
                 <ul>
-                    <li id="websiteBtn"> <span>Website (new)</span></li>
-                    <li id="titleBtn"><span>Title (old)</span></li>
+                    <li id="websiteBtn"> <span>Website</span></li>
+                    <li id="titleBtn"><span>Title</span></li>
                 </ul>
             </div>
         </div>
@@ -75,19 +75,17 @@
             <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
         </div>
 
-        <div class="earn">
-            <div class="earn-title">Earn money</div>
-            <ul class="earn-list">
-                <li><img src="../imgs/svgs/survey-svgrepo-com.svg" alt="survey" class="earn-logo"> <a href="https://www.swagbucks.com/p/register?rb=213613392&rp=1" class="normal-link" target="_blank"><span class="underline">Swagbucks</span>: Paid surveys</a></li>
-                <li><img src="../imgs/svgs/bitcoin-btc-logo.svg" alt="bitcoin" class="earn-logo"><a href="https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00C984KKZ8" class="normal-link" target="_blank"><span class="underline">Binance</span>: Deposit 50$ to get 100$</a></li>
-                <li><img src="../imgs/svgs/money-svgrepo-com.svg" alt="money" class="earn-logo"><a href="https://refnocode.trade.re/qxg5kxbx" class="normal-link" target="_blank"><span class="underline">Trade Republic</span>: Deposit 30$ to get 30$</a></li>
-            </ul>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2 website-input" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
+            <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
+                Number of studies to remember
+            </label>
         </div>
 
         <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
-            <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
-                Number of studies to remember
+            <input class="mr-2 website-input" type="number" value="5" id="refreshRate" min="1" max="9999">
+            <label class="form-check-label" for="refreshRate" id="refreshRate-label">
+                Check studies every X seconds
             </label>
         </div>
         <div class="my-2">
@@ -95,18 +93,25 @@
                 <label for="volume">Volume:</label>
                 <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
             </div>
-            <label for="selectAudio" class="form-label">Select Audio:</label>
-            <select name="selectAudio" id="selectAudio" class="form-select">
-                <option value="alert1.mp3">Alert 1</option>
-                <option value="alert2.mp3">Alert 2</option>
-                <option value="alert3.mp3">Alert 3</option>
-                <option value="alert4.wav">Alert 4</option>
-                <option value="robot.wav">Robot</option>
-                <option value="loud.mp3">LOUD</option>
-            </select>
-            <button id="playAudio" class="btn btn-success ml-05">
-                Test
-            </button>
+            <div class="mt-2 flex between">
+                <span>
+                    <label for="selectAudio" class="form-label">Select Audio:</label>
+                    <select name="selectAudio" id="selectAudio" class="form-select">
+                        <option value="alert1.mp3">Alert 1</option>
+                        <option value="alert2.mp3">Alert 2</option>
+                        <option value="alert3.mp3">Alert 3</option>
+                        <option value="alert4.wav">Alert 4</option>
+                        <option value="robot.wav">Robot</option>
+                        <option value="loud.mp3">LOUD</option>
+                    </select>
+                </span>
+                <button id="playAudio" class="btn btn-success ml-05">
+                    Test
+                </button>
+            </div>
+            <div class="mt-2 flex between">
+                <label for="resetValues">Double click to reset studies & values</label><button id="resetValues" class="btn reset-btn ml-05"> <img src="/svgs/reset.svg" alt="reset"> </button>
+            </div>
         </div>
     </div>
     <div id="studies">

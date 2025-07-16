@@ -10,36 +10,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
+let globalInterval = null;
 let isProcessing = false;
-let isObserverInitializing = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
 const TIME = 'time';
 const NAME_BLACKLIST = "nameBlacklist";
 const RESEARCHER_BLACKLIST = "researcherBlacklist";
-function waitForElement(selector) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const useOld = yield getValueFromStorageContentScript("useOld", false);
-        if (useOld)
-            return null;
-        return new Promise((resolve) => {
-            const observer = new MutationObserver(() => {
-                const target = document.querySelector(selector);
-                if (target) {
-                    observer.disconnect();
-                    resolve(target);
-                }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-            const target = document.querySelector(selector);
-            if (target) {
-                observer.disconnect();
-                resolve(target);
-            }
-        });
-    });
-}
 function handleContentMessages(message) {
     if (message.target !== "content" && message.target !== 'everything') {
         return Promise.resolve();
@@ -50,8 +28,7 @@ function handleContentMessages(message) {
                 observeStudyChanges();
             }
             else {
-                globalObserver === null || globalObserver === void 0 ? void 0 : globalObserver.disconnect();
-                globalObserver = null;
+                disconnectObserver();
             }
             return Promise.resolve();
         default:
@@ -61,35 +38,36 @@ function handleContentMessages(message) {
 function isObserverActive() {
     return globalObserver !== null;
 }
+function disconnectObserver() {
+    globalObserver === null || globalObserver === void 0 ? void 0 : globalObserver.disconnect();
+    globalObserver = null;
+    if (globalInterval !== null) {
+        clearInterval(globalInterval);
+        globalInterval = null;
+    }
+}
 chrome.runtime.onMessage.addListener(handleContentMessages);
 observeStudyChanges();
 function observeStudyChanges() {
-    if (isObserverActive() || isObserverInitializing)
+    if (isObserverActive())
         return;
-    isObserverInitializing = true;
-    waitForElement(targetSelector).then((targetNode) => __awaiter(this, void 0, void 0, function* () {
-        isObserverInitializing = false;
-        if (!targetNode || isObserverActive()) {
+    globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
+        const targetNode = document.querySelector(targetSelector);
+        if (!targetNode || isProcessing)
             return;
+        const hasChanges = mutationsList.some(mutation => mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList');
+        if (hasChanges) {
+            yield extractAndSendStudies(targetNode);
         }
-        // Observe for dynamic content updates within the target element
-        globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
-            if (isProcessing)
-                return;
-            let newChanges = false;
-            for (const mutation of mutationsList) {
-                if (mutation.addedNodes.length || mutation.removedNodes.length || mutation.type === "childList") {
-                    newChanges = true;
-                }
-            }
-            if (newChanges) {
-                yield extractAndSendStudies(targetNode);
-            }
-        }));
-        // Initial check if studies are already loaded
-        yield extractAndSendStudies(targetNode);
-        globalObserver.observe(targetNode, { childList: true, subtree: true });
     }));
+    globalObserver.observe(document.body, { childList: true, subtree: true });
+    // Setup polling fallback
+    globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
+        const node = document.querySelector(targetSelector);
+        if (node && !isProcessing) {
+            yield extractAndSendStudies(node);
+        }
+    }), 5000);
 }
 function extractAndSendStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -99,13 +77,12 @@ function extractAndSendStudies(targetNode) {
             isProcessing = true;
             const studies = yield extractStudies(targetNode);
             if (studies.length > 0) {
-                chrome.runtime.sendMessage({
+                void chrome.runtime.sendMessage({
                     target: "background",
                     type: "new-studies",
                     data: studies,
                 });
             }
-            isProcessing = false;
         }
         finally {
             isProcessing = false;
@@ -115,24 +92,6 @@ function extractAndSendStudies(targetNode) {
 function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
-        function shouldIncludeStudy(study) {
-            if (reward && study.reward && getFloatValueFromMoneyStringContent(study.reward) < reward) {
-                return false;
-            }
-            if (time && study.timeInMinutes && study.timeInMinutes < time) {
-                return false;
-            }
-            if (nameBlacklist.some((name) => { var _a; return (_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(name); })) {
-                return false;
-            }
-            if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); })) {
-                return false;
-            }
-            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyStringContent(study.rewardPerHour) < rewardPerHour);
-        }
-        function shouldFilterStudies() {
-            return reward > 0 || rewardPerHour > 0 || time > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0;
-        }
         const studyElements = targetNode.querySelectorAll("li[class='list-item']");
         const storageValues = yield chrome.storage.sync.get([
             "trackIds",
@@ -160,6 +119,20 @@ function extractStudies(targetNode) {
         const nameBlacklist = (_g = storageValues[NAME_BLACKLIST]) !== null && _g !== void 0 ? _g : [];
         const researcherBlacklist = (_h = storageValues[RESEARCHER_BLACKLIST]) !== null && _h !== void 0 ? _h : [];
         const studyIds = savedStudies.map((study) => study.id);
+        function shouldIncludeStudy(study) {
+            if (reward && study.reward && getFloatValueFromMoneyStringContent(study.reward) < reward)
+                return false;
+            if (time && study.timeInMinutes && study.timeInMinutes < time)
+                return false;
+            if (nameBlacklist.some((name) => { var _a; return (_a = study.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(name); }))
+                return false;
+            if (researcherBlacklist.some((researcher) => { var _a; return (_a = study.researcher) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes(researcher); }))
+                return false;
+            return !(rewardPerHour && study.rewardPerHour && getFloatValueFromMoneyStringContent(study.rewardPerHour) < rewardPerHour);
+        }
+        function shouldFilterStudies() {
+            return reward > 0 || rewardPerHour > 0 || time > 0 || nameBlacklist.length > 0 || researcherBlacklist.length > 0;
+        }
         studyElements.forEach((study) => {
             var _a, _b, _c;
             const id = (_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1];
@@ -184,25 +157,21 @@ function extractStudies(targetNode) {
             });
         });
         if (shouldFilterStudies()) {
-            studies = studies.filter((study) => {
-                return shouldIncludeStudy(study);
-            });
+            studies = studies.filter((study) => shouldIncludeStudy(study));
         }
         if (shouldIgnoreOldStudies) {
             savedStudies = [...savedStudies, ...studies];
         }
+        else {
+            savedStudies = studies;
+        }
         if (savedStudies.length > numberOfStudiesToStore) {
             savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
-        yield chrome.storage.sync.set({ "currentStudies": savedStudies });
+        if (studies.length > 0) {
+            yield chrome.storage.sync.set({ "currentStudies": savedStudies });
+        }
         return studies;
-    });
-}
-function getValueFromStorageContentScript(key, defaultValue) {
-    return new Promise((resolve) => {
-        chrome.storage.sync.get(key, function (result) {
-            resolve((result[key] !== undefined) ? result[key] : defaultValue);
-        });
     });
 }
 function getTextContent(element, selector) {

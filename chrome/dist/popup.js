@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
         yield chrome.action.setBadgeText({ text: '' });
         const counter = document.getElementById("counter");
         const playAudio = document.getElementById("playAudio");
-        const volume = document.getElementById("volume");
+        const resetValuesBtn = document.getElementById("resetValues");
         const donateText = document.getElementById('donateText');
         const donateImg = document.getElementById('donateImg');
         if (donateImg && donateText) {
@@ -35,20 +35,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 donateImg.style.visibility = 'visible';
             });
         }
-        yield setCheckboxState("autoAudio", "audioActive");
-        yield setCheckboxState("showNotification", "showNotification");
-        yield setCheckboxState("openProlific", "openProlific");
-        yield setCheckboxState("focusProlific", "focusProlific");
-        yield setCheckboxState("trackIds", "trackIds");
-        yield setInputState("reward", "reward");
-        yield setInputState("rewardPerHour", "rewardPerHour");
-        yield setInputState("time", "time");
-        yield setInputState("studyHistoryLen", "studyHistoryLen");
+        yield renderPopup();
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
         yield setCurrentActiveTab();
-        yield setAlertState();
         yield setBlacklist();
         yield setSelectState("selectAudio", "audio");
         yield setSelectState("sort-studies", "sortStudies", populateStudies);
@@ -59,8 +50,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (playAudio) {
             playAudio.addEventListener("click", playAlert);
         }
-        if (volume) {
-            yield setVolume(volume);
+        if (resetValuesBtn) {
+            resetValuesBtn.addEventListener("dblclick", resetValues);
         }
     });
 });
@@ -88,6 +79,16 @@ function playAlert() {
             playAudio.classList.remove("btn-fail");
             playAudio.classList.add("btn-success");
         }, 500);
+    });
+}
+function resetValues() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield chrome.runtime.sendMessage({
+            type: 'resetValues',
+            target: 'background',
+        });
+        yield new Promise(resolve => setTimeout(resolve, 150));
+        yield renderPopup();
     });
 }
 function formatDate(dateStr) {
@@ -289,64 +290,60 @@ function setAlertState() {
         const trackIdsLabel = document.getElementById("trackIdsLabel");
         const history = document.getElementById("studyHistoryLen");
         const historyLabel = document.getElementById("study-history-len-label");
+        const refreshRate = document.getElementById("refreshRate");
+        const refreshRateLabel = document.getElementById("refreshRate-label");
+        const enableControls = () => {
+            [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
+            [history, refreshRate, trackIds].forEach(el => el.disabled = false);
+        };
+        const disableControls = () => {
+            [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.add("disabled-text"));
+            [history, refreshRate, trackIds].forEach(el => el.disabled = true);
+        };
+        const setActiveButton = (activeBtn, inactiveBtn) => {
+            activeBtn.classList.add("active");
+            inactiveBtn.classList.remove("active");
+        };
         const result = yield chrome.storage.sync.get("useOld");
         if (result["useOld"]) {
-            trackIdsLabel.classList.add("disabled-text");
-            historyLabel.classList.add("disabled-text");
-            history.disabled = true;
-            trackIds.disabled = true;
-            titleButton.classList.add("active");
+            disableControls();
+            setActiveButton(titleButton, websiteButton);
         }
         else {
-            historyLabel.classList.remove("disabled-text");
-            history.disabled = false;
-            trackIdsLabel.classList.remove("disabled-text");
-            trackIds.disabled = false;
-            websiteButton.classList.add("active");
+            enableControls();
+            setActiveButton(websiteButton, titleButton);
         }
-        websiteButton.addEventListener("click", function () {
-            return __awaiter(this, void 0, void 0, function* () {
-                historyLabel.classList.remove("disabled-text");
-                history.disabled = false;
-                trackIdsLabel.classList.remove("disabled-text");
-                trackIds.disabled = false;
-                websiteButton.classList.add("active");
-                titleButton.classList.remove("active");
-                yield chrome.storage.sync.set({ ["useOld"]: false });
-                const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                tabs.forEach(tab => {
-                    chrome.tabs.sendMessage(tab.id, {
-                        type: 'change-alert-type',
-                        target: 'everything',
-                        data: "website"
-                    });
+        websiteButton.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+            enableControls();
+            setActiveButton(websiteButton, titleButton);
+            yield chrome.storage.sync.set({ useOld: false });
+            const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
+            tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, {
+                    type: 'change-alert-type',
+                    target: 'everything',
+                    data: "website"
                 });
             });
-        });
-        titleButton.addEventListener("click", function () {
-            return __awaiter(this, void 0, void 0, function* () {
-                historyLabel.classList.add("disabled-text");
-                trackIdsLabel.classList.add("disabled-text");
-                history.disabled = true;
-                trackIds.disabled = true;
-                titleButton.classList.add("active");
-                websiteButton.classList.remove("active");
-                yield chrome.storage.sync.set({ ["useOld"]: true });
-                const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
-                tabs.forEach(tab => {
-                    chrome.tabs.sendMessage(tab.id, {
-                        type: 'change-alert-type',
-                        target: 'content',
-                        data: "title"
-                    });
-                });
-                yield chrome.runtime.sendMessage({
+        }));
+        titleButton.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+            disableControls();
+            setActiveButton(titleButton, websiteButton);
+            yield chrome.storage.sync.set({ useOld: true });
+            const tabs = yield chrome.tabs.query({ url: "*://app.prolific.com/*" });
+            tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, {
                     type: 'change-alert-type',
-                    target: 'background',
+                    target: 'content',
                     data: "title"
                 });
             });
-        });
+            chrome.runtime.sendMessage({
+                type: 'change-alert-type',
+                target: 'background',
+                data: "title"
+            });
+        }));
     });
 }
 function setCheckboxState(elementId, storageKey) {
@@ -471,5 +468,27 @@ function populateBlacklist(listId_1, storageKey_1) {
                 populateBlacklist(listId, storageKey, currentItems);
             });
         });
+    });
+}
+function renderPopup() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield setCheckboxState("autoAudio", "audioActive");
+        yield setCheckboxState("showNotification", "showNotification");
+        yield setCheckboxState("openProlific", "openProlific");
+        yield setCheckboxState("focusProlific", "focusProlific");
+        yield setCheckboxState("trackIds", "trackIds");
+        yield setInputState("reward", "reward");
+        yield setInputState("rewardPerHour", "rewardPerHour");
+        yield setInputState("time", "time");
+        yield setInputState("studyHistoryLen", "studyHistoryLen");
+        yield setInputState("refreshRate", "refreshRate");
+        yield setAlertState();
+        yield setSelectState("selectAudio", "audio");
+        yield setSelectState("sort-studies", "sortStudies", populateStudies);
+        const volume = document.getElementById("volume");
+        if (volume) {
+            yield setVolume(volume);
+        }
+        yield populateBlacklists();
     });
 }

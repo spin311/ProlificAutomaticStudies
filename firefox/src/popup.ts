@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setInputState("rewardPerHour", "rewardPerHour");
     await setInputState("time", "time");
     await setInputState("studyHistoryLen","studyHistoryLen");
+    await setInputState("refreshRate", "refreshRate");
 
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
@@ -279,30 +280,38 @@ async function setAlertState(): Promise<void> {
     const trackIdsLabel = document.getElementById("trackIdsLabel") as HTMLElement;
     const history = document.getElementById("studyHistoryLen") as HTMLInputElement;
     const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
+    const refreshRate = document.getElementById("refreshRate") as HTMLInputElement;
+    const refreshRateLabel = document.getElementById("refreshRateLabel") as HTMLElement;
+
+    const enableControls = () => {
+        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
+        [history, refreshRate, trackIds].forEach(el => el.disabled = false);
+    };
+
+    const disableControls = () => {
+        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.add("disabled-text"));
+        [history, refreshRate, trackIds].forEach(el => el.disabled = true);
+    };
+
+    const setActiveButton = (activeBtn: HTMLElement, inactiveBtn: HTMLElement) => {
+        activeBtn.classList.add("active");
+        inactiveBtn.classList.remove("active");
+    };
+
     const result = await browser.storage.sync.get("useOld");
     if (result["useOld"]) {
-        trackIdsLabel.classList.add("disabled-text");
-        historyLabel.classList.add("disabled-text");
-        history.disabled = true;
-        trackIds.disabled = true;
-        titleButton.classList.add("active");
+        disableControls();
+        setActiveButton(titleButton, websiteButton);
     } else {
-        historyLabel.classList.remove("disabled-text");
-        history.disabled = false;
-        trackIdsLabel.classList.remove("disabled-text");
-        trackIds.disabled = false;
-        websiteButton.classList.add("active");
+        enableControls();
+        setActiveButton(websiteButton, titleButton);
     }
 
-    websiteButton.addEventListener("click", async function (): Promise<void> {
-        historyLabel.classList.remove("disabled-text");
-        history.disabled = false;
-        trackIdsLabel.classList.remove("disabled-text");
-        trackIds.disabled = false;
-        websiteButton.classList.add("active");
-        titleButton.classList.remove("active");
-        await browser.storage.sync.set({["useOld"]: false});
-        const tabs = await browser.tabs.query({url: "*://app.prolific.com/*"});
+    websiteButton.addEventListener("click", async () => {
+        enableControls();
+        setActiveButton(websiteButton, titleButton);
+        await browser.storage.sync.set({ useOld: false });
+        const tabs = await browser.tabs.query({ url: "*://app.prolific.com/*" });
         tabs.forEach(tab => {
             browser.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',
@@ -312,15 +321,11 @@ async function setAlertState(): Promise<void> {
         });
     });
 
-    titleButton.addEventListener("click", async function (): Promise<void> {
-        historyLabel.classList.add("disabled-text");
-        trackIdsLabel.classList.add("disabled-text");
-        history.disabled = true;
-        trackIds.disabled = true;
-        titleButton.classList.add("active");
-        websiteButton.classList.remove("active");
-        await browser.storage.sync.set({["useOld"]: true});
-        const tabs = await browser.tabs.query({url: "*://app.prolific.com/*"});
+    titleButton.addEventListener("click", async () => {
+        disableControls();
+        setActiveButton(titleButton, websiteButton);
+        await browser.storage.sync.set({ useOld: true });
+        const tabs = await browser.tabs.query({ url: "*://app.prolific.com/*" });
         tabs.forEach(tab => {
             browser.tabs.sendMessage(tab.id!, {
                 type: 'change-alert-type',

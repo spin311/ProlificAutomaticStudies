@@ -45,7 +45,6 @@ button:hover {
 }
 
 .form-select {
-    flex: 1;
     padding: 0.375rem 0.75rem;
     font-size: 1rem;
     line-height: 1.5;
@@ -137,6 +136,7 @@ button:hover {
 
 
 .form-check-input {
+    accent-color: #2282ad;
     position: absolute;
     margin-top: 0.3rem;
     margin-left: -1.25rem;
@@ -266,20 +266,20 @@ a:not(.normal-link):hover::before {
     position: relative;
 }
 
-#studies-tab:not(.active)::after, #filters-tab:not(.active)::after {
-    content: "NEW";
-    position: absolute;
-    top: 0;
-    right: 0;
-    background: linear-gradient(45deg, #1cd579, #00bfff, #5582df);
-    color: white;
-    font-size: 0.6em;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 1px;
-    animation: shine 2s infinite linear;
-    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
-}
+/*#studies-tab:not(.active)::after, #filters-tab:not(.active)::after {*/
+/*    content: "NEW";*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 0;*/
+/*    background: linear-gradient(45deg, #1cd579, #00bfff, #5582df);*/
+/*    color: white;*/
+/*    font-size: 0.6em;*/
+/*    font-weight: bold;*/
+/*    padding: 2px 6px;*/
+/*    border-radius: 1px;*/
+/*    animation: shine 2s infinite linear;*/
+/*    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);*/
+/*}*/
 
 /* Shining animation */
 @keyframes shine {
@@ -341,11 +341,11 @@ input[type="number"] {
     width: 8.5em;
 }
 
-#studyHistoryLen {
+div.form-number > .website-input  {
     width: 3em;
 }
 
-#studyHistoryLen:disabled {
+div.form-number > .website-input:disabled {
     background-color: #e9ecef;
     color: #6c757d;
     border-color: #ced4da;
@@ -593,4 +593,13 @@ input[type="number"]:focus, input[type="text"]:focus  {
 
 .underline {
     text-decoration: underline;
+}
+
+.reset-btn {
+    margin-left: 1em;
+    padding: 0.2em 0.3em;
+}
+
+.between {
+    justify-content: space-between;
 }

@@ -32,6 +32,8 @@ const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
 
 const SORT_STUDIES = 'sortStudies';
+const REFRESH_RATE = 'refreshRate';
+const CURRENT_STUDIES = 'currentStudies';
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
 initialize();
@@ -67,7 +69,9 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         await chrome.tabs.create({url: "https://svitspindler.com/prolific-studies-notifier", active: true});
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     } else if (details.reason === "update") {
-        chrome.action.setBadgeText({text: "New"});
+        await chrome.storage.sync.set({[REFRESH_RATE]: 5
+        });
+        await chrome.action.setBadgeText({text: "New"});
     }
 });
 
@@ -163,6 +167,9 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
         case 'new-studies':
             await handleNewStudies(message.data);
             break;
+        case 'resetValues':
+            await setInitialValues();
+            break;
     }
 }
 
@@ -232,11 +239,21 @@ async function setInitialValues(): Promise<void> {
         [AUDIO_ACTIVE]: true,
         [AUDIO]: "alert1.mp3",
         [SHOW_NOTIFICATION]: true,
+        [FOCUS_PROLIFIC]: false,
+        [USE_OLD]: false,
+        [OPEN_PROLIFIC]: false,
         [VOLUME]: 100,
         [ACTIVE_TAB]: "settings",
         [TRACK_IDS]: true,
         [STUDY_HISTORY_LEN]: 100,
-        [SORT_STUDIES]: "created+"
+        [SORT_STUDIES]: "created+",
+        [REFRESH_RATE]: 5,
+        [CURRENT_STUDIES]: [],
+        "reward": 0,
+        "rewardPerHour": 0,
+        "time": 0,
+        "researcherBlacklist": [],
+        "nameBlacklist": []
     });
 }
 

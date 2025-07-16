@@ -26,6 +26,8 @@ const PROLIFIC_TITLE = "prolificTitle";
 const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
 const SORT_STUDIES = 'sortStudies';
+const REFRESH_RATE = 'refreshRate';
+const CURRENT_STUDIES = 'currentStudies';
 let creating = null; // A global promise to avoid concurrency issues
 initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
@@ -57,7 +59,9 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
     else if (details.reason === "update") {
-        chrome.action.setBadgeText({ text: "New" });
+        yield chrome.storage.sync.set({ [REFRESH_RATE]: 5
+        });
+        yield chrome.action.setBadgeText({ text: "New" });
     }
 }));
 function getValueFromStorage(key, defaultValue) {
@@ -154,6 +158,9 @@ function handleMessages(message) {
             case 'new-studies':
                 yield handleNewStudies(message.data);
                 break;
+            case 'resetValues':
+                yield setInitialValues();
+                break;
         }
     });
 }
@@ -229,11 +236,21 @@ function setInitialValues() {
             [AUDIO_ACTIVE]: true,
             [AUDIO]: "alert1.mp3",
             [SHOW_NOTIFICATION]: true,
+            [FOCUS_PROLIFIC]: false,
+            [USE_OLD]: false,
+            [OPEN_PROLIFIC]: false,
             [VOLUME]: 100,
             [ACTIVE_TAB]: "settings",
             [TRACK_IDS]: true,
             [STUDY_HISTORY_LEN]: 100,
-            [SORT_STUDIES]: "created+"
+            [SORT_STUDIES]: "created+",
+            [REFRESH_RATE]: 5,
+            [CURRENT_STUDIES]: [],
+            "reward": 0,
+            "rewardPerHour": 0,
+            "time": 0,
+            "researcherBlacklist": [],
+            "nameBlacklist": []
         });
     });
 }
