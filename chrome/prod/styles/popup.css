@@ -603,3 +603,31 @@ input[type="number"]:focus, input[type="text"]:focus  {
 .between {
     justify-content: space-between;
 }
+
+#downloadCSV {
+    background-color: #2282ad;
+    color: #fff;
+    padding: 0.35em 0.9em;
+    border: none;
+    border-radius: 0.4em;
+    font-size: 0.85em;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(34, 130, 173, 0.15);
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    cursor: pointer;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+#downloadCSV:hover, #downloadCSV:focus {
+    background-color: #2282ad;
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 4px 16px rgba(34, 130, 173, 0.25);
+}
+
+#downloadCSV:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 4px rgba(34, 130, 173, 0.12);
+}

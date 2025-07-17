@@ -65,13 +65,16 @@ function observeStudyChanges() {
         globalObserver.observe(document.body, { childList: true, subtree: true });
         // Setup polling fallback
         const result = yield chrome.storage.sync.get(["refreshRate"]);
-        const timer = ((_a = result["refreshRate"]) !== null && _a !== void 0 ? _a : 5) * 1000;
-        globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
-            const node = yield waitForElement(targetSelector);
-            if (node && !isProcessing) {
-                yield extractAndSendStudies(node);
-            }
-        }), timer);
+        const refreshRate = result["refreshRate"];
+        if (refreshRate && refreshRate > 0) {
+            const timer = ((_a = result["refreshRate"]) !== null && _a !== void 0 ? _a : 5) * 1000;
+            globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
+                const node = yield waitForElement(targetSelector);
+                if (node && !isProcessing) {
+                    yield extractAndSendStudies(node);
+                }
+            }), timer);
+        }
     });
 }
 function extractAndSendStudies(targetNode) {
@@ -120,23 +123,25 @@ function extractStudies(targetNode) {
         const storageValues = yield chrome.storage.sync.get([
             "trackIds",
             "studyHistoryLen",
-            "currentStudies",
             REWARD,
             REWARD_PER_HOUR,
             TIME,
             NAME_BLACKLIST,
             RESEARCHER_BLACKLIST,
         ]);
+        const localValues = yield chrome.storage.local.get([
+            "currentStudies",
+        ]);
         const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
         if (!studyElements || studyElements.length === 0) {
             if (!shouldIgnoreOldStudies) {
-                yield chrome.storage.sync.set({ ["currentStudies"]: [] });
+                yield chrome.storage.local.set({ ["currentStudies"]: [] });
             }
             return [];
         }
         let studies = [];
         const numberOfStudiesToStore = (_b = storageValues["studyHistoryLen"]) !== null && _b !== void 0 ? _b : NUMBER_OF_STUDIES_TO_STORE;
-        let savedStudies = (_c = storageValues["currentStudies"]) !== null && _c !== void 0 ? _c : [];
+        let savedStudies = (_c = localValues["currentStudies"]) !== null && _c !== void 0 ? _c : [];
         const reward = (_d = storageValues[REWARD]) !== null && _d !== void 0 ? _d : 0;
         const rewardPerHour = (_e = storageValues[REWARD_PER_HOUR]) !== null && _e !== void 0 ? _e : 0;
         const time = (_f = storageValues[TIME]) !== null && _f !== void 0 ? _f : 0;
@@ -176,7 +181,6 @@ function extractStudies(targetNode) {
                 rewardPerHour,
                 time,
                 timeInMinutes,
-                limitedCapacity: false,
                 createdAt: new Date().toISOString(),
             });
         });
@@ -193,7 +197,7 @@ function extractStudies(targetNode) {
             savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
         if (studies.length > 0) {
-            yield chrome.storage.sync.set({ "currentStudies": savedStudies });
+            yield chrome.storage.local.set({ "currentStudies": savedStudies });
         }
         return studies;
     });

@@ -6,7 +6,6 @@ type StudyContent = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
-    limitedCapacity: boolean | null;
     createdAt: string | null;
 };
 
@@ -76,14 +75,16 @@ async function observeStudyChanges(): Promise<void> {
 
     // Setup polling fallback
     const result = await chrome.storage.sync.get(["refreshRate"]);
-    const timer = (result["refreshRate"] ?? 5) * 1000;
-
-    globalInterval = setInterval(async () => {
-        const node = await waitForElement(targetSelector);
-        if (node && !isProcessing) {
-            await extractAndSendStudies(node);
-        }
-    }, timer);
+    const refreshRate = result["refreshRate"];
+    if (refreshRate && refreshRate > 0) {
+        const timer = (result["refreshRate"] ?? 5) * 1000;
+        globalInterval = setInterval(async () => {
+            const node = await waitForElement(targetSelector);
+            if (node && !isProcessing) {
+                await extractAndSendStudies(node);
+            }
+        }, timer);
+    }
 }
 
 async function extractAndSendStudies(targetNode: Element): Promise<void> {
@@ -126,25 +127,27 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const storageValues = await chrome.storage.sync.get([
         "trackIds",
         "studyHistoryLen",
-        "currentStudies",
         REWARD,
         REWARD_PER_HOUR,
         TIME,
         NAME_BLACKLIST,
         RESEARCHER_BLACKLIST,
     ]);
+    const localValues = await chrome.storage.local.get([
+        "currentStudies",
+    ]);
 
     const shouldIgnoreOldStudies: boolean = storageValues["trackIds"] ?? true;
     if (!studyElements || studyElements.length === 0) {
         if (!shouldIgnoreOldStudies) {
-            await chrome.storage.sync.set({["currentStudies"]: []});
+            await chrome.storage.local.set({["currentStudies"]: []});
         }
         return [];
     }
 
     let studies: StudyContent[] = [];
     const numberOfStudiesToStore = storageValues["studyHistoryLen"] ?? NUMBER_OF_STUDIES_TO_STORE;
-    let savedStudies: StudyContent[] = storageValues["currentStudies"] ?? [];
+    let savedStudies: StudyContent[] = localValues["currentStudies"] ?? [];
     const reward: number = storageValues[REWARD] ?? 0;
     const rewardPerHour: number = storageValues[REWARD_PER_HOUR] ?? 0;
     const time: number = storageValues[TIME] ?? 0;
@@ -181,7 +184,6 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             rewardPerHour,
             time,
             timeInMinutes,
-            limitedCapacity: false,
             createdAt: new Date().toISOString(),
         });
     });
@@ -199,7 +201,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
         savedStudies = savedStudies.slice(-numberOfStudiesToStore);
     }
     if (studies.length > 0) {
-        await chrome.storage.sync.set({"currentStudies": savedStudies});
+        await chrome.storage.local.set({"currentStudies": savedStudies});
     }
 
     return studies;

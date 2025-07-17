@@ -59,7 +59,10 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     }
     else if (details.reason === "update") {
-        yield chrome.storage.sync.set({ [REFRESH_RATE]: 5
+        const result = yield chrome.storage.sync.get([CURRENT_STUDIES]);
+        const prevStudies = result[CURRENT_STUDIES];
+        yield chrome.storage.local.set({ [CURRENT_STUDIES]: (prevStudies !== null && prevStudies !== void 0 ? prevStudies : []) });
+        yield chrome.storage.sync.set({ [REFRESH_RATE]: 0
         });
         yield chrome.action.setBadgeText({ text: "New" });
     }
@@ -232,6 +235,7 @@ function playAudio() {
 }
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
+        yield chrome.storage.local.set({ [CURRENT_STUDIES]: [] });
         yield chrome.storage.sync.set({
             [AUDIO_ACTIVE]: true,
             [AUDIO]: "alert1.mp3",
@@ -244,8 +248,7 @@ function setInitialValues() {
             [TRACK_IDS]: true,
             [STUDY_HISTORY_LEN]: 100,
             [SORT_STUDIES]: "created+",
-            [REFRESH_RATE]: 5,
-            [CURRENT_STUDIES]: [],
+            [REFRESH_RATE]: 0,
             "reward": 0,
             "rewardPerHour": 0,
             "time": 0,

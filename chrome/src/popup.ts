@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const resetValuesBtn = document.getElementById("resetValues") as HTMLButtonElement;
     const donateText: HTMLElement | null = document.getElementById('donateText');
     const donateImg: HTMLElement | null = document.getElementById('donateImg');
+    const downloadCSVButton = document.getElementById("downloadCSV") as HTMLButtonElement;
 
     if (donateImg && donateText) {
         donateText.addEventListener('mouseover', function() {
@@ -32,8 +33,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setCurrentActiveTab();
     await setBlacklist();
 
-    await setSelectState("selectAudio", "audio");
-    await setSelectState("sort-studies", "sortStudies", populateStudies);
     await setupSearch();
 
     if(counter) {
@@ -46,6 +45,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     if (resetValuesBtn) {
         resetValuesBtn.addEventListener("dblclick", resetValues);
+    }
+
+    if (downloadCSVButton) {
+        downloadCSVButton.addEventListener("click", downloadStudies);
     }
 
 });
@@ -82,6 +85,39 @@ async function resetValues(): Promise<void> {
 
     await new Promise(resolve => setTimeout(resolve, 150));
     await renderPopup();
+}
+
+async function downloadStudies(): Promise<void> {
+    const result = await chrome.storage.local.get("currentStudies");
+    const studies: Study[] = result["currentStudies"];
+
+    const headers = [
+        "id", "title", "researcher", "reward", "rewardPerHour",
+        "time", "timeInMinutes", "createdAt"
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    studies.forEach(study => {
+        const values = headers.map(header => {
+            const value = study[header as keyof Study];
+            if (value === null || value === undefined) return "";
+            return `"${String(value).replace(/"/g, '""')}"`;
+        });
+        csvRows.push(values.join(","));
+    });
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "studies.csv");
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 function formatDate(dateStr: string): string {
@@ -152,7 +188,7 @@ async function populateStudies(search: string = '', sort: string = "") {
     }
     const studiesContainer = document.getElementById("studies-container") as HTMLElement;
     studiesContainer.innerHTML = ""; // clear previous content
-    const result = await chrome.storage.sync.get("currentStudies");
+    const result = await chrome.storage.local.get("currentStudies");
     let currentStudies: Study[] = result["currentStudies"];
 
     if (!currentStudies || currentStudies.length === 0) {
@@ -230,7 +266,7 @@ async function populateStudies(search: string = '', sort: string = "") {
             const target = e.currentTarget as HTMLElement;
             const index = parseInt(target.getAttribute("data-index") || "", 10);
             currentStudies.splice(index, 1);
-            chrome.storage.sync.set({ currentStudies });
+            chrome.storage.local.set({ currentStudies });
             populateStudies();
         });
     });
@@ -472,6 +508,4 @@ async function renderPopup() {
     if (volume) {
         await setVolume(volume);
     }
-
-    await populateBlacklists();
 }

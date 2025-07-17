@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const resetValuesBtn = document.getElementById("resetValues");
         const donateText = document.getElementById('donateText');
         const donateImg = document.getElementById('donateImg');
+        const downloadCSVButton = document.getElementById("downloadCSV");
         if (donateImg && donateText) {
             donateText.addEventListener('mouseover', function () {
                 donateImg.style.visibility = 'visible';
@@ -41,8 +42,6 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("studies-tab", "studies");
         yield setCurrentActiveTab();
         yield setBlacklist();
-        yield setSelectState("selectAudio", "audio");
-        yield setSelectState("sort-studies", "sortStudies", populateStudies);
         yield setupSearch();
         if (counter) {
             yield setCounter(counter);
@@ -52,6 +51,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (resetValuesBtn) {
             resetValuesBtn.addEventListener("dblclick", resetValues);
+        }
+        if (downloadCSVButton) {
+            downloadCSVButton.addEventListener("click", downloadStudies);
         }
     });
 });
@@ -89,6 +91,37 @@ function resetValues() {
         });
         yield new Promise(resolve => setTimeout(resolve, 150));
         yield renderPopup();
+    });
+}
+function downloadStudies() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.local.get("currentStudies");
+        const studies = result["currentStudies"];
+        const headers = [
+            "id", "title", "researcher", "reward", "rewardPerHour",
+            "time", "timeInMinutes", "createdAt"
+        ];
+        const csvRows = [headers.join(",")];
+        studies.forEach(study => {
+            const values = headers.map(header => {
+                const value = study[header];
+                if (value === null || value === undefined)
+                    return "";
+                return `"${String(value).replace(/"/g, '""')}"`;
+            });
+            csvRows.push(values.join(","));
+        });
+        const csvContent = csvRows.join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "studies.csv");
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     });
 }
 function formatDate(dateStr) {
@@ -159,7 +192,7 @@ function populateStudies() {
         }
         const studiesContainer = document.getElementById("studies-container");
         studiesContainer.innerHTML = ""; // clear previous content
-        const result = yield chrome.storage.sync.get("currentStudies");
+        const result = yield chrome.storage.local.get("currentStudies");
         let currentStudies = result["currentStudies"];
         if (!currentStudies || currentStudies.length === 0) {
             studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
@@ -233,7 +266,7 @@ function populateStudies() {
                 const target = e.currentTarget;
                 const index = parseInt(target.getAttribute("data-index") || "", 10);
                 currentStudies.splice(index, 1);
-                chrome.storage.sync.set({ currentStudies });
+                chrome.storage.local.set({ currentStudies });
                 populateStudies();
             });
         });
@@ -489,6 +522,5 @@ function renderPopup() {
         if (volume) {
             yield setVolume(volume);
         }
-        yield populateBlacklists();
     });
 }

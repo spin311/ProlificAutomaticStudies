@@ -9,7 +9,6 @@ type Study = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
-    limitedCapacity: boolean | null;
     createdAt: string | null;
 };
 
@@ -69,7 +68,10 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         await chrome.tabs.create({url: "https://svitspindler.com/prolific-studies-notifier", active: true});
         chrome.runtime.setUninstallURL(`https://svitspindler.com/uninstall?extension=${encodeURI("Prolific Studies Notifier")}`);
     } else if (details.reason === "update") {
-        await chrome.storage.sync.set({[REFRESH_RATE]: 5
+        const result = await chrome.storage.sync.get([CURRENT_STUDIES]);
+        const prevStudies = result[CURRENT_STUDIES];
+        await chrome.storage.local.set({[CURRENT_STUDIES]: (prevStudies ?? [])});
+        await chrome.storage.sync.set({[REFRESH_RATE]: 0
         });
         await chrome.action.setBadgeText({text: "New"});
     }
@@ -235,6 +237,7 @@ async function playAudio(audio: string | null = 'alert1.mp3', volume: number | n
 }
 
 async function setInitialValues(): Promise<void> {
+    await chrome.storage.local.set({[CURRENT_STUDIES]: []});
     await chrome.storage.sync.set({
         [AUDIO_ACTIVE]: true,
         [AUDIO]: "alert1.mp3",
@@ -247,8 +250,7 @@ async function setInitialValues(): Promise<void> {
         [TRACK_IDS]: true,
         [STUDY_HISTORY_LEN]: 100,
         [SORT_STUDIES]: "created+",
-        [REFRESH_RATE]: 5,
-        [CURRENT_STUDIES]: [],
+        [REFRESH_RATE]: 0,
         "reward": 0,
         "rewardPerHour": 0,
         "time": 0,
