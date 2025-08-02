@@ -25,6 +25,20 @@
 <div class="text-align">
 
     <div id="settings">
+
+        <div class="d-flex justify-content-center  my-2">
+            <div class="form-check-label mb-2">
+                Alert new studies from:
+                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
+            </div>
+            <div class="alerts mb-4">
+                <ul>
+                    <li id="websiteBtn"> <span>Website</span></li>
+                    <li id="titleBtn"><span>Title</span></li>
+                </ul>
+            </div>
+        </div>
+
         <div class="form-check d-flex justify-content-center ml-1">
             <input class="form-check-input mr-2" type="checkbox" value="" id="openProlific">
             <label class="form-check-label" for="openProlific">
@@ -62,41 +76,42 @@
         </div>
 
         <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
+            <input class="mr-2 website-input" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
             <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
                 Number of studies to remember
             </label>
         </div>
 
-        <div class="d-flex justify-content-center  my-2">
-            <div class="form-check-label mb-2">
-                Alert new studies from:
-                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
-            </div>
-            <div class="alerts mb-4">
-                <ul>
-                    <li id="websiteBtn"> <span>Website (new)</span></li>
-                    <li id="titleBtn"><span>Title (old)</span></li>
-                </ul>
-            </div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2 website-input" type="number" value="0" id="refreshRate" min="0" max="9999">
+            <label class="form-check-label" for="refreshRate" id="refreshRate-label">
+                Check studies every X seconds
+            </label>
         </div>
         <div class="my-2">
             <div>
                 <label for="volume">Volume:</label>
                 <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
             </div>
-            <label for="selectAudio" class="form-label">Select Audio:</label>
-            <select name="selectAudio" id="selectAudio" class="form-select">
-                <option value="alert1.mp3">Alert 1</option>
-                <option value="alert2.mp3">Alert 2</option>
-                <option value="alert3.mp3">Alert 3</option>
-                <option value="alert4.wav">Alert 4</option>
-                <option value="robot.wav">Robot</option>
-                <option value="loud.mp3">LOUD</option>
-            </select>
-            <button id="playAudio" class="btn btn-success ml-05">
-                Test
-            </button>
+            <div class="mt-2 flex between">
+                <span>
+                    <label for="selectAudio" class="form-label">Select Audio:</label>
+                    <select name="selectAudio" id="selectAudio" class="form-select">
+                        <option value="alert1.mp3">Alert 1</option>
+                        <option value="alert2.mp3">Alert 2</option>
+                        <option value="alert3.mp3">Alert 3</option>
+                        <option value="alert4.wav">Alert 4</option>
+                        <option value="robot.wav">Robot</option>
+                        <option value="loud.mp3">LOUD</option>
+                    </select>
+                </span>
+                <button id="playAudio" class="btn btn-success ml-05">
+                    Test
+                </button>
+            </div>
+            <div class="mt-2 flex between">
+                <label for="resetValues">Double click to reset studies & values</label><button id="resetValues" class="btn reset-btn ml-05"> <img src="/svgs/reset.svg" alt="reset"> </button>
+            </div>
         </div>
     </div>
     <div id="studies">
@@ -119,8 +134,8 @@
                 <option value="time+">Shortest</option>
                 <option value="time-">Longest</option>
             </select>
-
         </div>
+        <button id="downloadCSV">Download CSV</button>
         <div id="studies-container"></div>
     </div>
     <div id="filters">

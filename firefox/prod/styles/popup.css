@@ -3,6 +3,7 @@ body {
     max-height: 550px;
     font-size: 18px;
     background-color: #e6f5f1;
+
 }
 
 button:hover {
@@ -44,7 +45,6 @@ button:hover {
 }
 
 .form-select {
-    flex: 1;
     padding: 0.375rem 0.75rem;
     font-size: 1rem;
     line-height: 1.5;
@@ -136,6 +136,7 @@ button:hover {
 
 
 .form-check-input {
+    accent-color: #2282ad;
     position: absolute;
     margin-top: 0.3rem;
     margin-left: -1.25rem;
@@ -265,20 +266,20 @@ a:not(.normal-link):hover::before {
     position: relative;
 }
 
-#studies-tab:not(.active)::after, #filters-tab:not(.active)::after {
-    content: "NEW";
-    position: absolute;
-    top: 0;
-    right: 0;
-    background: linear-gradient(45deg, #1cd579, #00bfff, #5582df);
-    color: white;
-    font-size: 0.6em;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 1px;
-    animation: shine 2s infinite linear;
-    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
-}
+/*#studies-tab:not(.active)::after, #filters-tab:not(.active)::after {*/
+/*    content: "NEW";*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 0;*/
+/*    background: linear-gradient(45deg, #1cd579, #00bfff, #5582df);*/
+/*    color: white;*/
+/*    font-size: 0.6em;*/
+/*    font-weight: bold;*/
+/*    padding: 2px 6px;*/
+/*    border-radius: 1px;*/
+/*    animation: shine 2s infinite linear;*/
+/*    box-shadow: 0 0 8px rgba(0, 255, 0, 0.7);*/
+/*}*/
 
 /* Shining animation */
 @keyframes shine {
@@ -340,11 +341,11 @@ input[type="number"] {
     width: 8.5em;
 }
 
-#studyHistoryLen {
+div.form-number > .website-input  {
     width: 3em;
 }
 
-#studyHistoryLen:disabled {
+div.form-number > .website-input:disabled {
     background-color: #e9ecef;
     color: #6c757d;
     border-color: #ced4da;
@@ -514,4 +515,119 @@ input[type="number"]:focus, input[type="text"]:focus  {
 .flex {
     display: flex;
     align-items: center;
+}
+
+.earn-title {
+    margin-left: 1em;
+    color: #18272F;
+    font-weight: 700;
+    font-size: 1.4em;
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    text-align: center;
+}
+
+.earn-title::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -75%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+            120deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.5) 50%,
+            rgba(255, 255, 255, 0) 100%
+    );
+    transform: skewX(-25deg);
+    animation: shine-new 6s infinite;
+}
+
+@keyframes shine-new {
+    0% {
+        left: -75%;
+    }
+    40% {
+        left: 125%;
+    }
+    100% {
+        left: 125%;
+    }
+}
+
+.earn {
+    text-align: left;
+}
+
+.earn-list {
+    padding-left: 0.9em;
+    margin-top: 0.2em;
+}
+
+.earn-list > li a{
+    color: #18272F;
+}
+
+.earn-list > li {
+    padding: 0.65em;
+    font-weight: 600;
+    display: flex;
+    align-content: center;
+    gap: 0.2em;
+    font-size: 14px;
+}
+
+.earn-list > li:hover {
+    cursor: pointer;
+    color: white;
+    background-color: #2282ad;
+}
+
+.earn-logo {
+    width: 22px;
+    height: 22px;
+    margin-right: 0.5em;
+}
+
+.underline {
+    text-decoration: underline;
+}
+
+.reset-btn {
+    margin-left: 1em;
+    padding: 0.2em 0.3em;
+}
+
+.between {
+    justify-content: space-between;
+}
+
+#downloadCSV {
+    background-color: #2282ad;
+    color: #fff;
+    padding: 0.35em 0.9em;
+    border: none;
+    border-radius: 0.4em;
+    font-size: 0.85em;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(34, 130, 173, 0.15);
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    cursor: pointer;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+#downloadCSV:hover, #downloadCSV:focus {
+    background-color: #2282ad;
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 4px 16px rgba(34, 130, 173, 0.25);
+}
+
+#downloadCSV:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 4px rgba(34, 130, 173, 0.12);
 }

@@ -6,12 +6,12 @@ type StudyContent = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
-    limitedCapacity: boolean | null;
     createdAt: string | null;
 };
 
 const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
+let globalInterval: number | null = null;
 let isProcessing = false;
 let isObserverInitializing = false;
 
@@ -21,6 +21,9 @@ const REWARD_PER_HOUR = "rewardPerHour";
 const TIME = 'time';
 const NAME_BLACKLIST = "nameBlacklist";
 const RESEARCHER_BLACKLIST = "researcherBlacklist";
+
+browser.runtime.onMessage.addListener(handleContentMessages);
+observeStudyChanges();
 
 async function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
     const result = await browser.storage.sync.get(key);
@@ -42,7 +45,6 @@ async function waitForElement(selector: string): Promise<Element | null> {
 
         observer.observe(document.body, { childList: true, subtree: true });
 
-        // Check immediately if element exists
         const existingElement = document.querySelector(selector);
         if (existingElement) {
             observer.disconnect();
@@ -59,37 +61,56 @@ function handleContentMessages(message: { target: string; type: string; data?: a
             if (message.data === "website") {
                 observeStudyChanges();
             } else {
-                globalObserver?.disconnect();
-                globalObserver = null;
+                disconnectObserver();
             }
             break;
     }
 }
 
-browser.runtime.onMessage.addListener(handleContentMessages);
-observeStudyChanges();
+function disconnectObserver(): void {
+    globalObserver?.disconnect();
+    globalObserver = null;
 
-function observeStudyChanges(): void {
-    if (globalObserver || isObserverInitializing) return;
+    if (globalInterval !== null) {
+        clearInterval(globalInterval);
+        globalInterval = null;
+    }
+}
+
+function isObserverActive(): boolean {
+    return globalObserver !== null;
+}
+
+async function observeStudyChanges(): Promise<void> {
+    if (isObserverActive() || isObserverInitializing) return;
     isObserverInitializing = true;
 
-    waitForElement(targetSelector).then(async (targetNode) => {
-        isObserverInitializing = false;
-        if (!targetNode || globalObserver) return;
+    const targetNode = await waitForElement(targetSelector);
+    isObserverInitializing = false;
+    if (!targetNode) return;
 
-        // Create observer for dynamic content
-        globalObserver = new MutationObserver(async (mutations) => {
-            if (isProcessing) return;
-            const hasChanges = mutations.some(mutation =>
-                mutation.addedNodes.length || mutation.removedNodes.length
-            );
-            if (hasChanges) await extractAndSendStudies(targetNode);
-        });
-
-        // Initial extraction
-        await extractAndSendStudies(targetNode);
-        globalObserver.observe(targetNode, { childList: true, subtree: true });
+    globalObserver = new MutationObserver(async (mutations) => {
+        if (isProcessing) return;
+        const hasChanges = mutations.some(m =>
+            m.addedNodes.length > 0 || m.removedNodes.length > 0
+        );
+        if (hasChanges) await extractAndSendStudies(targetNode);
     });
+
+    globalObserver.observe(targetNode, { childList: true, subtree: true });
+    await extractAndSendStudies(targetNode);
+
+    const storage = await browser.storage.sync.get(["refreshRate"]);
+    const refreshRate = storage["refreshRate"];
+    if (refreshRate && refreshRate > 0) {
+        const intervalMs = refreshRate * 1000;
+        globalInterval = setInterval(async () => {
+            const node = await waitForElement(targetSelector);
+            if (node && !isProcessing) {
+                await extractAndSendStudies(node);
+            }
+        }, intervalMs);
+    }
 }
 
 async function extractAndSendStudies(targetNode: Element): Promise<void> {
@@ -105,46 +126,46 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
                 data: studies,
             });
         }
-    } catch (error) {
-        console.error("Error extracting studies:", error);
+    } catch (e) {
+        console.error("Error extracting studies:", e);
     } finally {
         isProcessing = false;
     }
 }
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
-    const studyElements = targetNode.querySelectorAll("li[class='list-item']");
-    if (!studyElements || studyElements.length === 0) return [];
+    const studyElements = targetNode.querySelectorAll("li.list-item");
+    if (!studyElements.length) return [];
 
-    // Get all storage values in one call
     const storageValues = await browser.storage.sync.get([
-        "trackIds", "studyHistoryLen", "currentStudies",
+        "trackIds", "studyHistoryLen",
         REWARD, REWARD_PER_HOUR, TIME,
         NAME_BLACKLIST, RESEARCHER_BLACKLIST
     ]);
+    const localValues = await browser.storage.local.get(["currentStudies"]);
 
     const shouldIgnoreOldStudies = storageValues["trackIds"] ?? true;
     const numberOfStudiesToStore = storageValues["studyHistoryLen"] ?? NUMBER_OF_STUDIES_TO_STORE;
     const reward = storageValues[REWARD] ?? 0;
     const rewardPerHour = storageValues[REWARD_PER_HOUR] ?? 0;
     const time = storageValues[TIME] ?? 0;
-    const nameBlacklist: string[] = (storageValues[NAME_BLACKLIST] || []).map((s: string) => s.toLowerCase());
-    const researcherBlacklist: string[] = (storageValues[RESEARCHER_BLACKLIST] || []).map((s: string) => s.toLowerCase());
+    const nameBlacklist = (storageValues[NAME_BLACKLIST] || []).map((s: string) => s.toLowerCase());
+    const researcherBlacklist = (storageValues[RESEARCHER_BLACKLIST] || []).map((s: string) => s.toLowerCase());
 
-    let savedStudies: StudyContent[] = storageValues["currentStudies"] || [];
+    let savedStudies: StudyContent[] = localValues["currentStudies"] || [];
     const existingIds = new Set(savedStudies.map(study => study.id));
     const newStudies: StudyContent[] = [];
 
-    studyElements.forEach(studyElement => {
-        const id = studyElement.getAttribute("data-testid")?.split("-")[1] || null;
+    studyElements.forEach(el => {
+        const id = el.getAttribute("data-testid")?.split("-")[1] || null;
         if (!id || existingIds.has(id)) return;
 
-        const title = getTextContent(studyElement, '[data-testid="title"]');
-        const researcherRaw = getTextContent(studyElement, '[data-testid="host"]');
+        const title = getTextContent(el, '[data-testid="title"]');
+        const researcherRaw = getTextContent(el, '[data-testid="host"]');
         const researcher = researcherRaw?.split(" ").slice(1).join(" ") || null;
-        const reward = getTextContent(studyElement, '[data-testid="study-tag-reward"]');
-        const rewardPerHour = getTextContent(studyElement, '[data-testid="study-tag-reward-per-hour"]')?.replace("/hr", "") || null;
-        const time = getTextContent(studyElement, '[data-testid="study-tag-completion-time"]');
+        const reward = getTextContent(el, '[data-testid="study-tag-reward"]');
+        const rewardPerHour = getTextContent(el, '[data-testid="study-tag-reward-per-hour"]')?.replace("/hr", "") || null;
+        const time = getTextContent(el, '[data-testid="study-tag-completion-time"]');
         const timeInMinutes = parseTimeContent(time);
 
         newStudies.push({
@@ -155,30 +176,27 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             rewardPerHour,
             time,
             timeInMinutes,
-            limitedCapacity: false,
             createdAt: new Date().toISOString(),
         });
     });
 
-    // Apply filters
     const filteredStudies = newStudies.filter(study => {
         if (reward > 0 && study.reward && getFloatValueFromMoney(study.reward) < reward) return false;
         if (time > 0 && study.timeInMinutes && study.timeInMinutes < time) return false;
         if (rewardPerHour > 0 && study.rewardPerHour && getFloatValueFromMoney(study.rewardPerHour) < rewardPerHour) return false;
-        if (study.title && nameBlacklist.some(name => study.title!.toLowerCase().includes(name))) return false;
-        return !(study.researcher && researcherBlacklist.some(res => study.researcher!.toLowerCase().includes(res)));
-
+        if (study.title && nameBlacklist.some((name: string) => study.title!.toLowerCase().includes(name))) return false;
+        return !(study.researcher && researcherBlacklist.some((res: string) => study.researcher!.toLowerCase().includes(res)));
     });
 
-    // Update saved studies
-    if (shouldIgnoreOldStudies) {
-        savedStudies = [...savedStudies, ...filteredStudies];
-        if (savedStudies.length > numberOfStudiesToStore) {
-            savedStudies = savedStudies.slice(-numberOfStudiesToStore);
-        }
-        await browser.storage.sync.set({ "currentStudies": savedStudies });
+    savedStudies = shouldIgnoreOldStudies
+        ? [...savedStudies, ...filteredStudies]
+        : filteredStudies;
+
+    if (savedStudies.length > numberOfStudiesToStore) {
+        savedStudies = savedStudies.slice(-numberOfStudiesToStore);
     }
 
+    await browser.storage.local.set({ "currentStudies": savedStudies });
     return filteredStudies;
 }
 

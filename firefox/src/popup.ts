@@ -7,6 +7,7 @@ async function setVolume(volume: HTMLInputElement) {
     volume.addEventListener("change", async function () {
         await browser.storage.sync.set({["volume"]: parseFloat(volume.value)});
     });
+
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -14,37 +15,24 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     const counter = document.getElementById("counter") as HTMLSpanElement;
     const playAudio = document.getElementById("playAudio") as HTMLButtonElement;
-    const volume = document.getElementById("volume") as HTMLInputElement;
+    const resetValuesBtn = document.getElementById("resetValues") as HTMLButtonElement;
     const donateText: HTMLElement | null = document.getElementById('donateText');
     const donateImg: HTMLElement | null = document.getElementById('donateImg');
+    const downloadCSVButton = document.getElementById("downloadCSV") as HTMLButtonElement;
 
     if (donateImg && donateText) {
         donateText.addEventListener('mouseover', function() {
             donateImg.style.visibility = 'visible';
         });
     }
-
-    await setCheckboxState("autoAudio", "audioActive");
-    await setCheckboxState("showNotification", "showNotification");
-    await setCheckboxState("openProlific", "openProlific");
-    await setCheckboxState("focusProlific", "focusProlific");
-    await setCheckboxState("trackIds", "trackIds");
-
-    await setInputState("reward", "reward");
-    await setInputState("rewardPerHour", "rewardPerHour");
-    await setInputState("time", "time");
-    await setInputState("studyHistoryLen","studyHistoryLen");
-    await setInputState("refreshRate", "refreshRate");
+    await renderPopup();
 
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
     setTabState("studies-tab", "studies");
     await setCurrentActiveTab();
-    await setAlertState();
     await setBlacklist();
 
-    await setSelectState("selectAudio", "audio");
-    await setSelectState("sort-studies", "sortStudies", populateStudies);
     await setupSearch();
 
     if(counter) {
@@ -55,9 +43,14 @@ document.addEventListener('DOMContentLoaded', async function () {
         playAudio.addEventListener("click", playAlert);
     }
 
-    if (volume) {
-        await setVolume(volume);
+    if (resetValuesBtn) {
+        resetValuesBtn.addEventListener("dblclick", resetValues);
     }
+
+    if (downloadCSVButton) {
+        downloadCSVButton.addEventListener("click", downloadStudies);
+    }
+
 });
 
 async function setCounter(counter: HTMLSpanElement): Promise<void> {
@@ -69,7 +62,7 @@ async function setCounter(counter: HTMLSpanElement): Promise<void> {
 }
 
 async function playAlert(): Promise<void> {
-    browser.runtime.sendMessage({
+    await browser.runtime.sendMessage({
         type: 'play-sound',
         target: 'background',
     });
@@ -82,6 +75,49 @@ async function playAlert(): Promise<void> {
         playAudio.classList.remove("btn-fail");
         playAudio.classList.add("btn-success");
     }, 500);
+}
+
+async function resetValues(): Promise<void> {
+    await browser.runtime.sendMessage({
+        type: 'resetValues',
+        target: 'background',
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await renderPopup();
+}
+
+async function downloadStudies(): Promise<void> {
+    const result = await browser.storage.local.get("currentStudies");
+    const studies: Study[] = result["currentStudies"];
+
+    const headers = [
+        "id", "title", "researcher", "reward", "rewardPerHour",
+        "time", "timeInMinutes", "createdAt"
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    studies.forEach(study => {
+        const values = headers.map(header => {
+            const value = study[header as keyof Study];
+            if (value === null || value === undefined) return "";
+            return `"${String(value).replace(/"/g, '""')}"`;
+        });
+        csvRows.push(values.join(","));
+    });
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "studies.csv");
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 function formatDate(dateStr: string): string {
@@ -152,7 +188,7 @@ async function populateStudies(search: string = '', sort: string = "") {
     }
     const studiesContainer = document.getElementById("studies-container") as HTMLElement;
     studiesContainer.innerHTML = "";
-    const result = await browser.storage.sync.get("currentStudies");
+    const result = await browser.storage.local.get("currentStudies");
     let currentStudies: Study[] = result["currentStudies"];
 
     if (!currentStudies || currentStudies.length === 0) {
@@ -230,7 +266,7 @@ async function populateStudies(search: string = '', sort: string = "") {
             const target = e.currentTarget as HTMLElement;
             const index = parseInt(target.getAttribute("data-index") || "", 10);
             currentStudies.splice(index, 1);
-            browser.storage.sync.set({ currentStudies });
+            browser.storage.local.set({ currentStudies });
             populateStudies();
         });
     });
@@ -281,7 +317,7 @@ async function setAlertState(): Promise<void> {
     const history = document.getElementById("studyHistoryLen") as HTMLInputElement;
     const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
     const refreshRate = document.getElementById("refreshRate") as HTMLInputElement;
-    const refreshRateLabel = document.getElementById("refreshRateLabel") as HTMLElement;
+    const refreshRateLabel = document.getElementById("refreshRate-label") as HTMLElement;
 
     const enableControls = () => {
         [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
@@ -447,4 +483,27 @@ async function populateBlacklist(listId: string, storageKey: string, values: str
             populateBlacklist(listId, storageKey, currentItems);
         });
     });
+}
+
+async function renderPopup() {
+    await setCheckboxState("autoAudio", "audioActive");
+    await setCheckboxState("showNotification", "showNotification");
+    await setCheckboxState("openProlific", "openProlific");
+    await setCheckboxState("focusProlific", "focusProlific");
+    await setCheckboxState("trackIds", "trackIds");
+
+    await setInputState("reward", "reward");
+    await setInputState("rewardPerHour", "rewardPerHour");
+    await setInputState("time", "time");
+    await setInputState("studyHistoryLen","studyHistoryLen");
+    await setInputState("refreshRate", "refreshRate");
+
+    await setAlertState();
+    await setSelectState("selectAudio", "audio");
+    await setSelectState("sort-studies", "sortStudies", populateStudies);
+
+    const volume = document.getElementById("volume") as HTMLInputElement;
+    if (volume) {
+        await setVolume(volume);
+    }
 }
