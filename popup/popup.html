@@ -1,72 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Prolific automatic studies</title>
+    <title>Prolific Studies Notifier</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="../styles/popup.css" rel="stylesheet">
 </head>
 <body>
-<h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <img src="../imgs/logo.png" alt="Prolific Notifier" class="logo">
+                    <div class="title-section">
+                        <h1 class="title">Prolific Notifier</h1>
+                        <p class="subtitle">Stay updated with new studies</p>
+                    </div>
+                </div>
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Active</span>
+                </div>
+            </div>
+        </header>
 
-<h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
+        <!-- Stats Section -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <span class="material-icons">notifications</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-number" id="counter">0</div>
+                    <div class="stat-label">Studies Notified</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <span class="material-icons">schedule</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-number" id="lastChecked">--</div>
+                    <div class="stat-label">Last Checked</div>
+                </div>
+            </div>
+        </section>
 
-<div class="text-align">
+        <!-- Quick Actions -->
+        <section class="quick-actions">
+            <button class="action-btn primary" id="openProlificBtn">
+                <span class="material-icons">open_in_new</span>
+                Open Prolific
+            </button>
+            <button class="action-btn secondary" id="testNotificationBtn">
+                <span class="material-icons">notifications_active</span>
+                Test
+            </button>
+        </section>
 
+        <!-- Settings Section -->
+        <section class="settings-section">
+            <div class="section-header">
+                <h2 class="section-title">Settings</h2>
+                <button class="expand-btn" id="settingsToggle">
+                    <span class="material-icons">expand_more</span>
+                </button>
+            </div>
+            
+            <div class="settings-content" id="settingsContent">
+                <!-- General Settings -->
+                <div class="setting-group">
+                    <h3 class="group-title">General</h3>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label class="setting-label" for="openProlific">Auto-open Prolific</label>
+                            <p class="setting-description">Open Prolific tab when browser starts</p>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="openProlific" class="toggle-input">
+                            <label for="openProlific" class="toggle-label">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
 
-    <div class="form-check d-flex justify-content-center ml-1">
-        <input class="form-check-input me-2" type="checkbox" value="" id="openProlific">
-        <label class="form-check-label" for="showNotification">
-            Open Prolific on startup
-        </label>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label class="setting-label" for="showNotification">Desktop Notifications</label>
+                            <p class="setting-description">Show system notifications for new studies</p>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="showNotification" class="toggle-input">
+                            <label for="showNotification" class="toggle-label">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audio Settings -->
+                <div class="setting-group">
+                    <h3 class="group-title">Audio Notifications</h3>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label class="setting-label" for="autoAudio">Play Sound</label>
+                            <p class="setting-description">Play audio alert for new studies</p>
+                        </div>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="autoAudio" class="toggle-input">
+                            <label for="autoAudio" class="toggle-label">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="setting-item audio-settings" id="audioSettings">
+                        <div class="audio-controls">
+                            <div class="volume-control">
+                                <label for="volume" class="control-label">
+                                    <span class="material-icons">volume_up</span>
+                                    Volume
+                                </label>
+                                <div class="volume-slider-container">
+                                    <input type="range" id="volume" class="volume-slider" value="100" min="0" max="100">
+                                    <span class="volume-value" id="volumeValue">100%</span>
+                                </div>
+                            </div>
+
+                            <div class="audio-select-container">
+                                <label for="selectAudio" class="control-label">
+                                    <span class="material-icons">library_music</span>
+                                    Sound
+                                </label>
+                                <div class="select-with-test">
+                                    <select id="selectAudio" class="audio-select">
+                                        <option value="alert1.mp3">Gentle Chime</option>
+                                        <option value="alert2.mp3">Classic Beep</option>
+                                        <option value="alert3.mp3">Notification Bell</option>
+                                    </select>
+                                    <button id="playAudio" class="test-btn">
+                                        <span class="material-icons">play_arrow</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-links">
+                <a href="https://github.com/officenotfound/ProlificNotifier" class="footer-link" target="_blank">
+                    <span class="material-icons">code</span>
+                    GitHub
+                </a>
+                <a href="https://app.prolific.com/" class="footer-link" target="_blank">
+                    <span class="material-icons">launch</span>
+                    Prolific
+                </a>
+                <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="footer-link donate" target="_blank">
+                    <span class="material-icons">favorite</span>
+                    Support
+                </a>
+            </div>
+            <div class="version-info">
+                <span class="version">v1.1.0</span>
+            </div>
+        </footer>
     </div>
-    <div class="form-check d-flex justify-content-center ml-1 my-2">
-        <input class="form-check-input me-2" type="checkbox" value="" id="autoAudio">
-        <label class="form-check-label" for="autoAudio">
-            Play audio for new studies
-        </label>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading...</p>
     </div>
 
-    <div class="form-check d-flex justify-content-center ml-1 my-2">
-        <input class="form-check-input me-2" type="checkbox" value="" id="showNotification">
-        <label class="form-check-label" for="showNotification">
-            Show notification for new studies
-        </label>
-    </div>
-
-
-
-    <div class="my-2 ml-1">
-        <div>
-        <label for="volume">Volume:</label>
-            <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
-        </div>
-        <label for="selectAudio" class="form-label">Select Audio:
-        </label>
-        <select name="selectAudio" id="selectAudio" class="form-select">
-            <option value="alert1.mp3">Alert 1</option>
-            <option value="alert2.mp3">Alert 2</option>
-            <option value="alert3.mp3">Alert 3</option>
-        </select>
-        <button id="playAudio" class="btn btn-success ml-05">
-             Test
-        </button>
-
-    </div>
-
-</div>
-
-<div class="container-fluid mt-2">
-    <span>
-        <a href="https://github.com/spin311/ProlificAutomaticStudies" class="float-start" target="_blank" style="margin-right: 5px">Github</a>
-        <img src="/imgs/github.png" alt="GitHubLogo">
-    </span>
-    <a class="my-1 links" href="https://app.prolific.com/" target="_blank">Prolific</a>
-    <span class="float-end" style="display: flex; align-items: center;">
-    <a href="https://www.paypal.com/donate/?hosted_button_id=4WXEWMN3QGLGY" class="" target="_blank" id="donateText">Donate</a>
-    <img src="/imgs/justAGirlSmol.png" alt="Cat" id="donateImg">
-  </span>
-</div>
-
+    <script src="../dist/popup.js"></script>
 </body>
 </html>
-
-<script src="../dist/popup.js"></script>

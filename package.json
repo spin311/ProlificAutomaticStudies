@@ -1,8 +1,43 @@
 {
-  "dependencies": {
-    "typescript": "^5.3.3"
+  "name": "prolific-notifier",
+  "version": "1.1.0",
+  "description": "Chrome extension that notifies users when new studies are available on Prolific",
+  "main": "dist/background.js",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "watch": "tsc --watch",
+    "copy-assets": "npm run copy-audio && npm run copy-images && npm run copy-popup",
+    "copy-audio": "mkdir -p dist/audio && cp -r audio/* dist/audio/ 2>/dev/null || cp *.mp3 dist/ 2>/dev/null || true",
+    "copy-images": "mkdir -p dist/imgs && cp -r imgs/* dist/imgs/ 2>/dev/null || true",
+    "copy-popup": "mkdir -p dist/popup && cp -r popup/* dist/popup/ && mkdir -p dist/styles && cp -r styles/* dist/styles/",
+    "package": "npm run build && npm run create-zip",
+    "create-zip": "zip -r prolific-notifier-v1.1.0.zip manifest.json dist/ popup/ styles/ imgs/ audio/ *.mp3 -x '*.ts' '*.map' 'node_modules/*' '.git/*'",
+    "dev": "npm run build && npm run watch",
+    "clean": "rm -rf dist/"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/officenotfound/ProlificNotifier.git"
+  },
+  "keywords": [
+    "prolific",
+    "chrome-extension",
+    "notifications",
+    "studies",
+    "research",
+    "automation"
+  ],
+  "author": "404 Office Not Found",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/officenotfound/ProlificNotifier/issues"
+  },
+  "homepage": "https://github.com/officenotfound/ProlificNotifier#readme",
   "devDependencies": {
-    "@types/chrome": "^0.0.259"
+    "@types/chrome": "^0.0.246",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

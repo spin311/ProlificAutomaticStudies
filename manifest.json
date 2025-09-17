@@ -1,25 +1,72 @@
 {
   "manifest_version": 3,
   "name": "Prolific Studies Notifier",
-  "version": "1.0.6",
-  "description": "Google extension for Prolific to notify you when studies are available",
+  "version": "1.1.0",
+  "description": "Get notified instantly when new studies are available on Prolific. Never miss earning opportunities with smart notifications, audio alerts, and automatic study monitoring.",
+  "author": "404 Office Not Found",
+  "homepage_url": "https://github.com/officenotfound/ProlificNotifier",
 
   "permissions": [
     "storage",
     "notifications",
     "offscreen",
-    "tabs"
+    "tabs",
+    "activeTab"
   ],
+  
+  "host_permissions": [
+    "https://app.prolific.com/*",
+    "https://app.prolific.co/*"
+  ],
+
   "background": {
-    "service_worker": "dist/background.js"
+    "service_worker": "dist/background.js",
+    "type": "module"
   },
+
   "action": {
     "default_popup": "popup/popup.html",
-    "title": "Prolific get studies automatically"
+    "default_title": "Prolific Studies Notifier - Monitor for new studies",
+    "default_icon": {
+      "16": "imgs/logo.png",
+      "32": "imgs/logo.png",
+      "48": "imgs/logo.png",
+      "128": "imgs/logo.png"
+    }
   },
+
   "icons": {
     "16": "imgs/logo.png",
+    "32": "imgs/logo.png",
     "48": "imgs/logo.png",
     "128": "imgs/logo.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://app.prolific.com/*", "https://app.prolific.co/*"],
+      "js": ["dist/content.js"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "audio/*.mp3",
+        "alert1.mp3",
+        "imgs/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "minimum_chrome_version": "88",
+
+  "offline_enabled": false,
+
+  "options_ui": {
+    "page": "popup/popup.html",
+    "open_in_tab": false
   }
 }
