@@ -21,6 +21,10 @@ const REWARD_PER_HOUR = "rewardPerHour";
 const TIME = 'time';
 const NAME_BLACKLIST = "nameBlacklist";
 const RESEARCHER_BLACKLIST = "researcherBlacklist";
+const SEEN_STUDY_IDS = "seenStudyIds";
+// Well above the number of studies Prolific lists at once, so a listed study
+// is never dropped while it is still on the page.
+const SEEN_STUDY_IDS_LIMIT = 1000;
 
 browser.runtime.onMessage.addListener(handleContentMessages);
 observeStudyChanges();
@@ -142,7 +146,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
         REWARD, REWARD_PER_HOUR, TIME,
         NAME_BLACKLIST, RESEARCHER_BLACKLIST
     ]);
-    const localValues = await browser.storage.local.get(["currentStudies"]);
+    const localValues = await browser.storage.local.get(["currentStudies", SEEN_STUDY_IDS]);
 
     const shouldIgnoreOldStudies = storageValues["trackIds"] ?? true;
     const numberOfStudiesToStore = storageValues["studyHistoryLen"] ?? NUMBER_OF_STUDIES_TO_STORE;
@@ -153,12 +157,24 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const researcherBlacklist = (storageValues[RESEARCHER_BLACKLIST] || []).map((s: string) => s.toLowerCase());
 
     let savedStudies: StudyContent[] = localValues["currentStudies"] || [];
-    const existingIds = new Set(savedStudies.map(study => study.id));
+    // Studies already seen on the page are never new, however short the history
+    // is. Before this, studies trimmed from the history while still listed were
+    // re-notified on every page mutation. The set only grows (up to its limit),
+    // so an empty re-render or a second tab with an older list can't reset it.
+    const listedIds = getStudyIds(studyElements);
+    const storedSeenIds: string[] | undefined = localValues[SEEN_STUDY_IDS];
+    // First scan after upgrading: adopt what is listed without notifying it again.
+    const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
+    const seenIds = isFirstScanAfterUpgrade ? listedIds : storedSeenIds ?? [];
+    const knownIds = new Set<string | null>(seenIds);
+    if (shouldIgnoreOldStudies) {
+        savedStudies.forEach(study => knownIds.add(study.id));
+    }
     const newStudies: StudyContent[] = [];
 
     studyElements.forEach(el => {
-        const id = el.getAttribute("data-testid")?.split("-")[1] || null;
-        if (!id || existingIds.has(id)) return;
+        const id = getStudyId(el);
+        if (!id || knownIds.has(id)) return;
 
         const title = getTextContent(el, '[data-testid="title"]');
         const researcherRaw = getTextContent(el, '[data-testid="host"]');
@@ -197,7 +213,39 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     }
 
     await browser.storage.local.set({ "currentStudies": savedStudies });
+
+    const updatedSeenIds = getUpdatedSeenIds(seenIds, listedIds, filteredStudies);
+    if (!haveSameIds(storedSeenIds ?? [], updatedSeenIds)) {
+        await browser.storage.local.set({ [SEEN_STUDY_IDS]: updatedSeenIds });
+    }
+
     return filteredStudies;
+}
+
+function getStudyId(study: Element): string | null {
+    return study.getAttribute("data-testid")?.split("-")[1] || null;
+}
+
+function getStudyIds(studyElements: NodeListOf<Element>): string[] {
+    return Array.from(studyElements)
+        .map(getStudyId)
+        .filter((id): id is string => id !== null);
+}
+
+// Moves still-listed seen ids to the end (most recent) and adds the newly
+// notified ones. Filtered-out studies are not added, so relaxing a filter
+// still notifies them.
+function getUpdatedSeenIds(seenIds: string[], listedIds: string[], notified: StudyContent[]): string[] {
+    const seen = new Set(seenIds);
+    const recent = new Set([
+        ...listedIds.filter(id => seen.has(id)),
+        ...notified.map(study => study.id).filter((id): id is string => id !== null),
+    ]);
+    return [...seenIds.filter(id => !recent.has(id)), ...recent].slice(-SEEN_STUDY_IDS_LIMIT);
+}
+
+function haveSameIds(previous: string[], current: string[]): boolean {
+    return previous.length === current.length && previous.every((id, index) => id === current[index]);
 }
 
 function getTextContent(element: Element, selector: string): string | null {

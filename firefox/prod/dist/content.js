@@ -19,6 +19,10 @@ const REWARD_PER_HOUR = "rewardPerHour";
 const TIME = 'time';
 const NAME_BLACKLIST = "nameBlacklist";
 const RESEARCHER_BLACKLIST = "researcherBlacklist";
+const SEEN_STUDY_IDS = "seenStudyIds";
+// Well above the number of studies Prolific lists at once, so a listed study
+// is never dropped while it is still on the page.
+const SEEN_STUDY_IDS_LIMIT = 1000;
 browser.runtime.onMessage.addListener(handleContentMessages);
 observeStudyChanges();
 function getValueFromStorage(key, defaultValue) {
@@ -139,7 +143,7 @@ function extractStudies(targetNode) {
             REWARD, REWARD_PER_HOUR, TIME,
             NAME_BLACKLIST, RESEARCHER_BLACKLIST
         ]);
-        const localValues = yield browser.storage.local.get(["currentStudies"]);
+        const localValues = yield browser.storage.local.get(["currentStudies", SEEN_STUDY_IDS]);
         const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
         const numberOfStudiesToStore = (_b = storageValues["studyHistoryLen"]) !== null && _b !== void 0 ? _b : NUMBER_OF_STUDIES_TO_STORE;
         const reward = (_c = storageValues[REWARD]) !== null && _c !== void 0 ? _c : 0;
@@ -148,18 +152,30 @@ function extractStudies(targetNode) {
         const nameBlacklist = (storageValues[NAME_BLACKLIST] || []).map((s) => s.toLowerCase());
         const researcherBlacklist = (storageValues[RESEARCHER_BLACKLIST] || []).map((s) => s.toLowerCase());
         let savedStudies = localValues["currentStudies"] || [];
-        const existingIds = new Set(savedStudies.map(study => study.id));
+        // Studies already seen on the page are never new, however short the history
+        // is. Before this, studies trimmed from the history while still listed were
+        // re-notified on every page mutation. The set only grows (up to its limit),
+        // so an empty re-render or a second tab with an older list can't reset it.
+        const listedIds = getStudyIds(studyElements);
+        const storedSeenIds = localValues[SEEN_STUDY_IDS];
+        // First scan after upgrading: adopt what is listed without notifying it again.
+        const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
+        const seenIds = isFirstScanAfterUpgrade ? listedIds : storedSeenIds !== null && storedSeenIds !== void 0 ? storedSeenIds : [];
+        const knownIds = new Set(seenIds);
+        if (shouldIgnoreOldStudies) {
+            savedStudies.forEach(study => knownIds.add(study.id));
+        }
         const newStudies = [];
         studyElements.forEach(el => {
-            var _a, _b;
-            const id = ((_a = el.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1]) || null;
-            if (!id || existingIds.has(id))
+            var _a;
+            const id = getStudyId(el);
+            if (!id || knownIds.has(id))
                 return;
             const title = getTextContent(el, '[data-testid="title"]');
             const researcherRaw = getTextContent(el, '[data-testid="host"]');
             const researcher = (researcherRaw === null || researcherRaw === void 0 ? void 0 : researcherRaw.split(" ").slice(1).join(" ")) || null;
             const reward = getTextContent(el, '[data-testid="study-tag-reward"]');
-            const rewardPerHour = ((_b = getTextContent(el, '[data-testid="study-tag-reward-per-hour"]')) === null || _b === void 0 ? void 0 : _b.replace("/hr", "")) || null;
+            const rewardPerHour = ((_a = getTextContent(el, '[data-testid="study-tag-reward-per-hour"]')) === null || _a === void 0 ? void 0 : _a.replace("/hr", "")) || null;
             const time = getTextContent(el, '[data-testid="study-tag-completion-time"]');
             const timeInMinutes = parseTimeContent(time);
             newStudies.push({
@@ -191,8 +207,35 @@ function extractStudies(targetNode) {
             savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
         yield browser.storage.local.set({ "currentStudies": savedStudies });
+        const updatedSeenIds = getUpdatedSeenIds(seenIds, listedIds, filteredStudies);
+        if (!haveSameIds(storedSeenIds !== null && storedSeenIds !== void 0 ? storedSeenIds : [], updatedSeenIds)) {
+            yield browser.storage.local.set({ [SEEN_STUDY_IDS]: updatedSeenIds });
+        }
         return filteredStudies;
     });
+}
+function getStudyId(study) {
+    var _a;
+    return ((_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1]) || null;
+}
+function getStudyIds(studyElements) {
+    return Array.from(studyElements)
+        .map(getStudyId)
+        .filter((id) => id !== null);
+}
+// Moves still-listed seen ids to the end (most recent) and adds the newly
+// notified ones. Filtered-out studies are not added, so relaxing a filter
+// still notifies them.
+function getUpdatedSeenIds(seenIds, listedIds, notified) {
+    const seen = new Set(seenIds);
+    const recent = new Set([
+        ...listedIds.filter(id => seen.has(id)),
+        ...notified.map(study => study.id).filter((id) => id !== null),
+    ]);
+    return [...seenIds.filter(id => !recent.has(id)), ...recent].slice(-SEEN_STUDY_IDS_LIMIT);
+}
+function haveSameIds(previous, current) {
+    return previous.length === current.length && previous.every((id, index) => id === current[index]);
 }
 function getTextContent(element, selector) {
     var _a;
