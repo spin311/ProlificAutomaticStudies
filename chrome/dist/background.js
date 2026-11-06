@@ -28,11 +28,20 @@ const STUDY_HISTORY_LEN = "studyHistoryLen";
 const SORT_STUDIES = 'sortStudies';
 const REFRESH_RATE = 'refreshRate';
 const CURRENT_STUDIES = 'currentStudies';
+const FAST_MODE_ENABLED_KEY = "fastMode";
+const FAST_MODE_INTERVAL_KEY = "fastModeInterval";
+const FAST_MODE_PAUSED_NOTIFICATION_ID = "fast-mode-paused";
+const PROLIFIC_STUDIES_URL = "https://app.prolific.com/studies";
+// Pages that only list studies, so reloading them cannot lose anything.
+const PROLIFIC_STUDIES_LIST_PATHS = ["/", "/studies", "/studies/"];
 let creating = null; // A global promise to avoid concurrency issues
 initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
 chrome.notifications.onClicked.addListener(function (notificationId) {
-    if (!!notificationId) {
+    if (notificationId === FAST_MODE_PAUSED_NOTIFICATION_ID) {
+        chrome.tabs.create({ url: PROLIFIC_STUDIES_URL, active: true });
+    }
+    else if (!!notificationId) {
         chrome.tabs.create({ url: `https://app.prolific.com/studies/${notificationId}`, active: true });
     }
     else {
@@ -64,9 +73,37 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         yield chrome.storage.local.set({ [CURRENT_STUDIES]: (prevStudies !== null && prevStudies !== void 0 ? prevStudies : []) });
         yield chrome.storage.sync.set({ [REFRESH_RATE]: 0
         });
+        yield fillMissingSettings();
         yield chrome.action.setBadgeText({ text: "New" });
     }
+    // Content scripts are not re-injected into tabs that were already open, so
+    // after an install or update those tabs would stay silent until reloaded.
+    if (details.reason === "install" || details.reason === "update") {
+        yield reloadProlificStudiesTabs();
+    }
 }));
+function reloadProlificStudiesTabs() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const tabs = yield chrome.tabs.query({ url: "https://app.prolific.com/*" });
+            const studiesTabs = tabs.filter((tab) => tab.id !== undefined && isProlificStudiesList(tab.url));
+            yield Promise.all(studiesTabs.map((tab) => chrome.tabs.reload(tab.id)));
+        }
+        catch (error) {
+            console.error("Prolific Studies Notifier: could not reload Prolific tabs", error);
+        }
+    });
+}
+function isProlificStudiesList(url) {
+    if (!url)
+        return false;
+    try {
+        return PROLIFIC_STUDIES_LIST_PATHS.includes(new URL(url).pathname);
+    }
+    catch (_a) {
+        return false;
+    }
+}
 function getValueFromStorage(key, defaultValue) {
     return new Promise((resolve) => {
         chrome.storage.sync.get(key, function (result) {
@@ -76,7 +113,7 @@ function getValueFromStorage(key, defaultValue) {
 }
 function setupTitleAlert() {
     const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
             const newTitle = tab.title.trim();
@@ -102,7 +139,7 @@ function setupTitleAlert() {
                 const shouldPlayAudio = (_d = titleStorageValues[AUDIO_ACTIVE]) !== null && _d !== void 0 ? _d : true;
                 if (shouldPlayAudio) {
                     const audio = (_e = titleStorageValues[AUDIO]) !== null && _e !== void 0 ? _e : 'alert1.mp3';
-                    const volume = titleStorageValues[VOLUME] ? titleStorageValues[VOLUME] / 100 : 100;
+                    const volume = ((_f = titleStorageValues[VOLUME]) !== null && _f !== void 0 ? _f : 100) / 100;
                     yield playAudio(audio, volume);
                 }
                 if (shouldFocusProlific) {
@@ -131,17 +168,18 @@ function focusProlific() {
 }
 function handlePlaySound() {
     return __awaiter(this, arguments, void 0, function* (audio = null, volume = null) {
-        var _a;
+        var _a, _b;
         if (!audio || !volume) {
             const audioValues = yield chrome.storage.sync.get([AUDIO, VOLUME]);
             audio = (_a = audioValues[AUDIO]) !== null && _a !== void 0 ? _a : 'alert1.mp3';
-            volume = audioValues[VOLUME] ? audioValues[VOLUME] / 100 : 100;
+            volume = ((_b = audioValues[VOLUME]) !== null && _b !== void 0 ? _b : 100) / 100;
         }
         yield playAudio(audio, volume);
     });
 }
-function handleMessages(message) {
+function handleMessages(message, sender) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         // Return early if this message isn't meant for the offscreen document.
         if (message.target !== 'background') {
             return Promise.resolve();
@@ -164,12 +202,21 @@ function handleMessages(message) {
             case 'resetValues':
                 yield setInitialValues();
                 break;
+            case 'keep-tab-alive':
+                // Stops Chrome from unloading the Prolific tab to save memory.
+                if (((_a = sender.tab) === null || _a === void 0 ? void 0 : _a.id) !== undefined) {
+                    yield chrome.tabs.update(sender.tab.id, { autoDiscardable: false });
+                }
+                break;
+            case 'fast-mode-paused':
+                showFastModePausedNotification(message.data);
+                break;
         }
     });
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         if (!studies || studies.length === 0)
             return;
         const studiesStorageValues = yield chrome.storage.sync.get([
@@ -187,8 +234,14 @@ function handleNewStudies(studies) {
         const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
         if (shouldPlayAudio) {
             const audio = (_d = studiesStorageValues[AUDIO]) !== null && _d !== void 0 ? _d : 'alert1.mp3';
-            const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
-            yield playAudio(audio, volume);
+            const volume = ((_e = studiesStorageValues[VOLUME]) !== null && _e !== void 0 ? _e : 100) / 100;
+            try {
+                yield playAudio(audio, volume);
+            }
+            catch (error) {
+                // A failed sound must not also cost the user the notification.
+                console.error("Prolific Studies Notifier: could not play the alert sound", error);
+            }
         }
         if (shouldFocusProlific) {
             yield focusProlific();
@@ -233,28 +286,69 @@ function playAudio() {
         });
     });
 }
+// What a fresh install starts with. Updates fill in any of these that are missing
+// (e.g. an install that never ran the first-install setup) without changing
+// settings the user already chose.
+const DEFAULT_SYNC_SETTINGS = {
+    [AUDIO_ACTIVE]: true,
+    [AUDIO]: "alert1.mp3",
+    [SHOW_NOTIFICATION]: true,
+    [FOCUS_PROLIFIC]: false,
+    [USE_OLD]: false,
+    [OPEN_PROLIFIC]: false,
+    [VOLUME]: 100,
+    [ACTIVE_TAB]: "settings",
+    [TRACK_IDS]: true,
+    [STUDY_HISTORY_LEN]: 100,
+    [SORT_STUDIES]: "created+",
+    [REFRESH_RATE]: 0,
+    "reward": 0,
+    "rewardPerHour": 0,
+    "time": 0,
+    "researcherBlacklist": [],
+    "nameBlacklist": []
+};
+// Local, not sync: fast mode is a per-device risk decision.
+const DEFAULT_LOCAL_SETTINGS = {
+    [FAST_MODE_ENABLED_KEY]: false,
+    [FAST_MODE_INTERVAL_KEY]: 60,
+};
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield chrome.storage.local.set({ [CURRENT_STUDIES]: [] });
-        yield chrome.storage.sync.set({
-            [AUDIO_ACTIVE]: true,
-            [AUDIO]: "alert1.mp3",
-            [SHOW_NOTIFICATION]: true,
-            [FOCUS_PROLIFIC]: false,
-            [USE_OLD]: false,
-            [OPEN_PROLIFIC]: false,
-            [VOLUME]: 100,
-            [ACTIVE_TAB]: "settings",
-            [TRACK_IDS]: true,
-            [STUDY_HISTORY_LEN]: 100,
-            [SORT_STUDIES]: "created+",
-            [REFRESH_RATE]: 0,
-            "reward": 0,
-            "rewardPerHour": 0,
-            "time": 0,
-            "researcherBlacklist": [],
-            "nameBlacklist": []
+        yield chrome.storage.local.set(Object.assign({ [CURRENT_STUDIES]: [] }, DEFAULT_LOCAL_SETTINGS));
+        yield chrome.storage.sync.set(DEFAULT_SYNC_SETTINGS);
+    });
+}
+function fillMissingSettings() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield fillMissingIn(chrome.storage.sync, DEFAULT_SYNC_SETTINGS);
+        yield fillMissingIn(chrome.storage.local, DEFAULT_LOCAL_SETTINGS);
+    });
+}
+function fillMissingIn(area, defaults) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const stored = yield area.get(Object.keys(defaults));
+        const missing = {};
+        Object.keys(defaults).forEach((key) => {
+            if (stored[key] === undefined)
+                missing[key] = defaults[key];
         });
+        if (Object.keys(missing).length > 0) {
+            yield area.set(missing);
+        }
+    });
+}
+function showFastModePausedNotification(data) {
+    var _a;
+    const minutes = (_a = data === null || data === void 0 ? void 0 : data.minutes) !== null && _a !== void 0 ? _a : 60;
+    const reason = (data === null || data === void 0 ? void 0 : data.reason) === "restricted"
+        ? "Your Prolific account has a temporary restriction."
+        : "Prolific asked for fewer checks.";
+    chrome.notifications.create(FAST_MODE_PAUSED_NOTIFICATION_ID, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL(ICON_URL),
+        title: `Fast mode paused for ${minutes} minutes`,
+        message: `${reason} New studies still appear every 2 minutes.`,
     });
 }
 function sendNotification(study = null) {
