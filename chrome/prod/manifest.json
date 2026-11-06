@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prolific Studies Notifier",
-  "version": "3.7.0",
+  "version": "4.0.0",
   "description": "Google extension for Prolific to notify you when studies are available",
   "minimum_chrome_version": "111",
   "permissions": [
@@ -42,8 +42,8 @@
     "title": "Prolific get studies automatically"
   },
   "icons": {
-    "16": "imgs/logo.png",
-    "48": "imgs/logo.png",
+    "16": "imgs/logo-16.png",
+    "48": "imgs/logo-48.png",
     "128": "imgs/logo.png"
   }
 }
