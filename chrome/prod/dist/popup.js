@@ -325,13 +325,19 @@ function setAlertState() {
         const historyLabel = document.getElementById("study-history-len-label");
         const refreshRate = document.getElementById("refreshRate");
         const refreshRateLabel = document.getElementById("refreshRate-label");
+        const fastMode = document.getElementById("fastMode");
+        const fastModeLabel = document.getElementById("fastMode-label");
+        const fastModeInterval = document.getElementById("fastModeInterval");
+        const fastModeIntervalLabel = document.getElementById("fastModeInterval-label");
+        const labels = [historyLabel, refreshRateLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
+        const inputs = [history, refreshRate, trackIds, fastMode, fastModeInterval].filter(Boolean);
         const enableControls = () => {
-            [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
-            [history, refreshRate, trackIds].forEach(el => el.disabled = false);
+            labels.forEach(el => el.classList.remove("disabled-text"));
+            inputs.forEach(el => el.disabled = false);
         };
         const disableControls = () => {
-            [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.add("disabled-text"));
-            [history, refreshRate, trackIds].forEach(el => el.disabled = true);
+            labels.forEach(el => el.classList.add("disabled-text"));
+            inputs.forEach(el => el.disabled = true);
         };
         const setActiveButton = (activeBtn, inactiveBtn) => {
             activeBtn.classList.add("active");
@@ -379,34 +385,34 @@ function setAlertState() {
         }));
     });
 }
-function setCheckboxState(elementId, storageKey) {
-    return __awaiter(this, void 0, void 0, function* () {
+function setCheckboxState(elementId_1, storageKey_1) {
+    return __awaiter(this, arguments, void 0, function* (elementId, storageKey, storageArea = chrome.storage.sync) {
         const element = document.getElementById(elementId);
         if (!element)
             return;
-        const result = yield chrome.storage.sync.get(storageKey);
+        const result = yield storageArea.get(storageKey);
         if (result[storageKey] !== undefined) {
             element.checked = result[storageKey];
         }
         element.addEventListener("click", function () {
             return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ [storageKey]: element.checked });
+                yield storageArea.set({ [storageKey]: element.checked });
             });
         });
     });
 }
-function setInputState(elementId, storageKey) {
-    return __awaiter(this, void 0, void 0, function* () {
+function setInputState(elementId_1, storageKey_1) {
+    return __awaiter(this, arguments, void 0, function* (elementId, storageKey, storageArea = chrome.storage.sync) {
         const element = document.getElementById(elementId);
         if (!element)
             return;
-        const result = yield chrome.storage.sync.get(storageKey);
+        const result = yield storageArea.get(storageKey);
         if (result[storageKey] !== undefined) {
             element.value = result[storageKey];
         }
         element.addEventListener("change", function () {
             return __awaiter(this, void 0, void 0, function* () {
-                yield chrome.storage.sync.set({ [storageKey]: parseFloat(element.value) });
+                yield storageArea.set({ [storageKey]: parseFloat(element.value) });
             });
         });
     });
@@ -510,11 +516,13 @@ function renderPopup() {
         yield setCheckboxState("openProlific", "openProlific");
         yield setCheckboxState("focusProlific", "focusProlific");
         yield setCheckboxState("trackIds", "trackIds");
+        yield setCheckboxState("fastMode", "fastMode", chrome.storage.local);
         yield setInputState("reward", "reward");
         yield setInputState("rewardPerHour", "rewardPerHour");
         yield setInputState("time", "time");
         yield setInputState("studyHistoryLen", "studyHistoryLen");
         yield setInputState("refreshRate", "refreshRate");
+        yield setInputState("fastModeInterval", "fastModeInterval", chrome.storage.local);
         yield setAlertState();
         yield setSelectState("selectAudio", "audio");
         yield setSelectState("sort-studies", "sortStudies", populateStudies);

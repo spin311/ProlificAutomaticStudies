@@ -85,4 +85,29 @@ test("still shows the study notification when the alert sound fails", async () =
     assert.equal(calls.errors.length, 1);
 });
 
+test("tells the user when fast mode pauses", async () => {
+    // Arrange
+    const { chrome, calls } = loadBackground();
 
+    // Act
+    await chrome.runtime.onMessage.fire(
+        { target: "background", type: "fast-mode-paused", data: { reason: "rate-limited", minutes: 60 } },
+        {}
+    );
+
+    // Assert
+    assert.equal(calls.notifications.length, 1);
+    assert.equal(calls.notifications[0].id, "fast-mode-paused");
+    assert.match(calls.notifications[0].title, /60 minutes/);
+});
+
+test("does not open a study page when the fast mode notice is clicked", async () => {
+    // Arrange
+    const { chrome, calls } = loadBackground();
+
+    // Act
+    await chrome.notifications.onClicked.fire("fast-mode-paused");
+
+    // Assert
+    assert.deepEqual(calls.createdTabs, [{ url: "https://app.prolific.com/studies", active: true }]);
+});

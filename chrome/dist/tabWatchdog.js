@@ -6,7 +6,7 @@
 // - Prolific's Studies page re-fetches studies every 2 minutes, but stops for good
 //   after an expired login or certain errors. If no re-fetch happens for a while,
 //   the page is reloaded, only while the user is not on the tab and at most once
-//   per 15 minutes across all tabs.
+//   per 15 minutes across all tabs, and not while fast mode is paused.
 // - After the extension updates, this copy of the script is cut off from the
 //   extension; it reloads its Studies tab once so the new version takes over.
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -26,6 +26,8 @@ const WATCHDOG_CHECK_INTERVAL_MS = 60 * 1000;
 const WATCHDOG_STALE_AFTER_MS = 6 * 60 * 1000;
 const WATCHDOG_MIN_MS_BETWEEN_RELOADS = 15 * 60 * 1000;
 const WATCHDOG_LAST_RELOAD_AT = "watchdogLastReloadAt";
+// Set by fastMode.ts when Prolific restricted or rate-limited the account.
+const WATCHDOG_FAST_MODE_PAUSED_UNTIL = "fastModePausedUntil";
 let watchdogLastStudiesFetchAt = null;
 function watchForStudiesFetches() {
     const observer = new PerformanceObserver((list) => {
@@ -56,13 +58,14 @@ function isExtensionConnected() {
 }
 function reloadIfStudiesPageStale() {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b;
         const now = Date.now();
         if (!isStudiesPageStale(now))
             return;
-        const stored = yield chrome.storage.local.get(WATCHDOG_LAST_RELOAD_AT);
+        const stored = yield chrome.storage.local.get([WATCHDOG_LAST_RELOAD_AT, WATCHDOG_FAST_MODE_PAUSED_UNTIL]);
         const lastReloadAt = (_a = stored[WATCHDOG_LAST_RELOAD_AT]) !== null && _a !== void 0 ? _a : 0;
-        if (now - lastReloadAt < WATCHDOG_MIN_MS_BETWEEN_RELOADS)
+        const fastModePausedUntil = (_b = stored[WATCHDOG_FAST_MODE_PAUSED_UNTIL]) !== null && _b !== void 0 ? _b : 0;
+        if (now - lastReloadAt < WATCHDOG_MIN_MS_BETWEEN_RELOADS || now < fastModePausedUntil)
             return;
         yield chrome.storage.local.set({ [WATCHDOG_LAST_RELOAD_AT]: now });
         location.reload();

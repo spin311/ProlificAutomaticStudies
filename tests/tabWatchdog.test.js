@@ -125,6 +125,19 @@ test("reloads only one of several stale Prolific tabs within 15 minutes", async 
     assert.equal(tabA.page.reloads + tabB.page.reloads, 1);
 });
 
+test("does not reload while fast mode is paused by a restriction or rate limit", async (t) => {
+    // Arrange
+    startClock(t);
+    const storage = createStorage({ local: { fastModePausedUntil: Date.now() + 60 * MINUTE } });
+    const { page } = openStudiesTab({ storage });
+    page.emitResource(STUDIES_FETCH);
+
+    // Act
+    await advance(t, 20 * MINUTE);
+
+    // Assert
+    assert.equal(page.reloads, 0);
+});
 
 test("reloads its Studies tab once the extension has been updated", async (t) => {
     // Arrange: after an update this copy of the script is cut off from the extension

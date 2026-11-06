@@ -404,6 +404,13 @@ input[type="number"]:focus, input[type="text"]:focus  {
     visibility: visible;
 }
 
+.fast-mode-warning {
+    font-size: 0.75rem;
+    color: #b45309;
+    text-align: center;
+    margin: 0 1rem 0.5rem;
+}
+
 .disabled-text {
     color: #b3b3b3;
 }

@@ -88,6 +88,24 @@
                 Check studies every X seconds
             </label>
         </div>
+
+        <div class="form-check d-flex justify-content-center ml-1 my-2">
+            <input class="form-check-input mr-2" type="checkbox" value="" id="fastMode">
+            <label class="form-check-label" for="fastMode" id="fastMode-label">
+                Fast mode (unofficial)
+            </label>
+            <span class="tooltip-icon" data-tooltip="Prolific's page checks for new studies every 2 minutes. Fast mode makes it check more often, with random variation.">ℹ</span>
+        </div>
+        <div class="form-number d-flex justify-content-center">
+            <input class="mr-2 website-input" type="number" value="60" id="fastModeInterval" min="30" max="600">
+            <label class="form-check-label" for="fastModeInterval" id="fastModeInterval-label">
+                Fast mode: check every X seconds (30–600)
+            </label>
+        </div>
+        <p class="fast-mode-warning" id="fastModeWarning">
+            Use at your own risk: Prolific only supports its own extension, and frequent checking
+            could get your account flagged. Fast mode pauses itself if Prolific restricts or rate-limits you.
+        </p>
         <div class="my-2">
             <div>
                 <label for="volume">Volume:</label>

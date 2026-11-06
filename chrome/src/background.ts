@@ -33,6 +33,10 @@ const STUDY_HISTORY_LEN = "studyHistoryLen";
 const SORT_STUDIES = 'sortStudies';
 const REFRESH_RATE = 'refreshRate';
 const CURRENT_STUDIES = 'currentStudies';
+const FAST_MODE_ENABLED_KEY = "fastMode";
+const FAST_MODE_INTERVAL_KEY = "fastModeInterval";
+const FAST_MODE_PAUSED_NOTIFICATION_ID = "fast-mode-paused";
+const PROLIFIC_STUDIES_URL = "https://app.prolific.com/studies";
 // Pages that only list studies, so reloading them cannot lose anything.
 const PROLIFIC_STUDIES_LIST_PATHS = ["/", "/studies", "/studies/"];
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
@@ -41,7 +45,10 @@ initialize();
 chrome.runtime.onMessage.addListener(handleMessages);
 
 chrome.notifications.onClicked.addListener(function (notificationId: string): void {
-    if (!!notificationId) {
+    if (notificationId === FAST_MODE_PAUSED_NOTIFICATION_ID) {
+        chrome.tabs.create({url: PROLIFIC_STUDIES_URL, active: true});
+    }
+    else if (!!notificationId) {
         chrome.tabs.create({url: `https://app.prolific.com/studies/${notificationId}`, active: true});
     }
     else {
@@ -204,6 +211,9 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
                 await chrome.tabs.update(sender.tab.id, {autoDiscardable: false});
             }
             break;
+        case 'fast-mode-paused':
+            showFastModePausedNotification(message.data);
+            break;
     }
 }
 
@@ -294,8 +304,25 @@ async function setInitialValues(): Promise<void> {
         "researcherBlacklist": [],
         "nameBlacklist": []
     });
+    // Local, not sync: fast mode is a per-device risk decision.
+    await chrome.storage.local.set({
+        [FAST_MODE_ENABLED_KEY]: false,
+        [FAST_MODE_INTERVAL_KEY]: 60,
+    });
 }
 
+function showFastModePausedNotification(data: { reason?: string; minutes?: number } | undefined): void {
+    const minutes = data?.minutes ?? 60;
+    const reason = data?.reason === "restricted"
+        ? "Your Prolific account has a temporary restriction."
+        : "Prolific asked for fewer checks.";
+    chrome.notifications.create(FAST_MODE_PAUSED_NOTIFICATION_ID, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL(ICON_URL),
+        title: `Fast mode paused for ${minutes} minutes`,
+        message: `${reason} New studies still appear every 2 minutes.`,
+    });
+}
 
 function sendNotification(study: Study | null=null): void {
     let title: string = TITLE;

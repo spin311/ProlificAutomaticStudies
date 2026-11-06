@@ -319,15 +319,21 @@ async function setAlertState(): Promise<void> {
     const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
     const refreshRate = document.getElementById("refreshRate") as HTMLInputElement;
     const refreshRateLabel = document.getElementById("refreshRate-label") as HTMLElement;
+    const fastMode = document.getElementById("fastMode") as HTMLInputElement;
+    const fastModeLabel = document.getElementById("fastMode-label") as HTMLElement;
+    const fastModeInterval = document.getElementById("fastModeInterval") as HTMLInputElement;
+    const fastModeIntervalLabel = document.getElementById("fastModeInterval-label") as HTMLElement;
+    const labels = [historyLabel, refreshRateLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
+    const inputs = [history, refreshRate, trackIds, fastMode, fastModeInterval].filter(Boolean);
 
     const enableControls = () => {
-        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.remove("disabled-text"));
-        [history, refreshRate, trackIds].forEach(el => el.disabled = false);
+        labels.forEach(el => el.classList.remove("disabled-text"));
+        inputs.forEach(el => el.disabled = false);
     };
 
     const disableControls = () => {
-        [historyLabel, refreshRateLabel, trackIdsLabel].forEach(el => el.classList.add("disabled-text"));
-        [history, refreshRate, trackIds].forEach(el => el.disabled = true);
+        labels.forEach(el => el.classList.add("disabled-text"));
+        inputs.forEach(el => el.disabled = true);
     };
 
     const setActiveButton = (activeBtn: HTMLElement, inactiveBtn: HTMLElement) => {
@@ -379,27 +385,27 @@ async function setAlertState(): Promise<void> {
 }
 
 
-async function setCheckboxState(elementId: string, storageKey: string): Promise<void> {
+async function setCheckboxState(elementId: string, storageKey: string, storageArea: chrome.storage.StorageArea = chrome.storage.sync): Promise<void> {
     const element = document.getElementById(elementId) as HTMLInputElement;
     if (!element) return;
-    const result = await chrome.storage.sync.get(storageKey);
+    const result = await storageArea.get(storageKey);
     if (result[storageKey] !== undefined) {
         element.checked = result[storageKey];
     }
     element.addEventListener("click", async function (): Promise<void> {
-        await chrome.storage.sync.set({[storageKey]: element.checked});
+        await storageArea.set({[storageKey]: element.checked});
     });
 }
 
-async function setInputState(elementId: string, storageKey: string): Promise<void> {
+async function setInputState(elementId: string, storageKey: string, storageArea: chrome.storage.StorageArea = chrome.storage.sync): Promise<void> {
     const element = document.getElementById(elementId) as HTMLInputElement;
     if (!element) return;
-    const result = await chrome.storage.sync.get(storageKey);
+    const result = await storageArea.get(storageKey);
     if (result[storageKey] !== undefined) {
         element.value = result[storageKey];
     }
     element.addEventListener("change", async function (): Promise<void> {
-        await chrome.storage.sync.set({[storageKey]: parseFloat(element.value)});
+        await storageArea.set({[storageKey]: parseFloat(element.value)});
     });
 }
 
@@ -493,12 +499,14 @@ async function renderPopup() {
     await setCheckboxState("openProlific", "openProlific");
     await setCheckboxState("focusProlific", "focusProlific");
     await setCheckboxState("trackIds", "trackIds");
+    await setCheckboxState("fastMode", "fastMode", chrome.storage.local);
 
     await setInputState("reward", "reward");
     await setInputState("rewardPerHour", "rewardPerHour");
     await setInputState("time", "time");
     await setInputState("studyHistoryLen","studyHistoryLen");
     await setInputState("refreshRate", "refreshRate");
+    await setInputState("fastModeInterval", "fastModeInterval", chrome.storage.local);
 
     await setAlertState();
     await setSelectState("selectAudio", "audio");
