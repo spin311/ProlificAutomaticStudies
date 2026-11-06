@@ -187,12 +187,13 @@ async function populateStudies(search: string = '', sort: string = "") {
         sort = result["sortStudies"];
     }
     const studiesContainer = document.getElementById("studies-container") as HTMLElement;
-    studiesContainer.innerHTML = "";
+    studiesContainer.replaceChildren();
     const result = await browser.storage.local.get("currentStudies");
-    let currentStudies: Study[] = result["currentStudies"];
+    const savedStudies: Study[] = result["currentStudies"] ?? [];
+    let currentStudies: Study[] = [...savedStudies];
 
-    if (!currentStudies || currentStudies.length === 0) {
-        studiesContainer.innerHTML = "<p class='text-center'>No studies available.</p>";
+    if (currentStudies.length === 0) {
+        studiesContainer.append(createTextElement("p", "text-center", "No studies available."));
         return;
     }
 
@@ -234,41 +235,13 @@ async function populateStudies(search: string = '', sort: string = "") {
         }
     });
 
-    currentStudies.forEach((study, index) => {
-        const studyCard = document.createElement("div");
-        const link = `https://app.prolific.com/studies/${study.id}`;
-        const formattedDate = study.createdAt ? formatDate(study.createdAt): 'N/A';
-        studyCard.classList.add("study-card");
-        studyCard.innerHTML = `
-      <div class="study-info">
-        <div class="study-header">
-          <img src="/imgs/logo.png" alt="Study Image" class="study-img">
-          <div class="study-title">${study.title || "Untitled"}</div>      
-        </div>
-        <div class="study-researcher">${study.researcher || "Unknown"}</div>
-        <div class="study-reward"><strong>Pay:</strong> ${study.reward || "N/A"}</div>
-        <div class="study-reward-hour">${study.rewardPerHour || "N/A"} &#47;hr</div>
-        <div class="study-time"><strong>Time:</strong> ${study.time || "N/A"}</div>
-        <div class="study-created-at">${formattedDate}</div>
-        <button class="btn btn-success open-btn" data-index="${index}">
-          <a href="${link}" target="_blank" rel="noopener noreferrer" class="normal-link white">Open</a>
-        </button>
-        <button class="btn delete-btn" data-index="${index}">
-          <img src="/svgs/trash.svg" alt="trash"> Delete
-        </button>
-      </div>
-    `;
-        studiesContainer.appendChild(studyCard);
-    });
-
-    studiesContainer.querySelectorAll(".delete-btn").forEach(button => {
-        button.addEventListener("click", (e) => {
-            const target = e.currentTarget as HTMLElement;
-            const index = parseInt(target.getAttribute("data-index") || "", 10);
-            currentStudies.splice(index, 1);
-            browser.storage.local.set({ currentStudies });
-            populateStudies();
-        });
+    currentStudies.forEach((study) => {
+        studiesContainer.append(createStudyCard(study, async () => {
+            // Delete from everything saved, not only the studies the search shows.
+            const remaining = savedStudies.filter((saved) => saved.id !== study.id);
+            await browser.storage.local.set({ currentStudies: remaining });
+            await populateStudies();
+        }));
     });
 }
 
@@ -461,7 +434,7 @@ async function populateBlacklists() {
 
 async function populateBlacklist(listId: string, storageKey: string, values: string[]=[]): Promise<void> {
     const blacklistContainer = document.getElementById(listId) as HTMLElement;
-    blacklistContainer.innerHTML = "";
+    blacklistContainer.replaceChildren();
     let currentItems;
     if (values.length === 0) {
         const result = await browser.storage.sync.get(storageKey);
@@ -471,21 +444,11 @@ async function populateBlacklist(listId: string, storageKey: string, values: str
     }
 
     currentItems.forEach((item: string, index: number) => {
-        const itemCard = document.createElement('div');
-        itemCard.classList.add("blacklist-card");
-        itemCard.innerHTML = `
-        <span>${item}</span> <span class="remove-btn" data-index="${index}">x</span>
-        `;
-        blacklistContainer.appendChild(itemCard);
-    });
-    blacklistContainer.querySelectorAll(".remove-btn").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-            const target = e.target as HTMLElement;
-            const index = parseInt(target.getAttribute("data-index") || "");
-            currentItems.splice(index, 1);
-            browser.storage.sync.set({ [storageKey]: currentItems });
-            populateBlacklist(listId, storageKey, currentItems);
-        });
+        blacklistContainer.append(createBlacklistChip(item, async () => {
+            const remaining = currentItems.filter((_: string, i: number) => i !== index);
+            await browser.storage.sync.set({ [storageKey]: remaining });
+            await populateBlacklist(listId, storageKey, remaining);
+        }));
     });
 }
 
@@ -511,4 +474,76 @@ async function renderPopup() {
     if (volume) {
         await setVolume(volume);
     }
+}
+
+// Study text comes from Prolific's page (researchers write it) and blacklist words
+// from the user, so both are only ever inserted as text, never parsed as HTML.
+function createTextElement(tagName: string, className: string, text: string): HTMLElement {
+    const element = document.createElement(tagName);
+    element.className = className;
+    element.textContent = text;
+    return element;
+}
+
+function createLabeledText(className: string, label: string, value: string): HTMLElement {
+    const element = document.createElement("div");
+    element.className = className;
+    const labelElement = document.createElement("strong");
+    labelElement.textContent = label;
+    element.append(labelElement, ` ${value}`);
+    return element;
+}
+
+function createStudyCard(study: Study, onDelete: () => void): HTMLElement {
+    const header = document.createElement("div");
+    header.className = "study-header";
+    const image = document.createElement("img");
+    image.src = "/imgs/logo.png";
+    image.alt = "";
+    image.className = "study-img";
+    header.append(image, createTextElement("div", "study-title", study.title || "Untitled"));
+
+    const openLink = document.createElement("a");
+    openLink.className = "btn btn-success open-btn normal-link";
+    openLink.href = `https://app.prolific.com/studies/${encodeURIComponent(study.id ?? "")}`;
+    openLink.target = "_blank";
+    openLink.rel = "noopener noreferrer";
+    openLink.textContent = "Open";
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "btn delete-btn";
+    const trashIcon = document.createElement("img");
+    trashIcon.src = "/svgs/trash.svg";
+    trashIcon.alt = "";
+    deleteButton.append(trashIcon, " Delete");
+    deleteButton.addEventListener("click", onDelete);
+
+    const info = document.createElement("div");
+    info.className = "study-info";
+    info.append(
+        header,
+        createTextElement("div", "study-researcher", study.researcher || "Unknown"),
+        createLabeledText("study-reward", "Pay:", study.reward || "N/A"),
+        createTextElement("div", "study-reward-hour", `${study.rewardPerHour || "N/A"} /hr`),
+        createLabeledText("study-time", "Time:", study.time || "N/A"),
+        createTextElement("div", "study-created-at", study.createdAt ? formatDate(study.createdAt) : "N/A"),
+        openLink,
+        deleteButton,
+    );
+    const card = document.createElement("div");
+    card.className = "study-card";
+    card.append(info);
+    return card;
+}
+
+function createBlacklistChip(item: string, onRemove: () => void): HTMLElement {
+    const chip = document.createElement("div");
+    chip.className = "blacklist-card";
+    const removeButton = document.createElement("button");
+    removeButton.className = "remove-btn";
+    removeButton.textContent = "×";
+    removeButton.setAttribute("aria-label", `Remove ${item}`);
+    removeButton.addEventListener("click", onRemove);
+    chip.append(createTextElement("span", "", item), removeButton);
+    return chip;
 }

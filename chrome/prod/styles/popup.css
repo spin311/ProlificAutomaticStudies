@@ -527,8 +527,7 @@ input[type="range"] {
     margin-top: 4px;
 }
 
-.open-btn a {
-    color: #fff;
+.open-btn {
     text-decoration: none;
 }
 
@@ -573,6 +572,9 @@ input[type="range"] {
 }
 
 .remove-btn {
+    border: none;
+    background: none;
+    line-height: 1.2;
     padding: 0 5px;
     border-radius: 50%;
     color: var(--muted);
