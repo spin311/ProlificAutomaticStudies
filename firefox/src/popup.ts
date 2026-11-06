@@ -139,7 +139,9 @@ async function setSelectState(elementId: string, storageKey: string, callback?: 
     const element = document.getElementById(elementId) as HTMLSelectElement;
     if (!element) return;
     const result = await browser.storage.sync.get(storageKey);
-    element.value = result[storageKey];
+    if (result[storageKey] !== undefined) {
+        element.value = result[storageKey];
+    }
     element.addEventListener("change", async (): Promise<void> => {
         await browser.storage.sync.set({[storageKey]: element.value});
         if (callback) {

@@ -3,6 +3,8 @@
 // Run: node --test tests/
 const { describe, test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { createChrome, createStorage, loadScripts, dist } = require("./support/sandbox");
 
 // Just enough DOM for the popup's renderers. Setting innerHTML to markup fails the test.
@@ -207,6 +209,34 @@ for (const build of BUILDS) {
 
             // Assert
             assert.deepEqual(visibleSections(elements), ["filters"]);
+        });
+
+        test("keeps Alert 1 selected when no sound is saved", async () => {
+            // Arrange
+            const { popup, elements } = openPopup();
+            elements.selectAudio = Object.assign(new FakeElement("select"), { value: "alert1.mp3" });
+
+            // Act
+            await popup.setSelectState("selectAudio", "audio");
+
+            // Assert
+            assert.equal(elements.selectAudio.value, "alert1.mp3");
+        });
+
+        test("shows the same defaults the extension uses when nothing is saved", () => {
+            // Arrange: settings with no saved value keep the popup HTML's own state
+            const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+            const isChecked = (id) => new RegExp(`<input[^>]*id="${id}"[^>]*\\bchecked\\b`).test(html);
+
+            // Act
+            const ids = ["autoAudio", "showNotification", "trackIds", "focusProlific", "openProlific", "fastMode"];
+            const defaults = Object.fromEntries(ids.map((id) => [id, isChecked(id)]));
+
+            // Assert
+            assert.deepEqual(defaults, {
+                autoAudio: true, showNotification: true, trackIds: true, focusProlific: false, openProlific: false, fastMode: false,
+            });
+            assert.match(html, /<option value="alert1\.mp3" selected>/);
         });
     });
 }

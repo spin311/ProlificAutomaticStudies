@@ -73,6 +73,7 @@ chrome.runtime.onInstalled.addListener((details) => __awaiter(void 0, void 0, vo
         yield chrome.storage.local.set({ [CURRENT_STUDIES]: (prevStudies !== null && prevStudies !== void 0 ? prevStudies : []) });
         yield chrome.storage.sync.set({ [REFRESH_RATE]: 0
         });
+        yield fillMissingSettings();
         yield chrome.action.setBadgeText({ text: "New" });
     }
     // Content scripts are not re-injected into tabs that were already open, so
@@ -112,7 +113,7 @@ function getValueFromStorage(key, defaultValue) {
 }
 function setupTitleAlert() {
     const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
             const newTitle = tab.title.trim();
@@ -138,7 +139,7 @@ function setupTitleAlert() {
                 const shouldPlayAudio = (_d = titleStorageValues[AUDIO_ACTIVE]) !== null && _d !== void 0 ? _d : true;
                 if (shouldPlayAudio) {
                     const audio = (_e = titleStorageValues[AUDIO]) !== null && _e !== void 0 ? _e : 'alert1.mp3';
-                    const volume = titleStorageValues[VOLUME] ? titleStorageValues[VOLUME] / 100 : 100;
+                    const volume = ((_f = titleStorageValues[VOLUME]) !== null && _f !== void 0 ? _f : 100) / 100;
                     yield playAudio(audio, volume);
                 }
                 if (shouldFocusProlific) {
@@ -167,11 +168,11 @@ function focusProlific() {
 }
 function handlePlaySound() {
     return __awaiter(this, arguments, void 0, function* (audio = null, volume = null) {
-        var _a;
+        var _a, _b;
         if (!audio || !volume) {
             const audioValues = yield chrome.storage.sync.get([AUDIO, VOLUME]);
             audio = (_a = audioValues[AUDIO]) !== null && _a !== void 0 ? _a : 'alert1.mp3';
-            volume = audioValues[VOLUME] ? audioValues[VOLUME] / 100 : 100;
+            volume = ((_b = audioValues[VOLUME]) !== null && _b !== void 0 ? _b : 100) / 100;
         }
         yield playAudio(audio, volume);
     });
@@ -215,7 +216,7 @@ function handleMessages(message, sender) {
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         if (!studies || studies.length === 0)
             return;
         const studiesStorageValues = yield chrome.storage.sync.get([
@@ -233,7 +234,7 @@ function handleNewStudies(studies) {
         const shouldFocusProlific = (_c = studiesStorageValues[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false;
         if (shouldPlayAudio) {
             const audio = (_d = studiesStorageValues[AUDIO]) !== null && _d !== void 0 ? _d : 'alert1.mp3';
-            const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
+            const volume = ((_e = studiesStorageValues[VOLUME]) !== null && _e !== void 0 ? _e : 100) / 100;
             try {
                 yield playAudio(audio, volume);
             }
@@ -285,33 +286,56 @@ function playAudio() {
         });
     });
 }
+// What a fresh install starts with. Updates fill in any of these that are missing
+// (e.g. an install that never ran the first-install setup) without changing
+// settings the user already chose.
+const DEFAULT_SYNC_SETTINGS = {
+    [AUDIO_ACTIVE]: true,
+    [AUDIO]: "alert1.mp3",
+    [SHOW_NOTIFICATION]: true,
+    [FOCUS_PROLIFIC]: false,
+    [USE_OLD]: false,
+    [OPEN_PROLIFIC]: false,
+    [VOLUME]: 100,
+    [ACTIVE_TAB]: "settings",
+    [TRACK_IDS]: true,
+    [STUDY_HISTORY_LEN]: 100,
+    [SORT_STUDIES]: "created+",
+    [REFRESH_RATE]: 0,
+    "reward": 0,
+    "rewardPerHour": 0,
+    "time": 0,
+    "researcherBlacklist": [],
+    "nameBlacklist": []
+};
+// Local, not sync: fast mode is a per-device risk decision.
+const DEFAULT_LOCAL_SETTINGS = {
+    [FAST_MODE_ENABLED_KEY]: false,
+    [FAST_MODE_INTERVAL_KEY]: 60,
+};
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield chrome.storage.local.set({ [CURRENT_STUDIES]: [] });
-        yield chrome.storage.sync.set({
-            [AUDIO_ACTIVE]: true,
-            [AUDIO]: "alert1.mp3",
-            [SHOW_NOTIFICATION]: true,
-            [FOCUS_PROLIFIC]: false,
-            [USE_OLD]: false,
-            [OPEN_PROLIFIC]: false,
-            [VOLUME]: 100,
-            [ACTIVE_TAB]: "settings",
-            [TRACK_IDS]: true,
-            [STUDY_HISTORY_LEN]: 100,
-            [SORT_STUDIES]: "created+",
-            [REFRESH_RATE]: 0,
-            "reward": 0,
-            "rewardPerHour": 0,
-            "time": 0,
-            "researcherBlacklist": [],
-            "nameBlacklist": []
+        yield chrome.storage.local.set(Object.assign({ [CURRENT_STUDIES]: [] }, DEFAULT_LOCAL_SETTINGS));
+        yield chrome.storage.sync.set(DEFAULT_SYNC_SETTINGS);
+    });
+}
+function fillMissingSettings() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield fillMissingIn(chrome.storage.sync, DEFAULT_SYNC_SETTINGS);
+        yield fillMissingIn(chrome.storage.local, DEFAULT_LOCAL_SETTINGS);
+    });
+}
+function fillMissingIn(area, defaults) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const stored = yield area.get(Object.keys(defaults));
+        const missing = {};
+        Object.keys(defaults).forEach((key) => {
+            if (stored[key] === undefined)
+                missing[key] = defaults[key];
         });
-        // Local, not sync: fast mode is a per-device risk decision.
-        yield chrome.storage.local.set({
-            [FAST_MODE_ENABLED_KEY]: false,
-            [FAST_MODE_INTERVAL_KEY]: 60,
-        });
+        if (Object.keys(missing).length > 0) {
+            yield area.set(missing);
+        }
     });
 }
 function showFastModePausedNotification(data) {

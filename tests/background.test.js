@@ -16,18 +16,21 @@ const BUILDS = ["chrome", "firefox"];
 
 for (const build of BUILDS) {
   describe(build, () => {
-    function loadBackground({ tabs = [], sync = {} } = {}) {
-        const { chrome, calls } = createChrome({ storage: createStorage({ sync }), tabs });
+    function loadBackground({ tabs = [], sync = {}, local = {}, audioFails = false } = {}) {
+        const storage = createStorage({ sync, local });
+        const { chrome, calls } = createChrome({ storage, tabs });
         const quietConsole = { ...console, error: (...args) => calls.errors.push(args) };
-        // Firefox plays sounds from the background page; here every play() fails.
-        class FailingAudio {
+        calls.sounds = [];
+        // Firefox plays sounds from the background page with new Audio().
+        class FakeAudio {
             load() {}
             async play() {
-                throw new Error("audio blocked");
+                if (audioFails) throw new Error("audio blocked");
+                calls.sounds.push({ volume: this.volume });
             }
         }
-        loadScripts([dist(build, "background.js")], { chrome, globals: { Audio: FailingAudio }, consoleOverride: quietConsole });
-        return { chrome, calls };
+        loadScripts([dist(build, "background.js")], { chrome, globals: { Audio: FakeAudio }, consoleOverride: quietConsole });
+        return { chrome, calls, storage };
     }
 
     const study = { id: "0123456789abcdef01234567", title: "A study", researcher: "A lab", reward: "£1.00" };
@@ -81,7 +84,7 @@ for (const build of BUILDS) {
 
     test("still shows the study notification when the alert sound fails", async () => {
         // Arrange
-        const { chrome, calls } = loadBackground();
+        const { chrome, calls } = loadBackground({ audioFails: true });
         chrome.offscreen.createDocument = async () => {
             throw new Error("offscreen document could not be created");
         };
@@ -91,7 +94,7 @@ for (const build of BUILDS) {
 
         // Act
         await chrome.runtime.onMessage.fire({ target: "background", type: "new-studies", data: [study] }, {});
-        await settle();
+        await new Promise((resolve) => setTimeout(resolve, 20));
 
         // Assert
         assert.equal(calls.notifications.length, 1);
@@ -125,5 +128,64 @@ for (const build of BUILDS) {
         // Assert
         assert.deepEqual(calls.createdTabs, [{ url: "https://app.prolific.com/studies", active: true }]);
     });
+
+        // Volume the alert was played at: Chrome sends it to its offscreen document, Firefox sets it on new Audio().
+        const playedVolume = (calls) =>
+            calls.messages.find((m) => m.type === "play-sound" && m.target === "offscreen-doc")?.data.volume ?? calls.sounds[0]?.volume;
+
+        test("turns on sound, notifications and notify-once on a fresh install", async (t) => {
+            // Arrange
+            startClock(t);
+            const { chrome, storage } = loadBackground();
+
+            // Act
+            const installed = chrome.runtime.onInstalled.fire({ reason: "install" });
+            await advance(t, 2000);
+            await installed;
+
+            // Assert
+            const { audioActive, showNotification, trackIds, audio, volume, activeTab } = storage.sync.data;
+            assert.deepEqual({ audioActive, showNotification, trackIds, audio, volume, activeTab },
+                { audioActive: true, showNotification: true, trackIds: true, audio: "alert1.mp3", volume: 100, activeTab: "settings" });
+            assert.equal(storage.local.data.fastMode, false);
+        });
+
+        test("fills in missing settings on update without changing saved ones", async () => {
+            // Arrange: an install that only ever saved two settings
+            const { chrome, storage } = loadBackground({ sync: { audioActive: false, volume: 40 } });
+
+            // Act
+            await chrome.runtime.onInstalled.fire({ reason: "update" });
+
+            // Assert
+            const { audioActive, volume, showNotification, trackIds, audio, activeTab } = storage.sync.data;
+            assert.deepEqual({ audioActive, volume, showNotification, trackIds, audio, activeTab },
+                { audioActive: false, volume: 40, showNotification: true, trackIds: true, audio: "alert1.mp3", activeTab: "settings" });
+            assert.equal(storage.local.data.fastMode, false);
+            assert.equal(storage.local.data.fastModeInterval, 60);
+        });
+
+        test("plays the alert at full volume when no volume is saved", async () => {
+            // Arrange
+            const { chrome, calls } = loadBackground();
+
+            // Act
+            await chrome.runtime.onMessage.fire({ target: "background", type: "new-studies", data: [study] }, {});
+
+            // Assert
+            assert.equal(playedVolume(calls), 1);
+            assert.equal(calls.errors.length, 0);
+        });
+
+        test("plays the alert silently when the volume is set to 0", async () => {
+            // Arrange
+            const { chrome, calls } = loadBackground({ sync: { volume: 0 } });
+
+            // Act
+            await chrome.runtime.onMessage.fire({ target: "background", type: "new-studies", data: [study] }, {});
+
+            // Assert
+            assert.equal(playedVolume(calls), 0);
+        });
   });
 }

@@ -65,6 +65,7 @@ browser.runtime.onInstalled.addListener((_a) => __awaiter(void 0, [_a], void 0, 
         const result = yield browser.storage.sync.get([CURRENT_STUDIES]);
         yield browser.storage.local.set({ [CURRENT_STUDIES]: (_d = result[CURRENT_STUDIES]) !== null && _d !== void 0 ? _d : [] });
         yield browser.storage.sync.set({ [REFRESH_RATE]: 0 });
+        yield fillMissingSettings();
         yield browser.browserAction.setBadgeText({ text: "New" });
     }
     // Tabs that were already open may not run the new version until reloaded.
@@ -107,7 +108,7 @@ function getValueFromStorageBg(key, defaultValue) {
 }
 function setupTitleAlert() {
     browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         if (!((_a = tab.url) === null || _a === void 0 ? void 0 : _a.includes('https://app.prolific.com/')) || !tab.title || changeInfo.status !== 'complete')
             return;
         const previousTitle = yield getValueFromStorageBg(PROLIFIC_TITLE, 'Prolific');
@@ -131,10 +132,10 @@ function setupTitleAlert() {
             sendNotification();
         if ((_c = settings[AUDIO_ACTIVE]) !== null && _c !== void 0 ? _c : true) {
             const audio = (_d = settings[AUDIO]) !== null && _d !== void 0 ? _d : 'alert1.mp3';
-            const volume = settings[VOLUME] ? settings[VOLUME] / 100 : 1;
+            const volume = ((_e = settings[VOLUME]) !== null && _e !== void 0 ? _e : 100) / 100;
             yield playAudio(audio, volume);
         }
-        if ((_e = settings[FOCUS_PROLIFIC]) !== null && _e !== void 0 ? _e : false)
+        if ((_f = settings[FOCUS_PROLIFIC]) !== null && _f !== void 0 ? _f : false)
             yield focusProlific();
         yield updateCounterAndBadge(currentNumber - previousNumber);
     }));
@@ -156,10 +157,10 @@ function focusProlific() {
 }
 function handlePlaySound() {
     return __awaiter(this, arguments, void 0, function* (audio = null, volume = null) {
-        var _a;
+        var _a, _b;
         const settings = yield browser.storage.sync.get([AUDIO, VOLUME]);
         audio = (_a = audio !== null && audio !== void 0 ? audio : settings[AUDIO]) !== null && _a !== void 0 ? _a : 'alert1.mp3';
-        volume = volume !== null && volume !== void 0 ? volume : (settings[VOLUME] ? settings[VOLUME] / 100 : 1);
+        volume = volume !== null && volume !== void 0 ? volume : (((_b = settings[VOLUME]) !== null && _b !== void 0 ? _b : 100) / 100);
         yield playAudio(audio, volume);
     });
 }
@@ -221,7 +222,7 @@ function handleMessages(message, sender) {
 }
 function handleNewStudies(studies) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         if (!studies || studies.length === 0)
             return;
         const settings = yield browser.storage.sync.get([
@@ -236,7 +237,7 @@ function handleNewStudies(studies) {
             return;
         if ((_a = settings[AUDIO_ACTIVE]) !== null && _a !== void 0 ? _a : true) {
             const audio = (_b = settings[AUDIO]) !== null && _b !== void 0 ? _b : 'alert1.mp3';
-            const volume = settings[VOLUME] ? settings[VOLUME] / 100 : 1;
+            const volume = ((_c = settings[VOLUME]) !== null && _c !== void 0 ? _c : 100) / 100;
             try {
                 yield playAudio(audio, volume);
             }
@@ -245,10 +246,10 @@ function handleNewStudies(studies) {
                 console.error("Prolific Studies Notifier: could not play the alert sound", error);
             }
         }
-        if ((_c = settings[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false) {
+        if ((_d = settings[FOCUS_PROLIFIC]) !== null && _d !== void 0 ? _d : false) {
             yield focusProlific();
         }
-        if ((_d = settings[SHOW_NOTIFICATION]) !== null && _d !== void 0 ? _d : true) {
+        if ((_e = settings[SHOW_NOTIFICATION]) !== null && _e !== void 0 ? _e : true) {
             studies
                 .sort((a, b) => getFloatValueFromMoneyString(b.reward || "0") - getFloatValueFromMoneyString(a.reward || "0"))
                 .forEach((study, index) => {
@@ -272,33 +273,56 @@ function updateCounterAndBadge() {
         yield updateBadge(count);
     });
 }
+// What a fresh install starts with. Updates fill in any of these that are missing
+// (e.g. an install that never ran the first-install setup) without changing
+// settings the user already chose.
+const DEFAULT_SYNC_SETTINGS = {
+    [AUDIO_ACTIVE]: true,
+    [AUDIO]: "alert1.mp3",
+    [SHOW_NOTIFICATION]: true,
+    [FOCUS_PROLIFIC]: false,
+    [USE_OLD]: false,
+    [OPEN_PROLIFIC]: false,
+    [VOLUME]: 100,
+    [ACTIVE_TAB]: "settings",
+    [TRACK_IDS]: true,
+    [STUDY_HISTORY_LEN]: 100,
+    [SORT_STUDIES]: "created+",
+    [REFRESH_RATE]: 0,
+    "reward": 0,
+    "rewardPerHour": 0,
+    "time": 0,
+    "researcherBlacklist": [],
+    "nameBlacklist": []
+};
+// Local, not sync: fast mode is a per-device risk decision.
+const DEFAULT_LOCAL_SETTINGS = {
+    [FAST_MODE_ENABLED_KEY]: false,
+    [FAST_MODE_INTERVAL_KEY]: 60,
+};
 function setInitialValues() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield browser.storage.local.set({ [CURRENT_STUDIES]: [] });
-        yield browser.storage.sync.set({
-            [AUDIO_ACTIVE]: true,
-            [AUDIO]: "alert1.mp3",
-            [SHOW_NOTIFICATION]: true,
-            [FOCUS_PROLIFIC]: false,
-            [USE_OLD]: false,
-            [OPEN_PROLIFIC]: false,
-            [VOLUME]: 100,
-            [ACTIVE_TAB]: "settings",
-            [TRACK_IDS]: true,
-            [STUDY_HISTORY_LEN]: 100,
-            [SORT_STUDIES]: "created+",
-            [REFRESH_RATE]: 0,
-            "reward": 0,
-            "rewardPerHour": 0,
-            "time": 0,
-            "researcherBlacklist": [],
-            "nameBlacklist": []
+        yield browser.storage.local.set(Object.assign({ [CURRENT_STUDIES]: [] }, DEFAULT_LOCAL_SETTINGS));
+        yield browser.storage.sync.set(DEFAULT_SYNC_SETTINGS);
+    });
+}
+function fillMissingSettings() {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield fillMissingIn(browser.storage.sync, DEFAULT_SYNC_SETTINGS);
+        yield fillMissingIn(browser.storage.local, DEFAULT_LOCAL_SETTINGS);
+    });
+}
+function fillMissingIn(area, defaults) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const stored = yield area.get(Object.keys(defaults));
+        const missing = {};
+        Object.keys(defaults).forEach((key) => {
+            if (stored[key] === undefined)
+                missing[key] = defaults[key];
         });
-        // Local, not sync: fast mode is a per-device risk decision.
-        yield browser.storage.local.set({
-            [FAST_MODE_ENABLED_KEY]: false,
-            [FAST_MODE_INTERVAL_KEY]: 60,
-        });
+        if (Object.keys(missing).length > 0) {
+            yield area.set(missing);
+        }
     });
 }
 function showFastModePausedNotification(data) {

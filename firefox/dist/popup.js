@@ -142,7 +142,9 @@ function setSelectState(elementId, storageKey, callback) {
         if (!element)
             return;
         const result = yield browser.storage.sync.get(storageKey);
-        element.value = result[storageKey];
+        if (result[storageKey] !== undefined) {
+            element.value = result[storageKey];
+        }
         element.addEventListener("change", () => __awaiter(this, void 0, void 0, function* () {
             yield browser.storage.sync.set({ [storageKey]: element.value });
             if (callback) {
