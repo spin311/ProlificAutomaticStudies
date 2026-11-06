@@ -27,12 +27,20 @@ const PROLIFIC_TITLE = "prolificTitle";
 const TRACK_IDS = "trackIds";
 const STUDY_HISTORY_LEN = "studyHistoryLen";
 const SORT_STUDIES = 'sortStudies';
+const FAST_MODE_ENABLED_KEY = "fastMode";
+const FAST_MODE_INTERVAL_KEY = "fastModeInterval";
+const FAST_MODE_PAUSED_NOTIFICATION_ID = "fast-mode-paused";
+const PROLIFIC_STUDIES_URL = "https://app.prolific.com/studies";
+// Pages that only list studies, so reloading them cannot lose anything.
+const PROLIFIC_STUDIES_LIST_PATHS = ["/", "/studies", "/studies/"];
 void initialize();
 browser.runtime.onMessage.addListener(handleMessages);
 browser.notifications.onClicked.addListener((notificationId) => {
-    const url = notificationId
-        ? `https://app.prolific.com/studies/${notificationId}`
-        : "https://app.prolific.com/";
+    const url = notificationId === FAST_MODE_PAUSED_NOTIFICATION_ID
+        ? PROLIFIC_STUDIES_URL
+        : notificationId
+            ? `https://app.prolific.com/studies/${notificationId}`
+            : "https://app.prolific.com/";
     void browser.tabs.create({ url, active: true });
     void browser.notifications.clear(notificationId);
 });
@@ -59,7 +67,33 @@ browser.runtime.onInstalled.addListener((_a) => __awaiter(void 0, [_a], void 0, 
         yield browser.storage.sync.set({ [REFRESH_RATE]: 0 });
         yield browser.browserAction.setBadgeText({ text: "New" });
     }
+    // Tabs that were already open may not run the new version until reloaded.
+    if (reason === "install" || reason === "update") {
+        yield reloadProlificStudiesTabs();
+    }
 }));
+function reloadProlificStudiesTabs() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const tabs = yield browser.tabs.query({ url: "https://app.prolific.com/*" });
+            const studiesTabs = tabs.filter((tab) => tab.id !== undefined && isProlificStudiesList(tab.url));
+            yield Promise.all(studiesTabs.map((tab) => browser.tabs.reload(tab.id)));
+        }
+        catch (error) {
+            console.error("Prolific Studies Notifier: could not reload Prolific tabs", error);
+        }
+    });
+}
+function isProlificStudiesList(url) {
+    if (!url)
+        return false;
+    try {
+        return PROLIFIC_STUDIES_LIST_PATHS.includes(new URL(url).pathname);
+    }
+    catch (_a) {
+        return false;
+    }
+}
 browser.runtime.onStartup.addListener(() => __awaiter(void 0, void 0, void 0, function* () {
     if (yield getValueFromStorageBg(OPEN_PROLIFIC, false)) {
         yield browser.tabs.create({ url: "https://app.prolific.com/", active: false });
@@ -151,8 +185,9 @@ function playAudio(audio, volume) {
         }
     });
 }
-function handleMessages(message) {
+function handleMessages(message, sender) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         if (message.target !== 'background')
             return;
         switch (message.type) {
@@ -171,6 +206,15 @@ function handleMessages(message) {
                 break;
             case 'resetValues':
                 yield setInitialValues();
+                break;
+            case 'keep-tab-alive':
+                // Stops Firefox from unloading the Prolific tab to save memory.
+                if (((_a = sender.tab) === null || _a === void 0 ? void 0 : _a.id) !== undefined) {
+                    yield browser.tabs.update(sender.tab.id, { autoDiscardable: false });
+                }
+                break;
+            case 'fast-mode-paused':
+                showFastModePausedNotification(message.data);
                 break;
         }
     });
@@ -193,7 +237,13 @@ function handleNewStudies(studies) {
         if ((_a = settings[AUDIO_ACTIVE]) !== null && _a !== void 0 ? _a : true) {
             const audio = (_b = settings[AUDIO]) !== null && _b !== void 0 ? _b : 'alert1.mp3';
             const volume = settings[VOLUME] ? settings[VOLUME] / 100 : 1;
-            yield playAudio(audio, volume);
+            try {
+                yield playAudio(audio, volume);
+            }
+            catch (error) {
+                // A failed sound must not also cost the user the notification.
+                console.error("Prolific Studies Notifier: could not play the alert sound", error);
+            }
         }
         if ((_c = settings[FOCUS_PROLIFIC]) !== null && _c !== void 0 ? _c : false) {
             yield focusProlific();
@@ -244,6 +294,24 @@ function setInitialValues() {
             "researcherBlacklist": [],
             "nameBlacklist": []
         });
+        // Local, not sync: fast mode is a per-device risk decision.
+        yield browser.storage.local.set({
+            [FAST_MODE_ENABLED_KEY]: false,
+            [FAST_MODE_INTERVAL_KEY]: 60,
+        });
+    });
+}
+function showFastModePausedNotification(data) {
+    var _a;
+    const minutes = (_a = data === null || data === void 0 ? void 0 : data.minutes) !== null && _a !== void 0 ? _a : 60;
+    const reason = (data === null || data === void 0 ? void 0 : data.reason) === "restricted"
+        ? "Your Prolific account has a temporary restriction."
+        : "Prolific asked for fewer checks.";
+    void browser.notifications.create(FAST_MODE_PAUSED_NOTIFICATION_ID, {
+        type: 'basic',
+        iconUrl: browser.runtime.getURL(ICON_URL),
+        title: `Fast mode paused for ${minutes} minutes`,
+        message: `${reason} New studies still appear every 2 minutes.`,
     });
 }
 function initialize() {

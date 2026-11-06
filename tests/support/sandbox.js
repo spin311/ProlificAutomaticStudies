@@ -120,6 +120,9 @@ function createChrome({ storage = createStorage(), tabs = [] } = {}) {
             setBadgeBackgroundColor: async () => {},
         },
     };
+    // Firefox (MV2) names for the same APIs.
+    chrome.browserAction = chrome.action;
+    chrome.tabs.executeScript = async () => [];
     return { chrome, calls };
 }
 
@@ -181,6 +184,7 @@ function createPage({ hasStudiesList = true, focused = false, random = 0.5, lock
 function loadScripts(sources, { chrome, globals = {}, consoleOverride } = {}) {
     const sandbox = {
         chrome,
+        browser: chrome,
         console: consoleOverride ?? console,
         Date,
         URL,
