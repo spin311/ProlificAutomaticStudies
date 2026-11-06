@@ -13,7 +13,13 @@ class FakeElement {
         this.className = "";
         this.textContent = "";
         this.listeners = {};
-        this.classList = { add: (...names) => (this.className = [this.className, ...names].filter(Boolean).join(" ")) };
+        this.style = {};
+        const names = () => this.className.split(" ").filter(Boolean);
+        this.classList = {
+            add: (...added) => (this.className = [...new Set([...names(), ...added])].join(" ")),
+            remove: (...removed) => (this.className = names().filter((name) => !removed.includes(name)).join(" ")),
+            contains: (name) => names().includes(name),
+        };
     }
     set innerHTML(markup) {
         if (markup !== "") throw new Error(`innerHTML used with: ${markup}`);
@@ -74,7 +80,12 @@ for (const build of BUILDS) {
                 "studies-container": new FakeElement("div"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
+                "researcher-list": new FakeElement("div"),
             };
+            for (const tab of ["settings", "studies", "filters"]) {
+                elements[tab] = new FakeElement("section");
+                elements[`${tab}-tab`] = new FakeElement("li");
+            }
             const document = {
                 addEventListener() {},
                 createElement: (tagName) => new FakeElement(tagName),
@@ -159,6 +170,43 @@ for (const build of BUILDS) {
 
             // Assert
             assert.deepEqual(storage.sync.data.nameBlacklist, ["video"]);
+        });
+
+        const visibleSections = (elements) =>
+            ["settings", "studies", "filters"].filter((tab) => elements[tab].style.display === "block");
+
+        test("opens on Settings when no tab was saved", async () => {
+            // Arrange: e.g. an install that never stored one
+            const { popup, elements } = openPopup();
+
+            // Act
+            await popup.setCurrentActiveTab();
+
+            // Assert
+            assert.deepEqual(visibleSections(elements), ["settings"]);
+            assert.ok(elements["settings-tab"].classList.contains("active"));
+        });
+
+        test("opens on Settings when the saved tab no longer exists", async () => {
+            // Arrange
+            const { popup, elements } = openPopup({ sync: { activeTab: "earn" } });
+
+            // Act
+            await popup.setCurrentActiveTab();
+
+            // Assert
+            assert.deepEqual(visibleSections(elements), ["settings"]);
+        });
+
+        test("reopens the tab that was used last", async () => {
+            // Arrange
+            const { popup, elements } = openPopup({ sync: { activeTab: "filters" } });
+
+            // Act
+            await popup.setCurrentActiveTab();
+
+            // Assert
+            assert.deepEqual(visibleSections(elements), ["filters"]);
         });
     });
 }

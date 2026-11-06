@@ -55,6 +55,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (downloadCSVButton) {
             downloadCSVButton.addEventListener("click", downloadStudies);
         }
+        // Turn on switch animations only once the saved states are drawn, so opening
+        // the popup shows them in place instead of sliding every enabled switch on.
+        requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("is-ready")));
     });
 });
 function setCounter(counter) {
@@ -174,10 +177,13 @@ function setTabState(elementId, storageValue) {
         });
     });
 }
+const POPUP_TABS = ["settings", "studies", "filters"];
 function setCurrentActiveTab() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("activeTab");
-        yield changeTab(result["activeTab"]);
+        const savedTab = result["activeTab"];
+        // A missing or unknown tab would hide every section, leaving only the tab bar.
+        yield changeTab(POPUP_TABS.includes(savedTab) ? savedTab : "settings");
     });
 }
 function populateStudies() {

@@ -226,7 +226,6 @@ main {
     border-radius: 999px;
     background: var(--switch-off);
     cursor: pointer;
-    transition: background 0.15s;
 }
 
 .switch::before {
@@ -239,6 +238,14 @@ main {
     border-radius: 50%;
     background: #fff;
     box-shadow: 0 1px 2px rgba(18, 49, 61, 0.3);
+}
+
+/* Animate switches only after the saved states are shown (popup.ts adds is-ready). */
+.is-ready .switch {
+    transition: background 0.15s;
+}
+
+.is-ready .switch::before {
     transition: transform 0.15s;
 }
 
@@ -608,8 +615,8 @@ input[type="range"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .switch,
-    .switch::before,
+    .is-ready .switch,
+    .is-ready .switch::before,
     .tooltip-icon::after {
         transition: none;
     }

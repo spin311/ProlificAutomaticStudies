@@ -51,6 +51,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         downloadCSVButton.addEventListener("click", downloadStudies);
     }
 
+    // Turn on switch animations only once the saved states are drawn, so opening
+    // the popup shows them in place instead of sliding every enabled switch on.
+    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("is-ready")));
+
 });
 
 async function setCounter(counter: HTMLSpanElement): Promise<void> {
@@ -172,9 +176,13 @@ function setTabState(elementId: string, storageValue: string): void  {
     });
 }
 
+const POPUP_TABS = ["settings", "studies", "filters"];
+
 async function setCurrentActiveTab(): Promise<void> {
     const result = await chrome.storage.sync.get("activeTab");
-        await changeTab(result["activeTab"]);
+    const savedTab = result["activeTab"];
+    // A missing or unknown tab would hide every section, leaving only the tab bar.
+    await changeTab(POPUP_TABS.includes(savedTab) ? savedTab : "settings");
 }
 
 async function populateStudies(search: string = '', sort: string = "") {
