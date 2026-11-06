@@ -323,14 +323,12 @@ function setAlertState() {
         const trackIdsLabel = document.getElementById("trackIdsLabel");
         const history = document.getElementById("studyHistoryLen");
         const historyLabel = document.getElementById("study-history-len-label");
-        const refreshRate = document.getElementById("refreshRate");
-        const refreshRateLabel = document.getElementById("refreshRate-label");
         const fastMode = document.getElementById("fastMode");
         const fastModeLabel = document.getElementById("fastMode-label");
         const fastModeInterval = document.getElementById("fastModeInterval");
         const fastModeIntervalLabel = document.getElementById("fastModeInterval-label");
-        const labels = [historyLabel, refreshRateLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
-        const inputs = [history, refreshRate, trackIds, fastMode, fastModeInterval].filter(Boolean);
+        const labels = [historyLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
+        const inputs = [history, trackIds, fastMode, fastModeInterval].filter(Boolean);
         const enableControls = () => {
             labels.forEach(el => el.classList.remove("disabled-text"));
             inputs.forEach(el => el.disabled = false);
@@ -521,7 +519,6 @@ function renderPopup() {
         yield setInputState("rewardPerHour", "rewardPerHour");
         yield setInputState("time", "time");
         yield setInputState("studyHistoryLen", "studyHistoryLen");
-        yield setInputState("refreshRate", "refreshRate");
         yield setInputState("fastModeInterval", "fastModeInterval", browser.storage.local);
         yield setAlertState();
         yield setSelectState("selectAudio", "audio");

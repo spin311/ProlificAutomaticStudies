@@ -316,14 +316,12 @@ async function setAlertState(): Promise<void> {
     const trackIdsLabel = document.getElementById("trackIdsLabel") as HTMLElement;
     const history = document.getElementById("studyHistoryLen") as HTMLInputElement;
     const historyLabel = document.getElementById("study-history-len-label") as HTMLElement;
-    const refreshRate = document.getElementById("refreshRate") as HTMLInputElement;
-    const refreshRateLabel = document.getElementById("refreshRate-label") as HTMLElement;
     const fastMode = document.getElementById("fastMode") as HTMLInputElement;
     const fastModeLabel = document.getElementById("fastMode-label") as HTMLElement;
     const fastModeInterval = document.getElementById("fastModeInterval") as HTMLInputElement;
     const fastModeIntervalLabel = document.getElementById("fastModeInterval-label") as HTMLElement;
-    const labels = [historyLabel, refreshRateLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
-    const inputs = [history, refreshRate, trackIds, fastMode, fastModeInterval].filter(Boolean);
+    const labels = [historyLabel, trackIdsLabel, fastModeLabel, fastModeIntervalLabel].filter(Boolean);
+    const inputs = [history, trackIds, fastMode, fastModeInterval].filter(Boolean);
 
     const enableControls = () => {
         labels.forEach(el => el.classList.remove("disabled-text"));
@@ -503,7 +501,6 @@ async function renderPopup() {
     await setInputState("rewardPerHour", "rewardPerHour");
     await setInputState("time", "time");
     await setInputState("studyHistoryLen","studyHistoryLen");
-    await setInputState("refreshRate", "refreshRate");
     await setInputState("fastModeInterval", "fastModeInterval", browser.storage.local);
 
     await setAlertState();

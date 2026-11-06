@@ -2,147 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Prolific automatic studies</title>
+    <title>Prolific Studies Notifier</title>
     <link href="../styles/popup.css" rel="stylesheet">
 </head>
 <body>
-<h1 class=" mt-2 heading">Prolific Studies Notifier</h1>
-<div class="container-fluid">
-    <a href="https://svitspindler.com/prolific-studies-notifier" target="_blank">Help</a>
-    <a class="my-1 links" href="https://chromewebstore.google.com/search/spin311" target="_blank">Extensions</a>
-    <a href="https://svitspindler.com/contact" target="_blank">Contact Me</a>
-</div>
-
-<h4 class=" text-center mt-2">Number of studies notified: <span id="counter">0</span></h4>
-<div class="tabs mb-4">
-    <ul>
-        <li id="settings-tab"><img src="/svgs/gear.svg" alt="gear"> <span>Settings</span></li>
-        <li id="studies-tab"><img src="/svgs/study.svg" alt="study"> <span>Studies</span></li>
-        <li id="filters-tab"><img src="/svgs/filter.svg" alt="filter"><span>Filters</span></li>
-    </ul>
-</div>
-
-<div class="text-align">
-
-    <div id="settings">
-
-        <div class="d-flex justify-content-center  my-2">
-            <div class="form-check-label mb-2">
-                Alert new studies from:
-                <span class="tooltip-icon" data-tooltip="Website is the new way that checks Prolific website directly for study changes. Title is the old way that checks Prolific title changes">ℹ</span>
-            </div>
-            <div class="alerts mb-4">
-                <ul>
-                    <li id="websiteBtn"> <span>Website</span></li>
-                    <li id="titleBtn"><span>Title</span></li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="form-check d-flex justify-content-center ml-1">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="openProlific">
-            <label class="form-check-label" for="openProlific">
-                Open Prolific on startup
-            </label>
-            <span class="tooltip-icon" data-tooltip="Opens Prolific tab when Chrome is opened">ℹ</span>
-        </div>
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="focusProlific">
-            <label class="form-check-label" for="focusProlific">
-                Focus Prolific tab for new studies
-            </label>
-            <span class="tooltip-icon" data-tooltip="Switches to the Prolific tab when a new study becomes available">ℹ</span>
-        </div>
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="autoAudio">
-            <label class="form-check-label" for="autoAudio">
-                Play audio for new studies
-            </label>
-        </div>
-
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="showNotification">
-            <label class="form-check-label" for="showNotification">
-                Show notification for new studies
-            </label>
-        </div>
-
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="trackIds">
-            <label class="form-check-label" for="trackIds" id="trackIdsLabel">
-                Show each study only once
-            </label>
-            <span class="tooltip-icon" data-tooltip="Remember studies and notify only once, even if it reappears later.">ℹ</span>
-        </div>
-
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2 website-input" type="number" value="50" id="studyHistoryLen" min="0" max="9999">
-            <label class="form-check-label" for="studyHistoryLen" id="study-history-len-label">
-                Number of studies to remember
-            </label>
-        </div>
-
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2 website-input" type="number" value="0" id="refreshRate" min="0" max="9999">
-            <label class="form-check-label" for="refreshRate" id="refreshRate-label">
-                Check studies every X seconds
-            </label>
-        </div>
-
-        <div class="form-check d-flex justify-content-center ml-1 my-2">
-            <input class="form-check-input mr-2" type="checkbox" value="" id="fastMode">
-            <label class="form-check-label" for="fastMode" id="fastMode-label">
-                Fast mode (unofficial)
-            </label>
-            <span class="tooltip-icon" data-tooltip="Prolific's page checks for new studies every 2 minutes. Fast mode makes it check more often, with random variation.">ℹ</span>
-        </div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2 website-input" type="number" value="60" id="fastModeInterval" min="30" max="600">
-            <label class="form-check-label" for="fastModeInterval" id="fastModeInterval-label">
-                Fast mode: check every X seconds (30–600)
-            </label>
-        </div>
-        <p class="fast-mode-warning" id="fastModeWarning">
-            Use at your own risk: Prolific only supports its own extension, and frequent checking
-            could get your account flagged. Fast mode pauses itself if Prolific restricts or rate-limits you.
-        </p>
-        <div class="my-2">
-            <div>
-                <label for="volume">Volume:</label>
-                <input style="display: inline-block; margin-top: 5px" type="range" id="volume" value="100" name="volume" min="0" max="100">
-            </div>
-            <div class="mt-2 flex between">
-                <span>
-                    <label for="selectAudio" class="form-label">Select Audio:</label>
-                    <select name="selectAudio" id="selectAudio" class="form-select">
-                        <option value="alert1.mp3">Alert 1</option>
-                        <option value="alert2.mp3">Alert 2</option>
-                        <option value="alert3.mp3">Alert 3</option>
-                        <option value="alert4.wav">Alert 4</option>
-                        <option value="robot.wav">Robot</option>
-                        <option value="loud.mp3">LOUD</option>
-                    </select>
-                </span>
-                <button id="playAudio" class="btn btn-success ml-05">
-                    Test
-                </button>
-            </div>
-            <div class="mt-2 flex between">
-                <label for="resetValues">Double click to reset studies & values</label><button id="resetValues" class="btn reset-btn ml-05"> <img src="/svgs/reset.svg" alt="reset"> </button>
-            </div>
-        </div>
+<header class="app-header">
+    <img class="app-logo" src="/imgs/logo.png" alt="">
+    <div class="app-title">
+        <h1>Prolific Studies Notifier</h1>
+        <p class="app-count"><span id="counter">0</span> studies notified</p>
     </div>
-    <div id="studies">
-        <div>
+    <!-- metadata_source shows up in GitHub Sponsors exports, so sponsorships that start
+         in this popup can be told apart from the README and website ones. -->
+    <a href="https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-popup"
+       class="normal-link sponsor-button" target="_blank" rel="noopener noreferrer"
+       title="Sponsor from $5/month and get your name in the README">
+        <span class="sponsor-heart" aria-hidden="true">&hearts;</span> Sponsor
+    </a>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+    <ul>
+        <li id="settings-tab"><img src="/svgs/gear.svg" alt=""><span>Settings</span></li>
+        <li id="studies-tab"><img src="/svgs/study.svg" alt=""><span>Studies</span></li>
+        <li id="filters-tab"><img src="/svgs/filter.svg" alt=""><span>Filters</span></li>
+    </ul>
+</nav>
+
+<main>
+    <section id="settings">
+        <div class="group">
+            <h2 class="group-title">Alerts</h2>
+            <div class="row">
+                <label class="row-label" for="autoAudio">Play a sound</label>
+                <input class="switch" type="checkbox" id="autoAudio">
+            </div>
+            <div class="row row-sub">
+                <select name="selectAudio" id="selectAudio" class="form-select" aria-label="Sound">
+                    <option value="alert1.mp3">Alert 1</option>
+                    <option value="alert2.mp3">Alert 2</option>
+                    <option value="alert3.mp3">Alert 3</option>
+                    <option value="alert4.wav">Alert 4</option>
+                    <option value="robot.wav">Robot</option>
+                    <option value="loud.mp3">Loud</option>
+                </select>
+                <input type="range" id="volume" name="volume" value="100" min="0" max="100" aria-label="Volume">
+                <button id="playAudio" class="btn btn-success">Test</button>
+            </div>
+            <div class="row">
+                <label class="row-label" for="showNotification">Show a desktop notification</label>
+                <input class="switch" type="checkbox" id="showNotification">
+            </div>
+            <div class="row">
+                <label class="row-label" for="focusProlific">Switch to the Prolific tab</label>
+                <input class="switch" type="checkbox" id="focusProlific">
+            </div>
+        </div>
+
+        <div class="group">
+            <h2 class="group-title">Checking</h2>
+            <div class="row">
+                <label class="row-label" for="openProlific">Open Prolific when the browser starts</label>
+                <input class="switch" type="checkbox" id="openProlific">
+            </div>
+            <div class="row">
+                <span class="row-label">
+                    <label for="fastMode" id="fastMode-label">Fast mode</label>
+                    <span class="tooltip-icon tooltip-warning" tabindex="0" role="img" aria-label="Unofficial, use at your own risk"
+                          data-tooltip="Prolific's page checks for new studies every 2 minutes; fast mode checks more often. Unofficial: Prolific only supports its own extension, and frequent checking could get your account flagged. It pauses itself if Prolific restricts or rate-limits you.">!</span>
+                </span>
+                <input class="switch" type="checkbox" id="fastMode">
+            </div>
+            <div class="row row-sub">
+                <label for="fastModeInterval" id="fastModeInterval-label">Check every</label>
+                <input type="number" id="fastModeInterval" value="60" min="30" max="600">
+                <span class="unit">seconds</span>
+            </div>
+            <div class="row">
+                <span class="row-label">
+                    <label for="trackIds" id="trackIdsLabel">Notify once per study</label>
+                    <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
+                          data-tooltip="Don't notify again when a study you were already told about comes back.">i</span>
+                </span>
+                <input class="switch" type="checkbox" id="trackIds">
+            </div>
+            <div class="row row-sub">
+                <label for="studyHistoryLen" id="study-history-len-label">Remember the last</label>
+                <input type="number" id="studyHistoryLen" value="100" min="0" max="9999">
+                <span class="unit">studies</span>
+            </div>
+        </div>
+
+        <details class="advanced">
+            <summary>Advanced</summary>
+            <div class="row">
+                <span class="row-label">
+                    Detect studies from
+                    <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
+                          data-tooltip="Page reads the study list, with details and filters. Tab title only counts studies; use it if page detection stops working.">i</span>
+                </span>
+                <div class="alerts" role="group" aria-label="Detect studies from">
+                    <ul>
+                        <li id="websiteBtn">Page</li>
+                        <li id="titleBtn">Tab title</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="row">
+                <label class="row-label" for="resetValues">Reset everything <span class="hint">(double-click)</span></label>
+                <button id="resetValues" class="btn reset-btn" title="Double-click to reset"><img src="/svgs/reset.svg" alt="Reset"></button>
+            </div>
+        </details>
+    </section>
+
+    <section id="studies">
+        <div class="toolbar">
             <span class="search-container">
-                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
                 </svg>
-                <input type="text" placeholder="Search" id="search-studies" class="input-search">
+                <input type="text" placeholder="Search studies" id="search-studies" class="input-search" aria-label="Search studies">
             </span>
-            <label for="sort-studies" class="form-label">Sort:</label>
-            <select name="sortStudies" id="sort-studies" class="form-select">
+            <select name="sortStudies" id="sort-studies" class="form-select" aria-label="Sort studies">
                 <option value="created+">Newest</option>
                 <option value="created-">Oldest</option>
                 <option value="pay+">Highest pay</option>
@@ -153,78 +134,59 @@
                 <option value="time-">Longest</option>
             </select>
         </div>
-        <button id="downloadCSV">Download CSV</button>
+        <button id="downloadCSV" class="btn btn-quiet">Download CSV</button>
         <div id="studies-container"></div>
-    </div>
-    <div id="filters">
-        <div class="filters-title mb-2">Show studies with at least:</div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="0.0" id="reward" min='0'>
-            <label class="form-check-label" for="reward">
-                Reward (£)
-            </label>
-        </div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="0.0" id="rewardPerHour" min="0">
-            <label class="form-check-label" for="rewardPerHour">
-                Reward per hour (£/h)
-            </label>
-        </div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2" type="number" value="0" id="time" min="0">
-            <label class="form-check-label" for="rewardPerHour">
-                Time (mins)
-            </label>
-        </div>
-        <div class="flex">
-            <div class="filters-title mb-2">Blacklist studies that contain:</div>
-            <span class="tooltip-icon" data-tooltip="Won't show studies that contain inputted words. Not case sensitive">ℹ</span>
+    </section>
+
+    <section id="filters">
+        <div class="group">
+            <h2 class="group-title">Only notify for studies with at least</h2>
+            <div class="row">
+                <label class="row-label" for="reward">Reward (£)</label>
+                <input type="number" id="reward" value="0.0" min="0">
+            </div>
+            <div class="row">
+                <label class="row-label" for="rewardPerHour">Reward per hour (£/h)</label>
+                <input type="number" id="rewardPerHour" value="0.0" min="0">
+            </div>
+            <div class="row">
+                <label class="row-label" for="time">Time (minutes)</label>
+                <input type="number" id="time" value="0" min="0">
+            </div>
         </div>
 
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2 blacklist-input" type="text"  id="blacklist-name">
-            <label class="form-check-label" for="blacklist-name">
-                Name
-            </label>
+        <div class="group">
+            <h2 class="group-title">
+                Skip studies containing
+                <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
+                      data-tooltip="No notification for studies whose name or researcher contains these words. Not case sensitive.">i</span>
+            </h2>
+            <div class="row">
+                <label class="row-label" for="blacklist-name">In the name</label>
+                <input class="blacklist-input" type="text" id="blacklist-name">
+            </div>
+            <div id="name-list"></div>
+            <div class="row">
+                <label class="row-label" for="blacklist-researcher">In the researcher</label>
+                <input class="blacklist-input" type="text" id="blacklist-researcher">
+            </div>
+            <div id="researcher-list"></div>
+            <div class="row row-end">
+                <button id="submit-blacklist" class="btn btn-success">Add</button>
+            </div>
         </div>
-        <div id="name-list"></div>
-        <div class="form-number d-flex justify-content-center">
-            <input class="mr-2 blacklist-input" type="text"  id="blacklist-researcher">
-            <label class="form-check-label" for="blacklist-researcher">
-                Researcher
-            </label>
-        </div>
-        <div id="researcher-list"></div>
-        <button id="submit-blacklist" class="btn btn-success ml-05">
-            Add
-        </button>
-    </div>
-</div>
+    </section>
+</main>
 
-<!-- metadata_source shows up in GitHub Sponsors exports, so sponsorships that start
-     in this popup can be told apart from the README and website ones. -->
-<div class="sponsor-promo">
-    <p class="sponsor-promo-text">
-        Enjoying the extension? Sponsor from <b>$5/month</b> and get your name featured in the README.
-    </p>
-    <a href="https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-popup" class="normal-link sponsor-button" target="_blank" rel="noopener noreferrer">
-        <span class="sponsor-heart" aria-hidden="true">&hearts;</span> Sponsor
-    </a>
-</div>
-
-<div class="container-fluid mt-2">
-    <span>
-        <a href="https://github.com/spin311/ProlificAutomaticStudies" class="float-start" target="_blank" style="margin-right: 5px">Github</a>
-        <img src="/imgs/github.png" alt="GitHubLogo">
-    </span>
-    <a class="my-1 links" href="https://app.prolific.com/" target="_blank">Prolific</a>
-    <span class="float-end" style="display: flex; align-items: center;">
-    <a href="https://svitspindler.com/donate" class="" target="_blank" id="donateText">Donate</a>
-    <img src="/imgs/justAGirlSmol.png" alt="Cat" id="donateImg">
-  </span>
-</div>
-
-</body>
-</html>
+<footer class="app-footer">
+    <a href="https://svitspindler.com/prolific-studies-notifier" target="_blank" rel="noopener noreferrer">Help</a>
+    <a href="https://github.com/spin311/ProlificAutomaticStudies" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://app.prolific.com/" target="_blank" rel="noopener noreferrer">Prolific</a>
+    <a href="https://chromewebstore.google.com/search/spin311" target="_blank" rel="noopener noreferrer">Extensions</a>
+    <a href="https://svitspindler.com/contact" target="_blank" rel="noopener noreferrer">Contact</a>
+    <a href="https://svitspindler.com/donate" target="_blank" rel="noopener noreferrer" id="donateText">Donate</a>
+</footer>
 
 <script src="../dist/popup.js"></script>
+</body>
+</html>
