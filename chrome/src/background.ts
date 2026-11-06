@@ -33,6 +33,8 @@ const STUDY_HISTORY_LEN = "studyHistoryLen";
 const SORT_STUDIES = 'sortStudies';
 const REFRESH_RATE = 'refreshRate';
 const CURRENT_STUDIES = 'currentStudies';
+// Pages that only list studies, so reloading them cannot lose anything.
+const PROLIFIC_STUDIES_LIST_PATHS = ["/", "/studies", "/studies/"];
 let creating: Promise<void> | null = null; // A global promise to avoid concurrency issues
 
 initialize();
@@ -75,7 +77,31 @@ chrome.runtime.onInstalled.addListener(async (details: { reason: string; }): Pro
         });
         await chrome.action.setBadgeText({text: "New"});
     }
+    // Content scripts are not re-injected into tabs that were already open, so
+    // after an install or update those tabs would stay silent until reloaded.
+    if (details.reason === "install" || details.reason === "update") {
+        await reloadProlificStudiesTabs();
+    }
 });
+
+async function reloadProlificStudiesTabs(): Promise<void> {
+    try {
+        const tabs = await chrome.tabs.query({url: "https://app.prolific.com/*"});
+        const studiesTabs = tabs.filter((tab) => tab.id !== undefined && isProlificStudiesList(tab.url));
+        await Promise.all(studiesTabs.map((tab) => chrome.tabs.reload(tab.id!)));
+    } catch (error) {
+        console.error("Prolific Studies Notifier: could not reload Prolific tabs", error);
+    }
+}
+
+function isProlificStudiesList(url: string | undefined): boolean {
+    if (!url) return false;
+    try {
+        return PROLIFIC_STUDIES_LIST_PATHS.includes(new URL(url).pathname);
+    } catch {
+        return false;
+    }
+}
 
 function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
     return new Promise((resolve): void => {
@@ -149,7 +175,7 @@ async function handlePlaySound(audio: string | null = null,  volume: number | nu
     await playAudio(audio, volume);
 }
 
-async function handleMessages(message: { target: string; type: any; data?: any; }): Promise<void> {
+async function handleMessages(message: { target: string; type: any; data?: any; }, sender: chrome.runtime.MessageSender): Promise<void> {
     // Return early if this message isn't meant for the offscreen document.
     if (message.target !== 'background') {
         return Promise.resolve();
@@ -172,6 +198,12 @@ async function handleMessages(message: { target: string; type: any; data?: any; 
         case 'resetValues':
             await setInitialValues();
             break;
+        case 'keep-tab-alive':
+            // Stops Chrome from unloading the Prolific tab to save memory.
+            if (sender.tab?.id !== undefined) {
+                await chrome.tabs.update(sender.tab.id, {autoDiscardable: false});
+            }
+            break;
     }
 }
 
@@ -193,7 +225,12 @@ async function handleNewStudies(studies: Study[]) {
     if (shouldPlayAudio) {
         const audio = studiesStorageValues[AUDIO] ?? 'alert1.mp3';
         const volume = studiesStorageValues[VOLUME] ? studiesStorageValues[VOLUME] / 100 : 100;
-        await playAudio(audio, volume);
+        try {
+            await playAudio(audio, volume);
+        } catch (error) {
+            // A failed sound must not also cost the user the notification.
+            console.error("Prolific Studies Notifier: could not play the alert sound", error);
+        }
     }
     if (shouldFocusProlific) {
         await focusProlific();
@@ -258,6 +295,7 @@ async function setInitialValues(): Promise<void> {
         "nameBlacklist": []
     });
 }
+
 
 function sendNotification(study: Study | null=null): void {
     let title: string = TITLE;
