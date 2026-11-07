@@ -43,6 +43,10 @@ For notifications to work, you must enable them on your browser AND on your syst
 ![Pin extension](docs/imgs/pin.png)
 Make sure to pin the extension.
 
+## License
+
+PolyForm Noncommercial License 1.0.0 (see [LICENSE](LICENSE)): you're free to use, modify and share it for non-commercial purposes, but not to sell it or use it commercially.
+
 ## Contact
 
 If you have any suggestions or questions, you can contact me at [spin311pro@gmail.com](mailto:spin311pro@gmail.com)
