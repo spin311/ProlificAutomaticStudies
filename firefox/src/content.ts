@@ -14,6 +14,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let globalInterval: number | null = null;
 let isProcessing = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded = false;
 let isObserverInitializing = false;
 
 const NUMBER_OF_STUDIES_TO_STORE = 100;
@@ -95,7 +97,6 @@ async function observeStudyChanges(): Promise<void> {
     if (!targetNode) return;
 
     globalObserver = new MutationObserver(async (mutations) => {
-        if (isProcessing) return;
         const hasChanges = mutations.some(m =>
             m.addedNodes.length > 0 || m.removedNodes.length > 0
         );
@@ -111,26 +112,35 @@ async function observeStudyChanges(): Promise<void> {
         const intervalMs = refreshRate * 1000;
         globalInterval = setInterval(async () => {
             const node = await waitForElement(targetSelector);
-            if (node && !isProcessing) {
+            if (node) {
                 await extractAndSendStudies(node);
             }
         }, intervalMs);
     }
 }
 
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
 async function extractAndSendStudies(targetNode: Element): Promise<void> {
-    if (isProcessing) return;
+    if (isProcessing) {
+        isRescanNeeded = true;
+        return;
+    }
     isProcessing = true;
 
     try {
-        const studies = await extractStudies(targetNode);
-        if (studies.length > 0) {
-            await browser.runtime.sendMessage({
-                target: "background",
-                type: "new-studies",
-                data: studies,
-            });
-        }
+        do {
+            isRescanNeeded = false;
+            const studies = await extractStudies(targetNode);
+            if (studies.length > 0) {
+                await browser.runtime.sendMessage({
+                    target: "background",
+                    type: "new-studies",
+                    data: studies,
+                });
+            }
+        } while (isRescanNeeded);
     } catch (e) {
         console.error("Error extracting studies:", e);
     } finally {

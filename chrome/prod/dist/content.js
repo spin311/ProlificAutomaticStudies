@@ -12,6 +12,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let globalInterval = null;
 let isProcessing = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
@@ -58,15 +60,16 @@ function observeStudyChanges() {
         if (isObserverActive())
             return;
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
-            const targetNode = document.querySelector(targetSelector);
-            if (!targetNode || isProcessing)
+            if (!document.querySelector(targetSelector))
                 return;
             const hasChanges = mutationsList.some(mutation => mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList');
             if (hasChanges) {
-                yield extractAndSendStudies(targetNode);
+                yield extractAndSendStudies();
             }
         }));
         globalObserver.observe(document.body, { childList: true, subtree: true });
+        // Studies already listed when the script starts cause no mutation.
+        void extractAndSendStudies();
         // Setup polling fallback
         const result = yield chrome.storage.sync.get(["refreshRate"]);
         const refreshRate = result["refreshRate"];
@@ -74,27 +77,39 @@ function observeStudyChanges() {
             const timer = ((_a = result["refreshRate"]) !== null && _a !== void 0 ? _a : 5) * 1000;
             globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 const node = yield waitForElement(targetSelector);
-                if (node && !isProcessing) {
-                    yield extractAndSendStudies(node);
+                if (node) {
+                    yield extractAndSendStudies();
                 }
             }), timer);
         }
     });
 }
-function extractAndSendStudies(targetNode) {
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
+function extractAndSendStudies() {
     return __awaiter(this, void 0, void 0, function* () {
+        if (isProcessing) {
+            isRescanNeeded = true;
+            return;
+        }
+        isProcessing = true;
         try {
-            if (isProcessing)
-                return;
-            isProcessing = true;
-            const studies = yield extractStudies(targetNode);
-            if (studies.length > 0) {
-                void chrome.runtime.sendMessage({
-                    target: "background",
-                    type: "new-studies",
-                    data: studies,
-                });
-            }
+            do {
+                isRescanNeeded = false;
+                // Read the list afresh each time: Prolific may have re-rendered it.
+                const targetNode = document.querySelector(targetSelector);
+                if (!targetNode)
+                    return;
+                const studies = yield extractStudies(targetNode);
+                if (studies.length > 0) {
+                    void chrome.runtime.sendMessage({
+                        target: "background",
+                        type: "new-studies",
+                        data: studies,
+                    });
+                }
+            } while (isRescanNeeded);
         }
         finally {
             isProcessing = false;

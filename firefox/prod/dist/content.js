@@ -12,6 +12,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let globalInterval = null;
 let isProcessing = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded = false;
 let isObserverInitializing = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
@@ -88,8 +90,6 @@ function observeStudyChanges() {
         if (!targetNode)
             return;
         globalObserver = new MutationObserver((mutations) => __awaiter(this, void 0, void 0, function* () {
-            if (isProcessing)
-                return;
             const hasChanges = mutations.some(m => m.addedNodes.length > 0 || m.removedNodes.length > 0);
             if (hasChanges)
                 yield extractAndSendStudies(targetNode);
@@ -102,27 +102,35 @@ function observeStudyChanges() {
             const intervalMs = refreshRate * 1000;
             globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 const node = yield waitForElement(targetSelector);
-                if (node && !isProcessing) {
+                if (node) {
                     yield extractAndSendStudies(node);
                 }
             }), intervalMs);
         }
     });
 }
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
 function extractAndSendStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (isProcessing)
+        if (isProcessing) {
+            isRescanNeeded = true;
             return;
+        }
         isProcessing = true;
         try {
-            const studies = yield extractStudies(targetNode);
-            if (studies.length > 0) {
-                yield browser.runtime.sendMessage({
-                    target: "background",
-                    type: "new-studies",
-                    data: studies,
-                });
-            }
+            do {
+                isRescanNeeded = false;
+                const studies = yield extractStudies(targetNode);
+                if (studies.length > 0) {
+                    yield browser.runtime.sendMessage({
+                        target: "background",
+                        type: "new-studies",
+                        data: studies,
+                    });
+                }
+            } while (isRescanNeeded);
         }
         catch (e) {
             console.error("Error extracting studies:", e);

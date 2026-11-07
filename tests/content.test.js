@@ -57,10 +57,11 @@ async function settle() {
 
 // Loads a content script against a page whose study list can be changed
 // between scans. Returns helpers to change the page and run one scan.
-async function loadBuild(build, { sync = {}, local = {}, storage = null } = {}) {
+// `listed` are studies already on the page before the script starts.
+async function loadBuild(build, { sync = {}, local = {}, storage = null, listed = [] } = {}) {
     const sent = [];
     const observers = [];
-    let visibleIds = [];
+    let visibleIds = listed;
     let tagOverrides = {};
 
     const studiesList = {
@@ -106,6 +107,10 @@ async function loadBuild(build, { sync = {}, local = {}, storage = null } = {}) 
     vm.createContext(sandbox);
     vm.runInContext(build.source, sandbox, { filename: `${build.name}/dist/content.js` });
     await settle();
+    const mutation = [{ addedNodes: [{}], removedNodes: [], type: "childList" }];
+    const notifiedIds = (messages) => messages
+        .filter((m) => m.type === "new-studies")
+        .flatMap((m) => m.data.map((s) => s.id));
 
     return {
         chrome: extensionApi,
@@ -117,15 +122,18 @@ async function loadBuild(build, { sync = {}, local = {}, storage = null } = {}) 
         // One page mutation -> one scan. Returns the ids notified by this scan.
         async scan() {
             const before = sent.length;
-            const mutation = [{ addedNodes: [{}], removedNodes: [], type: "childList" }];
             for (const observer of observers.filter((o) => o.isActive)) {
                 await observer.callback(mutation);
             }
-            return sent
-                .slice(before)
-                .filter((m) => m.type === "new-studies")
-                .flatMap((m) => m.data.map((s) => s.id));
+            return notifiedIds(sent.slice(before));
         },
+        // One page mutation whose scan is not awaited, like a browser delivering the
+        // next mutation while the previous scan still waits on storage.
+        startScan() {
+            return Promise.all(observers.filter((o) => o.isActive).map((o) => o.callback(mutation)));
+        },
+        // Every study id notified since the script started.
+        allNotified: () => notifiedIds(sent),
     };
 }
 
@@ -135,6 +143,30 @@ for (const build of BUILDS) {
 describe(build.name, () => {
 const loadContentScript = (options) => loadBuild(build, options);
 
+
+test("notifies a study that appears while the previous scan is still running", async () => {
+    // Arrange: Prolific renders study b a moment after study a
+    const page = await loadContentScript({ sync: { trackIds: true } });
+    page.showStudies(["a"]);
+    const firstScan = page.startScan();
+
+    // Act
+    page.showStudies(["a", "b"]);
+    const secondScan = page.startScan();
+    await Promise.all([firstScan, secondScan]);
+    await settle();
+
+    // Assert
+    assert.deepEqual(page.allNotified(), ["a", "b"]);
+});
+
+test("notifies studies that are already listed when the script starts", async () => {
+    // Arrange + Act: the list rendered before the script ran, so no mutation follows
+    const page = await loadContentScript({ sync: { trackIds: true }, listed: ["a", "b"] });
+
+    // Assert
+    assert.deepEqual(page.allNotified(), ["a", "b"]);
+});
 
 test("notifies each listed study once when more studies are listed than the history keeps", async () => {
     // Arrange: 120 studies listed, "Number of studies to remember" = 100 (default)
