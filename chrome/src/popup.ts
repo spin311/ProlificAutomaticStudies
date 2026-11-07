@@ -134,6 +134,50 @@ function markStudyOpened(id: string, row: HTMLElement): Promise<void> {
     return saved;
 }
 
+const SEARCH_STUDIES = "searchStudies";
+const STUDIES_SCROLL = "studiesScroll";
+// Reopening soon after opening a study lands where the list was left; later, at the top.
+const SCROLL_RESTORE_MAX_AGE_MS = 10 * 60 * 1000;
+const SCROLL_SAVE_DELAY_MS = 150;
+
+function getStudiesContainer(): HTMLElement {
+    return document.getElementById("studies-container") as HTMLElement;
+}
+
+async function restoreStudiesScroll(): Promise<void> {
+    const result = await chrome.storage.local.get(STUDIES_SCROLL);
+    const saved = result[STUDIES_SCROLL];
+    if (typeof saved?.top !== "number" || typeof saved?.at !== "number") return;
+    if (Date.now() - saved.at > SCROLL_RESTORE_MAX_AGE_MS) return;
+    getStudiesContainer().scrollTop = saved.top;
+}
+
+// The popup is destroyed when it closes (e.g. after a click opens a study), so the
+// position is saved as the user scrolls.
+function watchStudiesScroll(): void {
+    const container = getStudiesContainer();
+    let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    container.addEventListener("scroll", () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            void chrome.storage.local.set({[STUDIES_SCROLL]: {top: container.scrollTop, at: Date.now()}});
+        }, SCROLL_SAVE_DELAY_MS);
+    });
+}
+
+// Swaps the rows in one step, keeping the scroll position. Emptying the list first
+// would let the browser clamp it to 0 while the storage read is pending.
+function replaceKeepingScroll(container: HTMLElement, nodes: HTMLElement[]): void {
+    const scrollTop = container.scrollTop;
+    container.replaceChildren(...nodes);
+    container.scrollTop = scrollTop;
+}
+
+async function showStudiesFromTop(search: string = ""): Promise<void> {
+    await populateStudies(search);
+    getStudiesContainer().scrollTop = 0;
+}
+
 async function setVolume(volume: HTMLInputElement) {
     const result = await chrome.storage.sync.get("volume");
     const vol = result["volume"];
@@ -166,10 +210,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
     setTabState("studies-tab", "studies");
-    await setCurrentActiveTab();
-    await setBlacklist();
-
+    // The saved search must be in the box before the first list is drawn.
     await setupSearch();
+    await setCurrentActiveTab();
+    await restoreStudiesScroll();
+    watchStudiesScroll();
+    await setBlacklist();
 
     if(counter) {
         const notifiedCount = await setCounter(counter);
@@ -328,15 +374,14 @@ async function populateStudies(search: string = '', sort: string = "") {
         const result = await chrome.storage.sync.get("sortStudies");
         sort = result["sortStudies"];
     }
-    const studiesContainer = document.getElementById("studies-container") as HTMLElement;
-    studiesContainer.replaceChildren();
+    const studiesContainer = getStudiesContainer();
     const result = await chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS]);
     const savedStudies: Study[] = result["currentStudies"] ?? [];
     openedStudyIds = result[OPENED_STUDY_IDS] ?? [];
     let currentStudies: Study[] = [...savedStudies];
 
     if (currentStudies.length === 0) {
-        studiesContainer.append(createTextElement("p", "text-center", "No studies available."));
+        replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", "No studies available.")]);
         return;
     }
 
@@ -378,17 +423,20 @@ async function populateStudies(search: string = '', sort: string = "") {
         }
     });
 
-    currentStudies.forEach((study) => {
-        studiesContainer.append(createStudyCard(study, {
-            isOpened: study.id !== null && openedStudyIds.includes(study.id),
-            onDelete: async () => {
-                // Delete from everything saved, not only the studies the search shows.
-                const remaining = savedStudies.filter((saved) => saved.id !== study.id);
-                await chrome.storage.local.set({ currentStudies: remaining });
-                await populateStudies();
-            },
-        }));
-    });
+    const rows = currentStudies.map((study) => createStudyCard(study, {
+        isOpened: study.id !== null && openedStudyIds.includes(study.id),
+        onDelete: () => deleteStudy(study.id),
+    }));
+    replaceKeepingScroll(studiesContainer, rows);
+}
+
+// Deletes from everything saved, not only the studies the search shows, and reads the
+// list again first: the content script may have added studies since it was drawn.
+async function deleteStudy(id: string | null): Promise<void> {
+    const result = await chrome.storage.local.get("currentStudies");
+    const saved: Study[] = result["currentStudies"] ?? [];
+    await chrome.storage.local.set({ currentStudies: saved.filter((study) => study.id !== id) });
+    await populateStudies();
 }
 
 async function setupSearch() {
@@ -396,11 +444,12 @@ async function setupSearch() {
     if (!searchInput) return;
     searchInput.addEventListener("input", async function (): Promise<void> {
         const searchValue = searchInput.value;
-        await populateStudies(searchValue);
+        // Kept until the box is cleared, so it survives the popup closing after a click.
+        await chrome.storage.local.set({[SEARCH_STUDIES]: searchValue});
+        await showStudiesFromTop(searchValue);
     });
-    const result = await chrome.storage.sync.get("searchStudies");
-    searchInput.value = result["searchStudies"] || "";
-
+    const result = await chrome.storage.local.get(SEARCH_STUDIES);
+    searchInput.value = result[SEARCH_STUDIES] || "";
 }
 
 async function changeTab(activeTab: string): Promise<void> {
@@ -616,7 +665,7 @@ async function renderPopup() {
 
     await setAlertState();
     await setSelectState("selectAudio", "audio");
-    await setSelectState("sort-studies", "sortStudies", populateStudies);
+    await setSelectState("sort-studies", "sortStudies", () => showStudiesFromTop());
 
     const volume = document.getElementById("volume") as HTMLInputElement;
     if (volume) {

@@ -132,6 +132,50 @@ function markStudyOpened(id, row) {
     row.classList.add("is-opened");
     return saved;
 }
+const SEARCH_STUDIES = "searchStudies";
+const STUDIES_SCROLL = "studiesScroll";
+// Reopening soon after opening a study lands where the list was left; later, at the top.
+const SCROLL_RESTORE_MAX_AGE_MS = 10 * 60 * 1000;
+const SCROLL_SAVE_DELAY_MS = 150;
+function getStudiesContainer() {
+    return document.getElementById("studies-container");
+}
+function restoreStudiesScroll() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield chrome.storage.local.get(STUDIES_SCROLL);
+        const saved = result[STUDIES_SCROLL];
+        if (typeof (saved === null || saved === void 0 ? void 0 : saved.top) !== "number" || typeof (saved === null || saved === void 0 ? void 0 : saved.at) !== "number")
+            return;
+        if (Date.now() - saved.at > SCROLL_RESTORE_MAX_AGE_MS)
+            return;
+        getStudiesContainer().scrollTop = saved.top;
+    });
+}
+// The popup is destroyed when it closes (e.g. after a click opens a study), so the
+// position is saved as the user scrolls.
+function watchStudiesScroll() {
+    const container = getStudiesContainer();
+    let saveTimer;
+    container.addEventListener("scroll", () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            void chrome.storage.local.set({ [STUDIES_SCROLL]: { top: container.scrollTop, at: Date.now() } });
+        }, SCROLL_SAVE_DELAY_MS);
+    });
+}
+// Swaps the rows in one step, keeping the scroll position. Emptying the list first
+// would let the browser clamp it to 0 while the storage read is pending.
+function replaceKeepingScroll(container, nodes) {
+    const scrollTop = container.scrollTop;
+    container.replaceChildren(...nodes);
+    container.scrollTop = scrollTop;
+}
+function showStudiesFromTop() {
+    return __awaiter(this, arguments, void 0, function* (search = "") {
+        yield populateStudies(search);
+        getStudiesContainer().scrollTop = 0;
+    });
+}
 function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("volume");
@@ -164,9 +208,12 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
-        yield setCurrentActiveTab();
-        yield setBlacklist();
+        // The saved search must be in the box before the first list is drawn.
         yield setupSearch();
+        yield setCurrentActiveTab();
+        yield restoreStudiesScroll();
+        watchStudiesScroll();
+        yield setBlacklist();
         if (counter) {
             const notifiedCount = yield setCounter(counter);
             yield setupPrompts(notifiedCount);
@@ -323,14 +370,13 @@ function populateStudies() {
             const result = yield chrome.storage.sync.get("sortStudies");
             sort = result["sortStudies"];
         }
-        const studiesContainer = document.getElementById("studies-container");
-        studiesContainer.replaceChildren();
+        const studiesContainer = getStudiesContainer();
         const result = yield chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS]);
         const savedStudies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
         openedStudyIds = (_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [];
         let currentStudies = [...savedStudies];
         if (currentStudies.length === 0) {
-            studiesContainer.append(createTextElement("p", "text-center", "No studies available."));
+            replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", "No studies available.")]);
             return;
         }
         if (search.trim() !== "") {
@@ -370,17 +416,22 @@ function populateStudies() {
                     return 0;
             }
         });
-        currentStudies.forEach((study) => {
-            studiesContainer.append(createStudyCard(study, {
-                isOpened: study.id !== null && openedStudyIds.includes(study.id),
-                onDelete: () => __awaiter(this, void 0, void 0, function* () {
-                    // Delete from everything saved, not only the studies the search shows.
-                    const remaining = savedStudies.filter((saved) => saved.id !== study.id);
-                    yield chrome.storage.local.set({ currentStudies: remaining });
-                    yield populateStudies();
-                }),
-            }));
-        });
+        const rows = currentStudies.map((study) => createStudyCard(study, {
+            isOpened: study.id !== null && openedStudyIds.includes(study.id),
+            onDelete: () => deleteStudy(study.id),
+        }));
+        replaceKeepingScroll(studiesContainer, rows);
+    });
+}
+// Deletes from everything saved, not only the studies the search shows, and reads the
+// list again first: the content script may have added studies since it was drawn.
+function deleteStudy(id) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const result = yield chrome.storage.local.get("currentStudies");
+        const saved = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        yield chrome.storage.local.set({ currentStudies: saved.filter((study) => study.id !== id) });
+        yield populateStudies();
     });
 }
 function setupSearch() {
@@ -391,11 +442,13 @@ function setupSearch() {
         searchInput.addEventListener("input", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 const searchValue = searchInput.value;
-                yield populateStudies(searchValue);
+                // Kept until the box is cleared, so it survives the popup closing after a click.
+                yield chrome.storage.local.set({ [SEARCH_STUDIES]: searchValue });
+                yield showStudiesFromTop(searchValue);
             });
         });
-        const result = yield chrome.storage.sync.get("searchStudies");
-        searchInput.value = result["searchStudies"] || "";
+        const result = yield chrome.storage.local.get(SEARCH_STUDIES);
+        searchInput.value = result[SEARCH_STUDIES] || "";
     });
 }
 function changeTab(activeTab) {
@@ -623,7 +676,7 @@ function renderPopup() {
         yield setInputState("fastModeInterval", "fastModeInterval", chrome.storage.local);
         yield setAlertState();
         yield setSelectState("selectAudio", "audio");
-        yield setSelectState("sort-studies", "sortStudies", populateStudies);
+        yield setSelectState("sort-studies", "sortStudies", () => showStudiesFromTop());
         const volume = document.getElementById("volume");
         if (volume) {
             yield setVolume(volume);
