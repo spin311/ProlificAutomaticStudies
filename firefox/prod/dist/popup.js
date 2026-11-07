@@ -113,6 +113,132 @@ function showPromptCard(name, notifiedCount, onPrimary, onDismiss) {
         yield onDismiss();
     }));
 }
+const OPENED_STUDY_IDS = "openedStudyIds";
+// Weeks of studies; the oldest drop off first.
+const OPENED_STUDY_IDS_LIMIT = 1000;
+const MIDDLE_BUTTON = 1;
+let openedStudyIds = [];
+function addOpenedStudyId(ids, id) {
+    return [...ids.filter((openedId) => openedId !== id), id].slice(-OPENED_STUDY_IDS_LIMIT);
+}
+// Starts the storage write before anything else: a left click opens a tab, and the
+// popup can close as soon as it does.
+function markStudyOpened(id, row) {
+    openedStudyIds = addOpenedStudyId(openedStudyIds, id);
+    const saved = browser.storage.local.set({ [OPENED_STUDY_IDS]: openedStudyIds });
+    row.classList.add("is-opened");
+    return saved;
+}
+// Saved ("bookmarked") studies are full copies under their own key, so trimming or
+// clearing the history never removes them.
+const BOOKMARKED_STUDIES = "bookmarkedStudies";
+const STUDIES_VIEW = "studiesView";
+function toggleBookmark(bookmarks, study) {
+    const isSaved = bookmarks.some((saved) => saved.id === study.id);
+    return isSaved ? bookmarks.filter((saved) => saved.id !== study.id) : [...bookmarks, study];
+}
+// Reads the list again first, like Delete: another popup or tab may have changed it.
+function toggleStudyBookmark(study) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const result = yield browser.storage.local.get(BOOKMARKED_STUDIES);
+        const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
+        yield browser.storage.local.set({ [BOOKMARKED_STUDIES]: toggleBookmark(bookmarks, study) });
+        yield populateStudies();
+    });
+}
+function setupStudiesView() {
+    const views = [["view-all", "all"], ["view-saved", "saved"]];
+    views.forEach(([elementId, view]) => {
+        var _a;
+        (_a = document.getElementById(elementId)) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+            yield browser.storage.local.set({ [STUDIES_VIEW]: view });
+            yield showStudiesFromTop();
+        }));
+    });
+}
+function showStudiesViewState(view, savedCount) {
+    var _a, _b;
+    (_a = document.getElementById("view-all")) === null || _a === void 0 ? void 0 : _a.setAttribute("aria-pressed", String(view === "all"));
+    (_b = document.getElementById("view-saved")) === null || _b === void 0 ? void 0 : _b.setAttribute("aria-pressed", String(view === "saved"));
+    const countElement = document.getElementById("saved-count");
+    if (countElement)
+        countElement.textContent = String(savedCount);
+}
+// The same page as the popup, opened as a tab: it can use the whole window and stays
+// open while studies are opened from it, which a popup can't do.
+const TAB_VIEW_URL = "popup/popup.html?view=tab";
+function isTabView() {
+    var _a, _b;
+    return /[?&]view=tab(&|$)/.test((_b = (_a = globalThis.location) === null || _a === void 0 ? void 0 : _a.search) !== null && _b !== void 0 ? _b : "");
+}
+function setupTabView() {
+    const openInTab = document.getElementById("openInTab");
+    if (isTabView()) {
+        document.body.classList.add("is-tab");
+        if (openInTab)
+            openInTab.hidden = true;
+        return;
+    }
+    openInTab === null || openInTab === void 0 ? void 0 : openInTab.addEventListener("click", () => browser.tabs.create({ url: browser.runtime.getURL(TAB_VIEW_URL) }));
+}
+const STUDY_LIST_KEYS = ["currentStudies", BOOKMARKED_STUDIES, OPENED_STUDY_IDS];
+function isStudiesSectionShown() {
+    var _a;
+    return ((_a = document.getElementById("studies")) === null || _a === void 0 ? void 0 : _a.style.display) === "block";
+}
+// Keeps an open popup or tab current while studies are found, saved or opened elsewhere.
+function watchStudyChanges() {
+    browser.storage.onChanged.addListener((changes, areaName) => __awaiter(this, void 0, void 0, function* () {
+        const isListChange = areaName === "local" && STUDY_LIST_KEYS.some((key) => key in changes);
+        if (isListChange && isStudiesSectionShown())
+            yield populateStudies();
+    }));
+}
+const SEARCH_STUDIES = "searchStudies";
+const STUDIES_SCROLL = "studiesScroll";
+// Reopening soon after opening a study lands where the list was left; later, at the top.
+const SCROLL_RESTORE_MAX_AGE_MS = 10 * 60 * 1000;
+const SCROLL_SAVE_DELAY_MS = 150;
+function getStudiesContainer() {
+    return document.getElementById("studies-container");
+}
+function restoreStudiesScroll() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = yield browser.storage.local.get(STUDIES_SCROLL);
+        const saved = result[STUDIES_SCROLL];
+        if (typeof (saved === null || saved === void 0 ? void 0 : saved.top) !== "number" || typeof (saved === null || saved === void 0 ? void 0 : saved.at) !== "number")
+            return;
+        if (Date.now() - saved.at > SCROLL_RESTORE_MAX_AGE_MS)
+            return;
+        getStudiesContainer().scrollTop = saved.top;
+    });
+}
+// The popup is destroyed when it closes (e.g. after a click opens a study), so the
+// position is saved as the user scrolls.
+function watchStudiesScroll() {
+    const container = getStudiesContainer();
+    let saveTimer;
+    container.addEventListener("scroll", () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            void browser.storage.local.set({ [STUDIES_SCROLL]: { top: container.scrollTop, at: Date.now() } });
+        }, SCROLL_SAVE_DELAY_MS);
+    });
+}
+// Swaps the rows in one step, keeping the scroll position. Emptying the list first
+// would let the browser clamp it to 0 while the storage read is pending.
+function replaceKeepingScroll(container, nodes) {
+    const scrollTop = container.scrollTop;
+    container.replaceChildren(...nodes);
+    container.scrollTop = scrollTop;
+}
+function showStudiesFromTop() {
+    return __awaiter(this, arguments, void 0, function* (search = "") {
+        yield populateStudies(search);
+        getStudiesContainer().scrollTop = 0;
+    });
+}
 function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield browser.storage.sync.get("volume");
@@ -145,9 +271,18 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
-        yield setCurrentActiveTab();
-        yield setBlacklist();
+        setupTabView();
+        setupStudiesView();
+        // The saved search must be in the box before the first list is drawn.
         yield setupSearch();
+        yield setCurrentActiveTab();
+        // A tab keeps its own scroll position; only the popup is rebuilt on every open.
+        if (!isTabView()) {
+            yield restoreStudiesScroll();
+            watchStudiesScroll();
+        }
+        watchStudyChanges();
+        yield setBlacklist();
         if (counter) {
             const notifiedCount = yield setCounter(counter);
             yield setupPrompts(notifiedCount);
@@ -203,25 +338,26 @@ function resetValues() {
         yield renderPopup();
     });
 }
+// New columns go last, so spreadsheets built on older exports keep working.
+const CSV_COLUMNS = [
+    "id", "title", "researcher", "reward", "rewardPerHour",
+    "time", "timeInMinutes", "createdAt", "places"
+];
+function buildStudiesCsv(studies) {
+    const rows = studies.map((study) => CSV_COLUMNS.map((column) => {
+        const value = study[column];
+        if (value === null || value === undefined)
+            return "";
+        return `"${String(value).replace(/"/g, '""')}"`;
+    }).join(","));
+    return [CSV_COLUMNS.join(","), ...rows].join("\n");
+}
 function downloadStudies() {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         const result = yield browser.storage.local.get("currentStudies");
-        const studies = result["currentStudies"];
-        const headers = [
-            "id", "title", "researcher", "reward", "rewardPerHour",
-            "time", "timeInMinutes", "createdAt"
-        ];
-        const csvRows = [headers.join(",")];
-        studies.forEach(study => {
-            const values = headers.map(header => {
-                const value = study[header];
-                if (value === null || value === undefined)
-                    return "";
-                return `"${String(value).replace(/"/g, '""')}"`;
-            });
-            csvRows.push(values.join(","));
-        });
-        const csvContent = csvRows.join("\n");
+        const studies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        const csvContent = buildStudiesCsv(studies);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -234,14 +370,11 @@ function downloadStudies() {
         URL.revokeObjectURL(url);
     });
 }
+// Day/month and time: the history only holds recent studies, so the year adds nothing.
 function formatDate(dateStr) {
     const date = new Date(dateStr);
-    const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate().toString();
-    const month = (date.getMonth() + 1) < 10 ? '0' + (date.getMonth() + 1) : (date.getMonth() + 1).toString();
-    const year = date.getFullYear();
-    const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours().toString();
-    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes().toString();
-    return `${day}/${month}/${year} ${hours}:${minutes}`;
+    const pad = (value) => (value < 10 ? `0${value}` : String(value));
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function setSelectState(elementId, storageKey, callback) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -291,13 +424,17 @@ function setCurrentActiveTab() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield browser.storage.sync.get("activeTab");
         const savedTab = result["activeTab"];
+        if (isTabView()) {
+            yield changeTab("studies");
+            return;
+        }
         // A missing or unknown tab would hide every section, leaving only the tab bar.
         yield changeTab(POPUP_TABS.includes(savedTab) ? savedTab : "settings");
     });
 }
 function populateStudies() {
     return __awaiter(this, arguments, void 0, function* (search = '', sort = "") {
-        var _a;
+        var _a, _b, _c;
         if (!search) {
             const searchInput = document.getElementById("search-studies");
             search = searchInput.value;
@@ -306,13 +443,18 @@ function populateStudies() {
             const result = yield browser.storage.sync.get("sortStudies");
             sort = result["sortStudies"];
         }
-        const studiesContainer = document.getElementById("studies-container");
-        studiesContainer.replaceChildren();
-        const result = yield browser.storage.local.get("currentStudies");
-        const savedStudies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
-        let currentStudies = [...savedStudies];
+        const studiesContainer = getStudiesContainer();
+        const result = yield browser.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW]);
+        const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
+        const view = result[STUDIES_VIEW] === "saved" ? "saved" : "all";
+        openedStudyIds = (_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [];
+        showStudiesViewState(view, bookmarks.length);
+        let currentStudies = view === "saved" ? [...bookmarks] : [...((_c = result["currentStudies"]) !== null && _c !== void 0 ? _c : [])];
         if (currentStudies.length === 0) {
-            studiesContainer.append(createTextElement("p", "text-center", "No studies available."));
+            const message = view === "saved"
+                ? "No saved studies yet. Click ☆ on a study to keep it here."
+                : "No studies available.";
+            replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", message)]);
             return;
         }
         if (search.trim() !== "") {
@@ -352,14 +494,26 @@ function populateStudies() {
                     return 0;
             }
         });
-        currentStudies.forEach((study) => {
-            studiesContainer.append(createStudyCard(study, () => __awaiter(this, void 0, void 0, function* () {
-                // Delete from everything saved, not only the studies the search shows.
-                const remaining = savedStudies.filter((saved) => saved.id !== study.id);
-                yield browser.storage.local.set({ currentStudies: remaining });
-                yield populateStudies();
-            })));
-        });
+        const bookmarkedIds = new Set(bookmarks.map((saved) => saved.id));
+        const rows = currentStudies.map((study) => createStudyCard(study, {
+            isOpened: study.id !== null && openedStudyIds.includes(study.id),
+            isSaved: bookmarkedIds.has(study.id),
+            onToggleSaved: () => toggleStudyBookmark(study),
+            // In Saved, the star is the way to remove a study.
+            onDelete: view === "all" ? () => deleteStudy(study.id) : null,
+        }));
+        replaceKeepingScroll(studiesContainer, rows);
+    });
+}
+// Deletes from everything saved, not only the studies the search shows, and reads the
+// list again first: the content script may have added studies since it was drawn.
+function deleteStudy(id) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const result = yield browser.storage.local.get("currentStudies");
+        const saved = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        yield browser.storage.local.set({ currentStudies: saved.filter((study) => study.id !== id) });
+        yield populateStudies();
     });
 }
 function setupSearch() {
@@ -370,11 +524,13 @@ function setupSearch() {
         searchInput.addEventListener("input", function () {
             return __awaiter(this, void 0, void 0, function* () {
                 const searchValue = searchInput.value;
-                yield populateStudies(searchValue);
+                // Kept until the box is cleared, so it survives the popup closing after a click.
+                yield browser.storage.local.set({ [SEARCH_STUDIES]: searchValue });
+                yield showStudiesFromTop(searchValue);
             });
         });
-        const result = yield browser.storage.sync.get("searchStudies");
-        searchInput.value = result["searchStudies"] || "";
+        const result = yield browser.storage.local.get(SEARCH_STUDIES);
+        searchInput.value = result[SEARCH_STUDIES] || "";
     });
 }
 function changeTab(activeTab) {
@@ -602,7 +758,7 @@ function renderPopup() {
         yield setInputState("fastModeInterval", "fastModeInterval", browser.storage.local);
         yield setAlertState();
         yield setSelectState("selectAudio", "audio");
-        yield setSelectState("sort-studies", "sortStudies", populateStudies);
+        yield setSelectState("sort-studies", "sortStudies", () => showStudiesFromTop());
         const volume = document.getElementById("volume");
         if (volume) {
             yield setVolume(volume);
@@ -617,43 +773,77 @@ function createTextElement(tagName, className, text) {
     element.textContent = text;
     return element;
 }
-function createLabeledText(className, label, value) {
-    const element = document.createElement("div");
-    element.className = className;
-    const labelElement = document.createElement("strong");
-    labelElement.textContent = label;
-    element.append(labelElement, ` ${value}`);
-    return element;
-}
-function createStudyCard(study, onDelete) {
+function getStudyUrl(study) {
     var _a;
-    const header = document.createElement("div");
-    header.className = "study-header";
-    const image = document.createElement("img");
-    image.src = "/imgs/logo.png";
-    image.alt = "";
-    image.className = "study-img";
-    header.append(image, createTextElement("div", "study-title", study.title || "Untitled"));
-    const openLink = document.createElement("a");
-    openLink.className = "btn btn-success open-btn normal-link";
-    openLink.href = `https://app.prolific.com/studies/${encodeURIComponent((_a = study.id) !== null && _a !== void 0 ? _a : "")}`;
-    openLink.target = "_blank";
-    openLink.rel = "noopener noreferrer";
-    openLink.textContent = "Open";
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "btn delete-btn";
+    return `https://app.prolific.com/studies/${encodeURIComponent((_a = study.id) !== null && _a !== void 0 ? _a : "")}`;
+}
+// A real link, so right-click > Copy link and middle-click work on it.
+function createStudyLink(study, className, text) {
+    const link = document.createElement("a");
+    link.className = className;
+    link.href = getStudyUrl(study);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = text;
+    return link;
+}
+function getStudyMeta(study) {
+    const rewardPerHour = study.rewardPerHour ? `${study.rewardPerHour}/hr` : null;
+    return [study.reward, rewardPerHour, study.time, study.places].filter(Boolean).join(" · ");
+}
+function watchStudyOpened(link, study, row) {
+    const id = study.id;
+    if (!id)
+        return;
+    link.addEventListener("click", () => markStudyOpened(id, row));
+    link.addEventListener("auxclick", (event) => {
+        if (event.button === MIDDLE_BUTTON)
+            return markStudyOpened(id, row);
+    });
+}
+function createSaveButton(study, options) {
+    const name = study.title || "study";
+    const button = document.createElement("button");
+    button.className = "icon-btn save-btn";
+    button.textContent = options.isSaved ? "★" : "☆";
+    button.title = options.isSaved ? "Remove from saved" : "Save for later";
+    button.setAttribute("aria-pressed", String(options.isSaved));
+    button.setAttribute("aria-label", `Save ${name}`);
+    button.addEventListener("click", options.onToggleSaved);
+    return button;
+}
+function createDeleteButton(study, onDelete) {
+    const button = document.createElement("button");
+    button.className = "icon-btn delete-btn";
+    button.title = "Delete";
+    button.setAttribute("aria-label", `Delete ${study.title || "study"}`);
     const trashIcon = document.createElement("img");
     trashIcon.src = "/svgs/trash.svg";
     trashIcon.alt = "";
-    deleteButton.append(trashIcon, " Delete");
-    deleteButton.addEventListener("click", onDelete);
-    const info = document.createElement("div");
-    info.className = "study-info";
-    info.append(header, createTextElement("div", "study-researcher", study.researcher || "Unknown"), createLabeledText("study-reward", "Pay:", study.reward || "N/A"), createTextElement("div", "study-reward-hour", `${study.rewardPerHour || "N/A"} /hr`), createLabeledText("study-time", "Time:", study.time || "N/A"), createTextElement("div", "study-created-at", study.createdAt ? formatDate(study.createdAt) : "N/A"), openLink, deleteButton);
-    const card = document.createElement("div");
-    card.className = "study-card";
-    card.append(info);
-    return card;
+    button.append(trashIcon);
+    button.addEventListener("click", onDelete);
+    return button;
+}
+function createStudyCard(study, options) {
+    const row = document.createElement("div");
+    row.className = options.isOpened ? "study-card is-opened" : "study-card";
+    const title = createStudyLink(study, "study-title", study.title || "Untitled");
+    title.title = study.title || "";
+    const openLink = createStudyLink(study, "btn open-btn normal-link", "↗");
+    openLink.title = "Open in a new tab";
+    openLink.setAttribute("aria-label", `Open ${study.title || "study"} in a new tab`);
+    watchStudyOpened(title, study, row);
+    watchStudyOpened(openLink, study, row);
+    const details = document.createElement("div");
+    details.className = "study-sub";
+    details.append(createTextElement("span", "study-researcher", study.researcher || "Unknown"), createTextElement("span", "study-created-at", study.createdAt ? formatDate(study.createdAt) : ""));
+    const actions = document.createElement("div");
+    actions.className = "study-actions";
+    actions.append(openLink, createSaveButton(study, options));
+    if (options.onDelete)
+        actions.append(createDeleteButton(study, options.onDelete));
+    row.append(title, createTextElement("div", "study-meta", getStudyMeta(study)), details, actions);
+    return row;
 }
 function createBlacklistChip(item, onRemove) {
     const chip = document.createElement("div");
