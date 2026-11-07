@@ -80,7 +80,7 @@ const BUILDS = ["chrome", "firefox"];
 
 for (const build of BUILDS) {
     describe(build, () => {
-        function openPopup({ local = {}, sync = {}, extensionId } = {}) {
+        function openPopup({ local = {}, sync = {}, extensionId, search = "" } = {}) {
             const storage = createStorage({ local, sync });
             const { chrome, calls } = createChrome({ storage });
             if (extensionId) chrome.runtime.id = extensionId;
@@ -98,6 +98,7 @@ for (const build of BUILDS) {
                 "view-all": new FakeElement("button"),
                 "view-saved": new FakeElement("button"),
                 "saved-count": new FakeElement("span"),
+                openInTab: new FakeElement("button"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
                 "researcher-list": new FakeElement("div"),
@@ -107,11 +108,14 @@ for (const build of BUILDS) {
                 elements[`${tab}-tab`] = new FakeElement("li");
             }
             const document = {
+                body: new FakeElement("body"),
                 addEventListener() {},
                 createElement: (tagName) => new FakeElement(tagName),
                 getElementById: (id) => elements[id] ?? null,
             };
-            const popup = loadScripts([dist(build, "popup.js")], { chrome, globals: { document } });
+            const location = { search };
+            const popup = loadScripts([dist(build, "popup.js")], { chrome, globals: { document, location } });
+            elements.body = document.body;
             return { popup, elements, storage, calls };
         }
 
@@ -542,6 +546,79 @@ for (const build of BUILDS) {
                 // Assert
                 assert.deepEqual(ids(storage.local.data.currentStudies), []);
                 assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["a1"]);
+            });
+        });
+
+        describe("tab view", () => {
+            const titles = (elements) => findAll(elements["studies-container"], "study-title").map((t) => t.textContent);
+
+            test("Open in tab opens the popup page as a tab", async () => {
+                // Arrange
+                const { popup, elements, calls } = openPopup();
+                popup.setupTabView();
+
+                // Act
+                await elements.openInTab.listeners.click();
+
+                // Assert
+                assert.deepEqual(calls.createdTabs, [{ url: "chrome-extension://test-extension/popup/popup.html?view=tab" }]);
+            });
+
+            test("as a tab it fills the page, hides Open in tab and opens on Studies", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ search: "?view=tab", sync: { activeTab: "settings" } });
+
+                // Act
+                popup.setupTabView();
+                await popup.setCurrentActiveTab();
+
+                // Assert
+                assert.ok(elements.body.classList.contains("is-tab"));
+                assert.equal(elements.openInTab.hidden, true);
+                assert.equal(elements.studies.style.display, "block");
+            });
+
+            test("as a popup it keeps its size and the last used section", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ sync: { activeTab: "settings" } });
+
+                // Act
+                popup.setupTabView();
+                await popup.setCurrentActiveTab();
+
+                // Assert
+                assert.equal(elements.body.classList.contains("is-tab"), false);
+                assert.notEqual(elements.openInTab.hidden, true);
+                assert.equal(elements.settings.style.display, "block");
+            });
+
+            test("redraws the list when studies change, keeping the scroll position", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.watchStudyChanges();
+                await popup.changeTab("studies");
+                elements["studies-container"].scrollTop = 200;
+
+                // Act
+                await storage.local.set({ currentStudies: [study("a1", "One"), study("b2", "Two")] });
+
+                // Assert
+                assert.deepEqual(titles(elements), ["One", "Two"]);
+                assert.equal(elements["studies-container"].scrollTop, 200);
+            });
+
+            test("does not redraw the list while another section is shown", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.watchStudyChanges();
+                await popup.changeTab("studies");
+                await popup.changeTab("settings");
+
+                // Act
+                await storage.local.set({ currentStudies: [study("b2", "Two")] });
+
+                // Assert
+                assert.deepEqual(titles(elements), ["One"]);
             });
         });
 

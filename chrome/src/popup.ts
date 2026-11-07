@@ -170,6 +170,38 @@ function showStudiesViewState(view: StudiesView, savedCount: number): void {
     if (countElement) countElement.textContent = String(savedCount);
 }
 
+// The same page as the popup, opened as a tab: it can use the whole window and stays
+// open while studies are opened from it, which a popup can't do.
+const TAB_VIEW_URL = "popup/popup.html?view=tab";
+
+function isTabView(): boolean {
+    return /[?&]view=tab(&|$)/.test(globalThis.location?.search ?? "");
+}
+
+function setupTabView(): void {
+    const openInTab = document.getElementById("openInTab");
+    if (isTabView()) {
+        document.body.classList.add("is-tab");
+        if (openInTab) openInTab.hidden = true;
+        return;
+    }
+    openInTab?.addEventListener("click", () => chrome.tabs.create({url: chrome.runtime.getURL(TAB_VIEW_URL)}));
+}
+
+const STUDY_LIST_KEYS = ["currentStudies", BOOKMARKED_STUDIES, OPENED_STUDY_IDS];
+
+function isStudiesSectionShown(): boolean {
+    return document.getElementById("studies")?.style.display === "block";
+}
+
+// Keeps an open popup or tab current while studies are found, saved or opened elsewhere.
+function watchStudyChanges(): void {
+    chrome.storage.onChanged.addListener(async (changes, areaName) => {
+        const isListChange = areaName === "local" && STUDY_LIST_KEYS.some((key) => key in changes);
+        if (isListChange && isStudiesSectionShown()) await populateStudies();
+    });
+}
+
 const SEARCH_STUDIES = "searchStudies";
 const STUDIES_SCROLL = "studiesScroll";
 // Reopening soon after opening a study lands where the list was left; later, at the top.
@@ -246,12 +278,17 @@ document.addEventListener('DOMContentLoaded', async function () {
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
     setTabState("studies-tab", "studies");
+    setupTabView();
     setupStudiesView();
     // The saved search must be in the box before the first list is drawn.
     await setupSearch();
     await setCurrentActiveTab();
-    await restoreStudiesScroll();
-    watchStudiesScroll();
+    // A tab keeps its own scroll position; only the popup is rebuilt on every open.
+    if (!isTabView()) {
+        await restoreStudiesScroll();
+        watchStudiesScroll();
+    }
+    watchStudyChanges();
     await setBlacklist();
 
     if(counter) {
@@ -398,6 +435,10 @@ const POPUP_TABS = ["settings", "studies", "filters"];
 async function setCurrentActiveTab(): Promise<void> {
     const result = await chrome.storage.sync.get("activeTab");
     const savedTab = result["activeTab"];
+    if (isTabView()) {
+        await changeTab("studies");
+        return;
+    }
     // A missing or unknown tab would hide every section, leaving only the tab bar.
     await changeTab(POPUP_TABS.includes(savedTab) ? savedTab : "settings");
 }

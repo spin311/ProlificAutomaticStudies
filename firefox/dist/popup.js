@@ -165,6 +165,36 @@ function showStudiesViewState(view, savedCount) {
     if (countElement)
         countElement.textContent = String(savedCount);
 }
+// The same page as the popup, opened as a tab: it can use the whole window and stays
+// open while studies are opened from it, which a popup can't do.
+const TAB_VIEW_URL = "popup/popup.html?view=tab";
+function isTabView() {
+    var _a, _b;
+    return /[?&]view=tab(&|$)/.test((_b = (_a = globalThis.location) === null || _a === void 0 ? void 0 : _a.search) !== null && _b !== void 0 ? _b : "");
+}
+function setupTabView() {
+    const openInTab = document.getElementById("openInTab");
+    if (isTabView()) {
+        document.body.classList.add("is-tab");
+        if (openInTab)
+            openInTab.hidden = true;
+        return;
+    }
+    openInTab === null || openInTab === void 0 ? void 0 : openInTab.addEventListener("click", () => browser.tabs.create({ url: browser.runtime.getURL(TAB_VIEW_URL) }));
+}
+const STUDY_LIST_KEYS = ["currentStudies", BOOKMARKED_STUDIES, OPENED_STUDY_IDS];
+function isStudiesSectionShown() {
+    var _a;
+    return ((_a = document.getElementById("studies")) === null || _a === void 0 ? void 0 : _a.style.display) === "block";
+}
+// Keeps an open popup or tab current while studies are found, saved or opened elsewhere.
+function watchStudyChanges() {
+    browser.storage.onChanged.addListener((changes, areaName) => __awaiter(this, void 0, void 0, function* () {
+        const isListChange = areaName === "local" && STUDY_LIST_KEYS.some((key) => key in changes);
+        if (isListChange && isStudiesSectionShown())
+            yield populateStudies();
+    }));
+}
 const SEARCH_STUDIES = "searchStudies";
 const STUDIES_SCROLL = "studiesScroll";
 // Reopening soon after opening a study lands where the list was left; later, at the top.
@@ -241,12 +271,17 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
+        setupTabView();
         setupStudiesView();
         // The saved search must be in the box before the first list is drawn.
         yield setupSearch();
         yield setCurrentActiveTab();
-        yield restoreStudiesScroll();
-        watchStudiesScroll();
+        // A tab keeps its own scroll position; only the popup is rebuilt on every open.
+        if (!isTabView()) {
+            yield restoreStudiesScroll();
+            watchStudiesScroll();
+        }
+        watchStudyChanges();
         yield setBlacklist();
         if (counter) {
             const notifiedCount = yield setCounter(counter);
@@ -389,6 +424,10 @@ function setCurrentActiveTab() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield browser.storage.sync.get("activeTab");
         const savedTab = result["activeTab"];
+        if (isTabView()) {
+            yield changeTab("studies");
+            return;
+        }
         // A missing or unknown tab would hide every section, leaving only the tab bar.
         yield changeTab(POPUP_TABS.includes(savedTab) ? savedTab : "settings");
     });
