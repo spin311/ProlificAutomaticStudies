@@ -15,11 +15,30 @@
     <!-- metadata_source shows up in GitHub Sponsors exports, so sponsorships that start
          in this popup can be told apart from the README and website ones. -->
     <a href="https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-popup"
-       class="normal-link sponsor-button" target="_blank" rel="noopener noreferrer"
+       id="sponsorButton" class="normal-link sponsor-button" target="_blank" rel="noopener noreferrer"
        title="Sponsor from $5/month and get your name in the README">
         <span class="sponsor-heart" aria-hidden="true">&hearts;</span> Sponsor
     </a>
 </header>
+
+<section id="reviewPrompt" class="review-card" aria-labelledby="reviewPromptTitle" hidden>
+    <h2 id="reviewPromptTitle">Enjoying Prolific Studies Notifier?</h2>
+    <p>It has alerted you to <span id="reviewPromptCount">0</span> studies. A quick rating helps other participants find it.</p>
+    <div class="review-actions">
+        <button id="reviewRate" type="button" class="btn">Rate it</button>
+        <button id="reviewDismiss" type="button" class="btn btn-quiet review-dismiss">Not now</button>
+    </div>
+    <a class="review-report" href="https://github.com/spin311/ProlificAutomaticStudies/issues/new" target="_blank" rel="noopener noreferrer">Something not working? Report it</a>
+</section>
+
+<section id="sponsorPrompt" class="review-card" aria-labelledby="sponsorPromptTitle" hidden>
+    <h2 id="sponsorPromptTitle">It has alerted you to <span id="sponsorPromptCount">0</span> studies</h2>
+    <p>Prolific Studies Notifier is free and built in my spare time. If it's helped you catch paid studies, sponsoring on GitHub (monthly from $2, or one-time) keeps it working when Prolific changes.</p>
+    <div class="review-actions">
+        <button id="sponsorStart" type="button" class="btn">Sponsor on GitHub</button>
+        <button id="sponsorDismiss" type="button" class="btn btn-quiet review-dismiss">Not now</button>
+    </div>
+</section>
 
 <nav class="tabs" aria-label="Sections">
     <ul>
@@ -186,6 +205,10 @@
     <a href="https://svitspindler.com/contact" target="_blank" rel="noopener noreferrer">Contact</a>
     <a href="https://svitspindler.com/donate" target="_blank" rel="noopener noreferrer" id="donateText">Donate</a>
 </footer>
+
+<p class="app-promo">More free tools by the same developer:
+    <a href="https://addons.mozilla.org/firefox/addon/free-game-claime-steam-epic/?utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo" target="_blank" rel="noopener noreferrer">Free Game Claimer &mdash; free games from Epic, Steam, GOG &amp; Prime</a>
+</p>
 
 <script src="../dist/popup.js"></script>
 </body>

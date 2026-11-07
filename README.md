@@ -5,6 +5,11 @@ Welcome Prolific Studies Notifier! <img src="imgs/logo.png" alt="icon" height="3
 Get notified when new studies are available on [Prolific](https://app.prolific.com/).
 Extension works by notifying when Prolific tab title changes, so [Prolific](https://app.prolific.com/) tab must be opened for the extension to work.
 
+## Download
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/prolific-studies-notifier/mlicfddkgjkeajfgkihplfbgpmbonbao?utm_source=ProlificAutomaticStudies-readme)
+- [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/prolific-studies-notifier/?utm_source=ProlificAutomaticStudies-readme)
+
 If you like the extension, please give it a star on GitHub! <img src="docs/imgs/github-star.png" alt="icon" height="32">
 
 ## Support Our Efforts
@@ -37,6 +42,10 @@ For notifications to work, you must enable them on your browser AND on your syst
 
 ![Pin extension](docs/imgs/pin.png)
 Make sure to pin the extension.
+
+## License
+
+PolyForm Noncommercial License 1.0.0 (see [LICENSE](LICENSE)): you're free to use, modify and share it for non-commercial purposes, but not to sell it or use it commercially.
 
 ## Contact
 

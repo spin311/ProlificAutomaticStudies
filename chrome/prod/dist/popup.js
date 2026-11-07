@@ -8,6 +8,114 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+const REVIEW_PROMPT_KEY = "reviewPrompt";
+const REVIEW_PROMPT_ANSWERED_AT_KEY = "reviewPromptAnsweredAt";
+const REVIEW_PROMPT_MIN_STUDIES = 10;
+const SPONSOR_PROMPT_KEY = "sponsorPrompt";
+const SPONSOR_PROMPT_MIN_STUDIES = 100;
+const SPONSOR_PROMPT_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+const SPONSOR_MILESTONE_URL = "https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-milestone";
+// Store review pages. Chrome: only the Web Store build gets the prompt, so unpacked
+// dev builds and other listings (e.g. Edge Add-ons) never point at the wrong store.
+const CHROME_STORE_EXTENSION_ID = "mlicfddkgjkeajfgkihplfbgpmbonbao";
+const CHROME_REVIEW_URL = `https://chromewebstore.google.com/detail/prolific-studies-notifier/${CHROME_STORE_EXTENSION_ID}/reviews`;
+function getReviewUrl(extensionId) {
+    return extensionId === CHROME_STORE_EXTENSION_ID ? CHROME_REVIEW_URL : null;
+}
+// Ask once: any stored answer ('rated' or 'dismissed') hides the card for good.
+function shouldShowReviewPrompt(notifiedCount, answer, reviewUrl) {
+    if (reviewUrl === null || answer === "rated" || answer === "dismissed")
+        return false;
+    return typeof notifiedCount === "number" && notifiedCount >= REVIEW_PROMPT_MIN_STUDIES;
+}
+// The sponsor ask comes after the review ask is settled: either there is no review
+// card for this build, or it was answered at least a week ago.
+function shouldShowSponsorPrompt(state) {
+    const { notifiedCount, reviewUrl, reviewAnswer, reviewAnsweredAt, sponsorAnswer, now } = state;
+    if (sponsorAnswer === "clicked" || sponsorAnswer === "dismissed")
+        return false;
+    if (typeof notifiedCount !== "number" || notifiedCount < SPONSOR_PROMPT_MIN_STUDIES)
+        return false;
+    if (reviewUrl === null)
+        return true;
+    const isReviewAnswered = reviewAnswer === "rated" || reviewAnswer === "dismissed";
+    return isReviewAnswered && typeof reviewAnsweredAt === "number" && now - reviewAnsweredAt >= SPONSOR_PROMPT_DELAY_MS;
+}
+// At most one card, so the popup never asks twice at once.
+function getDuePrompt(state) {
+    if (shouldShowReviewPrompt(state.notifiedCount, state.reviewAnswer, state.reviewUrl))
+        return "review";
+    return shouldShowSponsorPrompt(state) ? "sponsor" : null;
+}
+function setupPrompts(notifiedCount) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // The prompts are optional: a failing storage read must not stop the rest of the popup.
+        try {
+            yield showDuePrompt(notifiedCount);
+        }
+        catch (error) {
+            console.error("Could not set up the review and sponsor prompts", error);
+        }
+    });
+}
+function showDuePrompt(notifiedCount) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const reviewUrl = getReviewUrl(chrome.runtime.id);
+        const stored = yield chrome.storage.sync.get([REVIEW_PROMPT_KEY, REVIEW_PROMPT_ANSWERED_AT_KEY, SPONSOR_PROMPT_KEY]);
+        // Decided once, at popup load, so answering one card never brings up the other.
+        const due = getDuePrompt({
+            notifiedCount,
+            reviewUrl,
+            reviewAnswer: stored[REVIEW_PROMPT_KEY],
+            reviewAnsweredAt: stored[REVIEW_PROMPT_ANSWERED_AT_KEY],
+            sponsorAnswer: stored[SPONSOR_PROMPT_KEY],
+            now: Date.now(),
+        });
+        if (due === "review" && reviewUrl !== null) {
+            const answerReview = (value) => chrome.storage.sync.set({ [REVIEW_PROMPT_KEY]: value, [REVIEW_PROMPT_ANSWERED_AT_KEY]: Date.now() });
+            showPromptCard("review", notifiedCount, () => __awaiter(this, void 0, void 0, function* () {
+                // Store the answer first: the popup can close as soon as the tab opens.
+                yield answerReview("rated");
+                yield chrome.tabs.create({ url: reviewUrl, active: true });
+            }), () => answerReview("dismissed"));
+        }
+        else if (due === "sponsor") {
+            showPromptCard("sponsor", notifiedCount, () => __awaiter(this, void 0, void 0, function* () {
+                yield chrome.storage.sync.set({ [SPONSOR_PROMPT_KEY]: "clicked" });
+                yield chrome.tabs.create({ url: SPONSOR_MILESTONE_URL, active: true });
+            }), () => chrome.storage.sync.set({ [SPONSOR_PROMPT_KEY]: "dismissed" }));
+        }
+    });
+}
+// Shows one prompt card (element ids are "<name>Prompt", "<name>Start" or "reviewRate", ...)
+// and hides the header Sponsor button meanwhile: one ask at a time.
+function showPromptCard(name, notifiedCount, onPrimary, onDismiss) {
+    const card = document.getElementById(`${name}Prompt`);
+    const primary = document.getElementById(name === "review" ? "reviewRate" : "sponsorStart");
+    const dismiss = document.getElementById(name === "review" ? "reviewDismiss" : "sponsorDismiss");
+    if (!card || !primary || !dismiss)
+        return;
+    const countElement = document.getElementById(`${name}PromptCount`);
+    if (countElement)
+        countElement.textContent = String(notifiedCount);
+    const sponsorButton = document.getElementById("sponsorButton");
+    card.hidden = false;
+    if (sponsorButton)
+        sponsorButton.hidden = true;
+    const close = () => {
+        card.hidden = true;
+        if (sponsorButton)
+            sponsorButton.hidden = false;
+    };
+    primary.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+        close();
+        yield onPrimary();
+    }));
+    dismiss.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+        close();
+        yield onDismiss();
+    }));
+}
 function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("volume");
@@ -44,7 +152,8 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setBlacklist();
         yield setupSearch();
         if (counter) {
-            yield setCounter(counter);
+            const notifiedCount = yield setCounter(counter);
+            yield setupPrompts(notifiedCount);
         }
         if (playAudio) {
             playAudio.addEventListener("click", playAlert);
@@ -67,6 +176,7 @@ function setCounter(counter) {
         if (count !== undefined) {
             counter.innerText = count.toString();
         }
+        return typeof count === "number" ? count : 0;
     });
 }
 function playAlert() {

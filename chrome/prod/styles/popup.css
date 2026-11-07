@@ -21,6 +21,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     width: 360px;
     margin: 0;
@@ -593,6 +597,49 @@ input[type="range"] {
     color: var(--ink);
 }
 
+/* ---------- Review prompt ---------- */
+
+.review-card {
+    margin: 10px 12px 0;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.review-card h2 {
+    margin: 0 0 2px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand-dark);
+}
+
+.review-card p {
+    margin: 0 0 8px;
+    color: var(--muted);
+}
+
+.review-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.review-actions .btn {
+    flex: 1;
+    margin: 0;
+}
+
+.review-report {
+    display: inline-block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.review-report:hover {
+    color: var(--brand-dark);
+}
+
 /* ---------- Footer ---------- */
 
 .app-footer {
@@ -600,7 +647,7 @@ input[type="range"] {
     flex-wrap: wrap;
     justify-content: center;
     gap: 4px 11px;
-    padding: 4px 12px 10px;
+    padding: 2px 12px 2px;
 }
 
 .app-footer a {
@@ -612,6 +659,23 @@ input[type="range"] {
 .app-footer a:hover {
     color: var(--brand-dark);
     text-decoration: underline;
+}
+
+.app-promo {
+    margin: 0;
+    padding: 0 14px 4px;
+    color: var(--muted);
+    font-size: 11px;
+    text-align: center;
+}
+
+.app-promo a {
+    color: var(--muted);
+    text-decoration: underline;
+}
+
+.app-promo a:hover {
+    color: var(--brand-dark);
 }
 
 @media (prefers-reduced-motion: reduce) {

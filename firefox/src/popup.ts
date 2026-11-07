@@ -1,3 +1,117 @@
+const REVIEW_PROMPT_KEY = "reviewPrompt";
+const REVIEW_PROMPT_ANSWERED_AT_KEY = "reviewPromptAnsweredAt";
+const REVIEW_PROMPT_MIN_STUDIES = 10;
+const SPONSOR_PROMPT_KEY = "sponsorPrompt";
+const SPONSOR_PROMPT_MIN_STUDIES = 100;
+const SPONSOR_PROMPT_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
+const SPONSOR_MILESTONE_URL = "https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-milestone";
+
+const FIREFOX_REVIEW_URL = "https://addons.mozilla.org/firefox/addon/prolific-studies-notifier/reviews/";
+
+function getReviewUrl(): string {
+    return FIREFOX_REVIEW_URL;
+}
+
+// Ask once: any stored answer ('rated' or 'dismissed') hides the card for good.
+function shouldShowReviewPrompt(notifiedCount: unknown, answer: unknown, reviewUrl: string | null): boolean {
+    if (reviewUrl === null || answer === "rated" || answer === "dismissed") return false;
+    return typeof notifiedCount === "number" && notifiedCount >= REVIEW_PROMPT_MIN_STUDIES;
+}
+
+type DuePrompt = "review" | "sponsor" | null;
+
+interface PromptState {
+    notifiedCount: unknown;
+    reviewUrl: string | null;
+    reviewAnswer: unknown;
+    reviewAnsweredAt: unknown;
+    sponsorAnswer: unknown;
+    now: number;
+}
+
+// The sponsor ask comes after the review ask is settled: either there is no review
+// card for this build, or it was answered at least a week ago.
+function shouldShowSponsorPrompt(state: PromptState): boolean {
+    const {notifiedCount, reviewUrl, reviewAnswer, reviewAnsweredAt, sponsorAnswer, now} = state;
+    if (sponsorAnswer === "clicked" || sponsorAnswer === "dismissed") return false;
+    if (typeof notifiedCount !== "number" || notifiedCount < SPONSOR_PROMPT_MIN_STUDIES) return false;
+    if (reviewUrl === null) return true;
+    const isReviewAnswered = reviewAnswer === "rated" || reviewAnswer === "dismissed";
+    return isReviewAnswered && typeof reviewAnsweredAt === "number" && now - reviewAnsweredAt >= SPONSOR_PROMPT_DELAY_MS;
+}
+
+// At most one card, so the popup never asks twice at once.
+function getDuePrompt(state: PromptState): DuePrompt {
+    if (shouldShowReviewPrompt(state.notifiedCount, state.reviewAnswer, state.reviewUrl)) return "review";
+    return shouldShowSponsorPrompt(state) ? "sponsor" : null;
+}
+
+async function setupPrompts(notifiedCount: number): Promise<void> {
+    // The prompts are optional: a failing storage read must not stop the rest of the popup.
+    try {
+        await showDuePrompt(notifiedCount);
+    } catch (error) {
+        console.error("Could not set up the review and sponsor prompts", error);
+    }
+}
+
+async function showDuePrompt(notifiedCount: number): Promise<void> {
+    const reviewUrl = getReviewUrl();
+    const stored = await browser.storage.sync.get([REVIEW_PROMPT_KEY, REVIEW_PROMPT_ANSWERED_AT_KEY, SPONSOR_PROMPT_KEY]);
+    // Decided once, at popup load, so answering one card never brings up the other.
+    const due = getDuePrompt({
+        notifiedCount,
+        reviewUrl,
+        reviewAnswer: stored[REVIEW_PROMPT_KEY],
+        reviewAnsweredAt: stored[REVIEW_PROMPT_ANSWERED_AT_KEY],
+        sponsorAnswer: stored[SPONSOR_PROMPT_KEY],
+        now: Date.now(),
+    });
+    if (due === "review" && reviewUrl !== null) {
+        const answerReview = (value: "rated" | "dismissed") =>
+            browser.storage.sync.set({[REVIEW_PROMPT_KEY]: value, [REVIEW_PROMPT_ANSWERED_AT_KEY]: Date.now()});
+        showPromptCard("review", notifiedCount, async () => {
+            // Store the answer first: the popup can close as soon as the tab opens.
+            await answerReview("rated");
+            await browser.tabs.create({url: reviewUrl, active: true});
+        }, () => answerReview("dismissed"));
+    } else if (due === "sponsor") {
+        showPromptCard("sponsor", notifiedCount, async () => {
+            await browser.storage.sync.set({[SPONSOR_PROMPT_KEY]: "clicked"});
+            await browser.tabs.create({url: SPONSOR_MILESTONE_URL, active: true});
+        }, () => browser.storage.sync.set({[SPONSOR_PROMPT_KEY]: "dismissed"}));
+    }
+}
+
+// Shows one prompt card (element ids are "<name>Prompt", "<name>Start" or "reviewRate", ...)
+// and hides the header Sponsor button meanwhile: one ask at a time.
+function showPromptCard(name: "review" | "sponsor", notifiedCount: number,
+                        onPrimary: () => Promise<unknown>, onDismiss: () => Promise<unknown>): void {
+    const card = document.getElementById(`${name}Prompt`);
+    const primary = document.getElementById(name === "review" ? "reviewRate" : "sponsorStart");
+    const dismiss = document.getElementById(name === "review" ? "reviewDismiss" : "sponsorDismiss");
+    if (!card || !primary || !dismiss) return;
+
+    const countElement = document.getElementById(`${name}PromptCount`);
+    if (countElement) countElement.textContent = String(notifiedCount);
+    const sponsorButton = document.getElementById("sponsorButton");
+    card.hidden = false;
+    if (sponsorButton) sponsorButton.hidden = true;
+
+    const close = (): void => {
+        card.hidden = true;
+        if (sponsorButton) sponsorButton.hidden = false;
+    };
+    primary.addEventListener("click", async (): Promise<void> => {
+        close();
+        await onPrimary();
+    });
+    dismiss.addEventListener("click", async (): Promise<void> => {
+        close();
+        await onDismiss();
+    });
+}
+
 async function setVolume(volume: HTMLInputElement) {
     const result = await browser.storage.sync.get("volume");
     const vol = result["volume"];
@@ -36,7 +150,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setupSearch();
 
     if(counter) {
-        await setCounter(counter);
+        const notifiedCount = await setCounter(counter);
+        await setupPrompts(notifiedCount);
     }
 
     if(playAudio) {
@@ -57,12 +172,13 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 });
 
-async function setCounter(counter: HTMLSpanElement): Promise<void> {
+async function setCounter(counter: HTMLSpanElement): Promise<number> {
     const result = await browser.storage.sync.get("counter");
     const count = result["counter"];
     if (count !== undefined) {
         counter.innerText = count.toString();
     }
+    return typeof count === "number" ? count : 0;
 }
 
 async function playAlert(): Promise<void> {
