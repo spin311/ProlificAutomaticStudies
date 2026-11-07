@@ -135,6 +135,22 @@ for (const build of BUILDS) {
             assert.equal(storage.sync.data.counter, 2);
         });
 
+        test("alerts once when Tab title is chosen again while it is already on", async () => {
+            // Arrange: set up at startup, then the popup's Tab title button is clicked twice
+            const { chrome, calls, storage } = loadBackground({ sync: TITLE_MODE });
+            await settle();
+            const chooseTitleMode = { target: "background", type: "change-alert-type", data: "title" };
+            await chrome.runtime.onMessage.fire(chooseTitleMode, {});
+            await chrome.runtime.onMessage.fire(chooseTitleMode, {});
+
+            // Act
+            await chrome.tabs.onUpdated.fireConcurrently(1, { title: "(2) Prolific" }, prolificTab("(2) Prolific"));
+
+            // Assert
+            assert.equal(calls.notifications.length, 1);
+            assert.equal(storage.sync.data.counter, 2);
+        });
+
         test("does not alert again for tab updates that keep the same title", async () => {
             // Arrange
             const { chrome, calls, storage } = loadBackground({ sync: TITLE_MODE });

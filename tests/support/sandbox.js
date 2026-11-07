@@ -24,6 +24,10 @@ function makeEvent() {
         async fire(...args) {
             for (const fn of [...listeners]) await fn(...args);
         },
+        // Like a real browser: every listener starts at once, none waits for another.
+        async fireConcurrently(...args) {
+            await Promise.all([...listeners].map((fn) => fn(...args)));
+        },
     };
 }
 

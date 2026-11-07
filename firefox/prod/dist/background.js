@@ -106,8 +106,15 @@ function getValueFromStorageBg(key, defaultValue) {
         return result[key] !== undefined ? result[key] : defaultValue;
     });
 }
+// One listener per background: choosing Tab title again (or the startup setup plus a
+// popup click) must not add a second one, or every new study alerts twice.
 function setupTitleAlert() {
-    browser.tabs.onUpdated.addListener((_tabId, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
+    if (!browser.tabs.onUpdated.hasListener(onProlificTabUpdated)) {
+        browser.tabs.onUpdated.addListener(onProlificTabUpdated);
+    }
+}
+function onProlificTabUpdated(_tabId, _changeInfo, tab) {
+    return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
         // Prolific rewrites "(N) Prolific" in place, and that update carries only the new
         // title, never changeInfo.status. So check the loaded tab, not this update's status.
@@ -143,7 +150,7 @@ function setupTitleAlert() {
         if ((_f = settings[FOCUS_PROLIFIC]) !== null && _f !== void 0 ? _f : false)
             yield focusProlific();
         yield updateCounterAndBadge(currentNumber - previousNumber);
-    }));
+    });
 }
 function getNumberFromTitle(title) {
     const match = title.match(/\((\d+)\)/);
