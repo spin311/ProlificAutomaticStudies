@@ -7,8 +7,7 @@
   "permissions": [
     "storage",
     "notifications",
-    "offscreen",
-    "tabs"
+    "offscreen"
   ],
   "host_permissions": [
     "https://app.prolific.com/*"

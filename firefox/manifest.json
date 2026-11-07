@@ -6,7 +6,6 @@
   "permissions": [
     "storage",
     "notifications",
-    "tabs",
     "https://app.prolific.com/*"
   ],
   "content_scripts": [
