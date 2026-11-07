@@ -106,16 +106,28 @@ function getValueFromStorageBg(key, defaultValue) {
         return result[key] !== undefined ? result[key] : defaultValue;
     });
 }
+// One listener per background: choosing Tab title again (or the startup setup plus a
+// popup click) must not add a second one, or every new study alerts twice.
 function setupTitleAlert() {
-    browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
+    if (!browser.tabs.onUpdated.hasListener(onProlificTabUpdated)) {
+        browser.tabs.onUpdated.addListener(onProlificTabUpdated);
+    }
+}
+function onProlificTabUpdated(_tabId, _changeInfo, tab) {
+    return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
-        if (!((_a = tab.url) === null || _a === void 0 ? void 0 : _a.includes('https://app.prolific.com/')) || !tab.title || changeInfo.status !== 'complete')
+        // Prolific rewrites "(N) Prolific" in place, and that update carries only the new
+        // title, never changeInfo.status. So check the loaded tab, not this update's status.
+        if (!((_a = tab.url) === null || _a === void 0 ? void 0 : _a.includes('https://app.prolific.com/')) || !tab.title || tab.status !== 'complete')
             return;
         const previousTitle = yield getValueFromStorageBg(PROLIFIC_TITLE, 'Prolific');
         const newTitle = tab.title.trim();
+        // Most updates (favicon, audio, ...) keep the title: skip them without a sync write.
+        if (newTitle === previousTitle)
+            return;
         yield browser.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
         const useOld = yield getValueFromStorageBg(USE_OLD, false);
-        if (!useOld || newTitle === previousTitle || newTitle === 'Prolific')
+        if (!useOld || newTitle === 'Prolific')
             return;
         const previousNumber = getNumberFromTitle(previousTitle);
         const currentNumber = getNumberFromTitle(newTitle);
@@ -138,7 +150,7 @@ function setupTitleAlert() {
         if ((_f = settings[FOCUS_PROLIFIC]) !== null && _f !== void 0 ? _f : false)
             yield focusProlific();
         yield updateCounterAndBadge(currentNumber - previousNumber);
-    }));
+    });
 }
 function getNumberFromTitle(title) {
     const match = title.match(/\((\d+)\)/);

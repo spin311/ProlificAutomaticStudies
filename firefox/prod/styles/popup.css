@@ -25,6 +25,10 @@
     display: none !important;
 }
 
+html {
+    background: var(--mint);
+}
+
 body {
     width: 360px;
     margin: 0;
@@ -467,94 +471,193 @@ input[type="range"] {
     padding-left: 28px !important;
 }
 
+.studies-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.studies-bar .btn-quiet {
+    width: auto;
+    margin: 0;
+    padding: 0 10px;
+}
+
+.view-switch {
+    margin-right: auto;
+}
+
+.view-switch {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+}
+
+.view-btn {
+    height: 24px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.view-btn[aria-pressed="true"] {
+    background: var(--brand);
+    color: #fff;
+}
+
+.saved-count {
+    font-weight: 600;
+}
+
 #studies-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     max-height: 330px;
     overflow-y: auto;
 }
 
+/* One study per compact row: the title across the top, then the pay line and the
+   researcher line with the actions beside them. */
 .study-card {
-    margin-bottom: 8px;
-    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "title title"
+        "meta actions"
+        "sub actions";
+    align-items: center;
+    column-gap: 8px;
+    padding: 4px 6px 4px 10px;
+    line-height: 1.3;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-}
-
-.study-info {
-    display: grid;
-    grid-template-areas:
-        "study-header study-header"
-        "researcher researcher"
-        "reward reward-hour"
-        "time created-at"
-        "open-btn delete-btn";
-    gap: 3px 12px;
-    align-items: start;
-    justify-items: start;
-}
-
-.study-header {
-    grid-area: study-header;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.study-img {
-    width: 28px;
-    height: 28px;
     border-radius: 6px;
 }
 
+/* Opened from the popup: kept, but pushed back. */
+.study-card.is-opened {
+    background: transparent;
+    opacity: 0.6;
+}
+
+.study-card.is-opened:hover,
+.study-card.is-opened:focus-within {
+    opacity: 1;
+}
+
+.study-title,
+.study-meta,
+.study-sub {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .study-title {
+    grid-area: title;
     color: var(--brand-dark);
     font-weight: 600;
-}
-
-.study-researcher {
-    grid-area: researcher;
-    color: var(--muted);
-}
-
-.study-reward {
-    grid-area: reward;
-}
-
-.study-reward-hour {
-    grid-area: reward-hour;
-}
-
-.study-time {
-    grid-area: time;
-}
-
-.study-created-at {
-    grid-area: created-at;
-    color: var(--muted);
-}
-
-.open-btn {
-    grid-area: open-btn;
-    margin-top: 4px;
-}
-
-.open-btn {
     text-decoration: none;
 }
 
-.delete-btn {
-    grid-area: delete-btn;
-    margin-top: 4px;
-    background: var(--danger);
+.study-title:hover {
+    text-decoration: underline;
 }
 
-.delete-btn:hover {
-    background: #a3352f;
+.study-meta {
+    grid-area: meta;
+    font-size: 12px;
 }
 
-.delete-btn img {
-    width: 14px;
-    height: 14px;
+.study-sub {
+    grid-area: sub;
+    display: flex;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.study-researcher {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.study-created-at {
+    flex-shrink: 0;
+}
+
+.study-actions {
+    grid-area: actions;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+}
+
+.open-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 15px;
+    text-decoration: none;
+}
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.icon-btn:hover {
+    background: var(--mint);
+}
+
+.icon-btn img {
+    width: 15px;
+    height: 15px;
+    opacity: 0.7;
+}
+
+.save-btn {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.save-btn[aria-pressed="true"] {
+    color: #d4a017;
+}
+
+.delete-btn:hover img {
+    opacity: 1;
+}
+
+/* ---------- Tab view (popup.html?view=tab) ---------- */
+
+body.is-tab {
+    width: auto;
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+body.is-tab #studies-container {
+    max-height: none;
+    overflow: visible;
 }
 
 /* ---------- Filters tab ---------- */
@@ -661,27 +764,62 @@ input[type="range"] {
     text-decoration: underline;
 }
 
-.app-promo {
-    margin: 0;
-    padding: 0 14px 4px;
-    color: var(--muted);
-    font-size: 11px;
-    text-align: center;
+/* ---------- Cross-promo ---------- */
+
+/* One quiet card, as tall as a settings row: the settings tab is ~6 px short
+   of the 600 px popup limit, so anything taller adds a scrollbar. */
+.promo {
+    padding: 0 12px 6px;
 }
 
-.app-promo a {
+.promo-tile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px 5px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
     color: var(--muted);
-    text-decoration: underline;
+    font-size: 11.5px;
+    text-decoration: none;
+    transition: border-color 0.15s ease;
 }
 
-.app-promo a:hover {
-    color: var(--brand-dark);
+.promo-tile:hover {
+    border-color: var(--brand);
+}
+
+.promo-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+}
+
+.promo-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.promo-text strong {
+    margin-right: 3px;
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.promo-tile:hover .promo-arrow {
+    color: var(--brand);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .is-ready .switch,
     .is-ready .switch::before,
-    .tooltip-icon::after {
+    .tooltip-icon::after,
+    .promo-tile {
         transition: none;
     }
 }

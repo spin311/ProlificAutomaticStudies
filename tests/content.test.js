@@ -30,17 +30,23 @@ function makeStorageArea(initial) {
     };
 }
 
-function fakeStudyNode(id) {
+const PLACES = '[data-testid="study-tag-places"]';
+const UNLIMITED_PLACES = '[data-testid="study-tag-places-infinite"]';
+
+// `overrides` replaces tags of this study; a null value removes the tag.
+function fakeStudyNode(id, overrides = {}) {
     const fields = {
         '[data-testid="title"]': `Study ${id}`,
         '[data-testid="host"]': "By Some Lab",
         '[data-testid="study-tag-reward"]': "£1.00",
         '[data-testid="study-tag-reward-per-hour"]': "£10.00/hr",
         '[data-testid="study-tag-completion-time"]': "6 mins",
+        [PLACES]: "120 places",
+        ...overrides,
     };
     return {
         getAttribute: (name) => (name === "data-testid" ? `study-${id}` : null),
-        querySelector: (sel) => (sel in fields ? { textContent: fields[sel] } : null),
+        querySelector: (sel) => (fields[sel] != null ? { textContent: fields[sel] } : null),
     };
 }
 
@@ -55,9 +61,10 @@ async function loadBuild(build, { sync = {}, local = {}, storage = null } = {}) 
     const sent = [];
     const observers = [];
     let visibleIds = [];
+    let tagOverrides = {};
 
     const studiesList = {
-        querySelectorAll: () => visibleIds.map(fakeStudyNode),
+        querySelectorAll: () => visibleIds.map((id) => fakeStudyNode(id, tagOverrides[id])),
     };
     // Chrome uses chrome.*, Firefox uses browser.*; both get the same fake.
     const extensionApi = {
@@ -102,8 +109,10 @@ async function loadBuild(build, { sync = {}, local = {}, storage = null } = {}) 
 
     return {
         chrome: extensionApi,
-        showStudies(ids) {
+        // `overrides` maps a study id to tags that differ from the defaults.
+        showStudies(ids, overrides = {}) {
             visibleIds = ids;
+            tagOverrides = overrides;
         },
         // One page mutation -> one scan. Returns the ids notified by this scan.
         async scan() {
@@ -311,6 +320,24 @@ test("notifies listed studies that were filtered out once the filter is relaxed"
 
     // Assert
     assert.deepEqual(notified, ["a"]);
+});
+
+test("stores the places Prolific shows for each new study", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: true } });
+    page.showStudies(["a", "b", "c"], {
+        b: { [PLACES]: null, [UNLIMITED_PLACES]: "∞" },
+        c: { [PLACES]: null },
+    });
+
+    // Act
+    await page.scan();
+
+    // Assert
+    // JSON round trip: arrays made inside the vm have another realm's prototype.
+    const studies = JSON.parse(JSON.stringify(page.chrome.storage.local.data.currentStudies));
+    const stored = studies.map((study) => [study.id, study.places]);
+    assert.deepEqual(stored, [["a", "120 places"], ["b", "∞ places"], ["c", null]]);
 });
 });
 }

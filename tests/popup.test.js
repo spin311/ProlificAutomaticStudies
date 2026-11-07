@@ -5,9 +5,11 @@ const { describe, test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { createChrome, createStorage, loadScripts, dist } = require("./support/sandbox");
+const { createChrome, createStorage, loadScripts, dist, startClock, advance } = require("./support/sandbox");
 
 // Just enough DOM for the popup's renderers. Setting innerHTML to markup fails the test.
+let activeElement = null;
+
 class FakeElement {
     constructor(tagName) {
         this.tagName = tagName.toUpperCase();
@@ -16,6 +18,7 @@ class FakeElement {
         this.textContent = "";
         this.listeners = {};
         this.style = {};
+        this.scrollTop = 0;
         const names = () => this.className.split(" ").filter(Boolean);
         this.classList = {
             add: (...added) => (this.className = [...new Set([...names(), ...added])].join(" ")),
@@ -34,9 +37,22 @@ class FakeElement {
         this.children.push(node);
         return node;
     }
+    // Pessimistic: replacing the rows may drop the scroll position (an emptied list
+    // collapses and is clamped to 0), so the popup has to put it back itself.
     replaceChildren(...nodes) {
         this.children = [];
+        this.scrollTop = 0;
         this.append(...nodes);
+    }
+    focus() {
+        activeElement = this;
+    }
+    contains(node) {
+        return node === this || this.children.some((child) => child.contains?.(node));
+    }
+    // Class selectors only (".name").
+    querySelector(selector) {
+        return findAll(this, selector.slice(1))[0] ?? null;
     }
     addEventListener(type, listener) {
         this.listeners[type] = listener;
@@ -60,7 +76,7 @@ const findAll = (node, className) => [
 
 const HOSTILE_TITLE = '<img src=x onerror="alert(1)">Free money';
 const HOSTILE_RESEARCHER = "<b>Lab</b>";
-const study = (id, title, researcher = "A lab") => ({
+const study = (id, title, researcher = "A lab", overrides = {}) => ({
     id,
     title,
     researcher,
@@ -68,14 +84,16 @@ const study = (id, title, researcher = "A lab") => ({
     rewardPerHour: "£10.00",
     time: "6 mins",
     timeInMinutes: 6,
+    places: "120 places",
     createdAt: "2026-11-06T10:00:00.000Z",
+    ...overrides,
 });
 
 const BUILDS = ["chrome", "firefox"];
 
 for (const build of BUILDS) {
     describe(build, () => {
-        function openPopup({ local = {}, sync = {}, extensionId } = {}) {
+        function openPopup({ local = {}, sync = {}, extensionId, search = "" } = {}) {
             const storage = createStorage({ local, sync });
             const { chrome, calls } = createChrome({ storage });
             if (extensionId) chrome.runtime.id = extensionId;
@@ -90,6 +108,10 @@ for (const build of BUILDS) {
                 sponsorDismiss: new FakeElement("button"),
                 sponsorPromptCount: new FakeElement("span"),
                 "studies-container": new FakeElement("div"),
+                "view-all": new FakeElement("button"),
+                "view-saved": new FakeElement("button"),
+                "saved-count": new FakeElement("span"),
+                openInTab: new FakeElement("button"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
                 "researcher-list": new FakeElement("div"),
@@ -98,12 +120,19 @@ for (const build of BUILDS) {
                 elements[tab] = new FakeElement("section");
                 elements[`${tab}-tab`] = new FakeElement("li");
             }
+            activeElement = null;
             const document = {
+                get activeElement() {
+                    return activeElement;
+                },
+                body: new FakeElement("body"),
                 addEventListener() {},
                 createElement: (tagName) => new FakeElement(tagName),
                 getElementById: (id) => elements[id] ?? null,
             };
-            const popup = loadScripts([dist(build, "popup.js")], { chrome, globals: { document } });
+            const location = { search };
+            const popup = loadScripts([dist(build, "popup.js")], { chrome, globals: { document, location } });
+            elements.body = document.body;
             return { popup, elements, storage, calls };
         }
 
@@ -157,6 +186,552 @@ for (const build of BUILDS) {
 
             // Assert
             assert.deepEqual(storage.local.data.currentStudies.map((s) => s.id), ["b2"]);
+        });
+
+        describe("study rows", () => {
+            const rows = (elements) => findAll(elements["studies-container"], "study-card");
+
+            test("shows pay, pay per hour, time and places on one line", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [meta] = findAll(elements["studies-container"], "study-meta");
+                assert.equal(textOf(meta), "£1.00 · £10.00/hr · 6 mins · 120 places");
+            });
+
+            test("leaves places out for studies saved before places were recorded", async () => {
+                // Arrange
+                const old = study("a1", "A study", "A lab", { places: undefined });
+                const { popup, elements } = openPopup({ local: { currentStudies: [old] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [meta] = findAll(elements["studies-container"], "study-meta");
+                assert.equal(textOf(meta), "£1.00 · £10.00/hr · 6 mins");
+            });
+
+            test("makes the title a link to the study, so it can be copied or middle-clicked", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [title] = findAll(elements["studies-container"], "study-title");
+                assert.equal(title.tagName, "A");
+                assert.equal(title.href, "https://app.prolific.com/studies/a1");
+                assert.equal(title.target, "_blank");
+                assert.equal(title.rel, "noopener noreferrer");
+            });
+
+            test("shows when the study was found as day/month and time", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+                const found = new Date("2026-11-06T10:00:00.000Z");
+                const pad = (n) => String(n).padStart(2, "0");
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [foundAt] = findAll(elements["studies-container"], "study-created-at");
+                const expected = `${pad(found.getDate())}/${pad(found.getMonth() + 1)} ${pad(found.getHours())}:${pad(found.getMinutes())}`;
+                assert.equal(foundAt.textContent, expected);
+            });
+
+            test("has a compact Open button that names the study for screen readers", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                assert.equal(openLink.textContent, "↗");
+                assert.equal(openLink["aria-label"], "Open A study in a new tab");
+            });
+
+            test("greys out studies that were opened before", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One"), study("b2", "Two")], openedStudyIds: ["a1"] },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.deepEqual(rows(elements).map((row) => row.classList.contains("is-opened")), [true, false]);
+            });
+
+            test("marks a study as opened when its link is clicked", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                await popup.populateStudies("", "created+");
+
+                // Act: not awaited, the popup may close as soon as the tab opens
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                openLink.listeners.click({ button: 0 });
+
+                // Assert: the write was already issued inside the click handler
+                assert.deepEqual([...storage.local.data.openedStudyIds], ["a1"]);
+                assert.ok(rows(elements)[0].classList.contains("is-opened"));
+            });
+
+            test("marks a study as opened on middle-click, not on right-click", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One"), study("b2", "Two")] },
+                });
+                await popup.populateStudies("", "created+");
+                const [first, second] = findAll(elements["studies-container"], "study-title");
+
+                // Act
+                await first.listeners.auxclick({ button: 1 });
+                await second.listeners.auxclick({ button: 2 });
+
+                // Assert
+                assert.deepEqual([...storage.local.data.openedStudyIds], ["a1"]);
+            });
+
+            test("exports places as the last CSV column, quoting every value", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act
+                const csv = popup.buildStudiesCsv([study("a1", 'Say "hi"')]);
+
+                // Assert
+                const [header, row] = csv.split("\n");
+                assert.equal(header, "id,title,researcher,reward,rewardPerHour,time,timeInMinutes,createdAt,places");
+                assert.equal(row, '"a1","Say ""hi""","A lab","£1.00","£10.00","6 mins","6","2026-11-06T10:00:00.000Z","120 places"');
+            });
+
+            test("keeps a study opened during a redraw that read the list before it", async () => {
+                // Arrange: X opened, then Y opened while a redraw's storage read still held [X]
+                const studies = [study("x", "X"), study("y", "Y"), study("z", "Z")];
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: studies } });
+                await popup.populateStudies("", "created+");
+                const titleLinks = () => findAll(elements["studies-container"], "study-title");
+                await titleLinks()[0].listeners.click({ button: 0 });
+                await titleLinks()[1].listeners.auxclick({ button: 1 });
+                storage.local.data.openedStudyIds = ["x"];
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await titleLinks()[2].listeners.auxclick({ button: 1 });
+
+                // Assert
+                assert.deepEqual([...storage.local.data.openedStudyIds].sort(), ["x", "y", "z"]);
+            });
+
+            test("leaves the arrow out of the Tab order, since the title opens the same page", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                assert.equal(openLink.tabIndex, -1);
+            });
+
+            test("remembers at most 1000 opened studies, dropping the oldest", () => {
+                // Arrange
+                const { popup } = openPopup();
+                const ids = Array.from({ length: 1000 }, (_, i) => `s${i}`);
+
+                // Act
+                const added = popup.addOpenedStudyId(ids, "new");
+                const reopened = popup.addOpenedStudyId(["a", "b"], "a");
+
+                // Assert
+                assert.equal(added.length, 1000);
+                assert.equal(added[0], "s1");
+                assert.equal(added[999], "new");
+                assert.deepEqual([...reopened], ["b", "a"]);
+            });
+        });
+
+        describe("search and scroll position", () => {
+            const titles = (elements) => findAll(elements["studies-container"], "study-title").map((t) => t.textContent);
+            const MINUTE = 60 * 1000;
+
+            test("restores the last search when the popup opens", async () => {
+                // Arrange
+                const studies = [study("a1", "Survey about food"), study("b2", "Video task")];
+                const { popup, elements } = openPopup({ local: { currentStudies: studies, searchStudies: "survey" } });
+
+                // Act
+                await popup.setupSearch();
+                await popup.populateStudies();
+
+                // Assert
+                assert.equal(elements["search-studies"].value, "survey");
+                assert.deepEqual(titles(elements), ["Survey about food"]);
+            });
+
+            test("saves the search while typing and forgets it once the box is cleared", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                await popup.setupSearch();
+                const search = elements["search-studies"];
+
+                // Act
+                search.value = "food";
+                await search.listeners.input();
+                const typed = storage.local.data.searchStudies;
+                search.value = "";
+                await search.listeners.input();
+
+                // Assert
+                assert.equal(typed, "food");
+                assert.equal(storage.local.data.searchStudies, "");
+            });
+
+            test("scrolls back to the top when the search changes", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.setupSearch();
+                await popup.populateStudies("", "created+");
+                elements["studies-container"].scrollTop = 300;
+
+                // Act
+                elements["search-studies"].value = "two";
+                await elements["search-studies"].listeners.input();
+
+                // Assert
+                assert.equal(elements["studies-container"].scrollTop, 0);
+            });
+
+            test("keeps the scroll position after deleting a study", async () => {
+                // Arrange
+                const studies = ["a", "b", "c"].map((id) => study(id, `Study ${id}`));
+                const { popup, elements } = openPopup({ local: { currentStudies: studies } });
+                await popup.populateStudies("", "created+");
+                elements["studies-container"].scrollTop = 500;
+
+                // Act
+                const [, deleteButton] = findAll(elements["studies-container"], "delete-btn");
+                await deleteButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(titles(elements), ["Study a", "Study c"]);
+                assert.equal(elements["studies-container"].scrollTop, 500);
+            });
+
+            test("keeps keyboard focus on the star after saving a study", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.populateStudies("", "created+");
+                const [, star] = findAll(elements["studies-container"], "save-btn");
+                star.focus();
+
+                // Act
+                await star.listeners.click();
+
+                // Assert
+                const [, newStar] = findAll(elements["studies-container"], "save-btn");
+                assert.notEqual(newStar, star);
+                assert.equal(activeElement, newStar);
+            });
+
+            test("moves keyboard focus to the next study's Delete after a delete", async () => {
+                // Arrange
+                const studies = ["a", "b", "c"].map((id) => study(id, `Study ${id}`));
+                const { popup, elements } = openPopup({ local: { currentStudies: studies } });
+                await popup.populateStudies("", "created+");
+                const [, deleteB] = findAll(elements["studies-container"], "delete-btn");
+                deleteB.focus();
+
+                // Act
+                await deleteB.listeners.click();
+
+                // Assert
+                const [, deleteC] = findAll(elements["studies-container"], "delete-btn");
+                assert.equal(activeElement, deleteC);
+            });
+
+            test("re-dates a restored scroll position, so it lasts 10 minutes from the last open", async () => {
+                // Arrange
+                const { popup, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], studiesScroll: { top: 400, at: Date.now() - 9 * MINUTE } },
+                });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await popup.restoreStudiesScroll();
+
+                // Assert
+                assert.equal(storage.local.data.studiesScroll.top, 400);
+                assert.ok(Date.now() - storage.local.data.studiesScroll.at < MINUTE);
+            });
+
+            test("saves the scroll position right away when a study is opened", async (t) => {
+                // Arrange
+                startClock(t);
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                await popup.populateStudies("", "created+");
+                popup.watchStudiesScroll();
+                const container = elements["studies-container"];
+                container.scrollTop = 320;
+                container.listeners.scroll();
+
+                // Act: no time passes, the popup closes as soon as the tab opens
+                const [openLink] = findAll(container, "open-btn");
+                openLink.listeners.click({ button: 0 });
+
+                // Assert
+                assert.equal(storage.local.data.studiesScroll?.top, 320);
+            });
+
+            test("deletes from the latest saved list, keeping studies found after the list was drawn", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.populateStudies("", "created+");
+                storage.local.data.currentStudies = [study("a1", "One"), study("b2", "Two"), study("c3", "Three")];
+
+                // Act
+                const [deleteButton] = findAll(elements["studies-container"], "delete-btn");
+                await deleteButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(storage.local.data.currentStudies.map((s) => s.id), ["b2", "c3"]);
+            });
+
+            test("reopens at the scroll position it was closed at", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], studiesScroll: { top: 400, at: Date.now() - MINUTE } },
+                });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await popup.restoreStudiesScroll();
+
+                // Assert
+                assert.equal(elements["studies-container"].scrollTop, 400);
+            });
+
+            test("reopens at the top when it was closed more than 10 minutes ago", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], studiesScroll: { top: 400, at: Date.now() - 11 * MINUTE } },
+                });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await popup.restoreStudiesScroll();
+
+                // Assert
+                assert.equal(elements["studies-container"].scrollTop, 0);
+            });
+
+            test("saves the scroll position shortly after scrolling stops", async (t) => {
+                // Arrange
+                startClock(t);
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.watchStudiesScroll();
+                const container = elements["studies-container"];
+
+                // Act
+                container.scrollTop = 120;
+                container.listeners.scroll();
+                container.scrollTop = 250;
+                container.listeners.scroll();
+                await advance(t, 1000);
+
+                // Assert
+                assert.equal(storage.local.data.studiesScroll.top, 250);
+                assert.ok(Date.now() - storage.local.data.studiesScroll.at <= 1000);
+            });
+        });
+
+        describe("saved studies", () => {
+            const titles = (elements) => findAll(elements["studies-container"], "study-title").map((t) => t.textContent);
+            // Array.from builds a test-realm array; arrays made inside the vm fail deepEqual.
+            const ids = (studies) => Array.from(studies, (s) => s.id);
+
+            test("saves a study with the star and marks it as saved", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [, saveButton] = findAll(elements["studies-container"], "save-btn");
+                await saveButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["b2"]);
+                const stars = findAll(elements["studies-container"], "save-btn").map((b) => b["aria-pressed"]);
+                assert.deepEqual(stars, ["false", "true"]);
+            });
+
+            test("unsaves a saved study when its star is clicked again", async () => {
+                // Arrange
+                const one = study("a1", "One");
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [one], bookmarkedStudies: [one] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [saveButton] = findAll(elements["studies-container"], "save-btn");
+                await saveButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), []);
+            });
+
+            test("Saved lists only saved studies, including ones gone from the history", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("x9", "Old but saved")], studiesView: "saved" },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.deepEqual(titles(elements), ["Old but saved"]);
+                assert.equal(findAll(elements["studies-container"], "delete-btn").length, 0);
+            });
+
+            test("switches to Saved, remembers it and marks the pressed button", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("b2", "Two")] },
+                });
+                popup.setupStudiesView();
+
+                // Act
+                await elements["view-saved"].listeners.click();
+
+                // Assert
+                assert.equal(storage.local.data.studiesView, "saved");
+                assert.deepEqual(titles(elements), ["Two"]);
+                assert.equal(elements["view-saved"]["aria-pressed"], "true");
+                assert.equal(elements["view-all"]["aria-pressed"], "false");
+            });
+
+            test("shows how many studies are saved", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("a1", "One"), study("b2", "Two")] },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(elements["saved-count"].textContent, "2");
+            });
+
+            test("explains the star when nothing is saved", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One")], studiesView: "saved" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(textOf(elements["studies-container"]), "No saved studies yet. Click ☆ on a study to keep it here.");
+            });
+
+            test("deleting a saved study from All keeps it in Saved", async () => {
+                // Arrange
+                const one = study("a1", "One");
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [one], bookmarkedStudies: [one] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [deleteButton] = findAll(elements["studies-container"], "delete-btn");
+                await deleteButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.currentStudies), []);
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["a1"]);
+            });
+        });
+
+        describe("tab view", () => {
+            const titles = (elements) => findAll(elements["studies-container"], "study-title").map((t) => t.textContent);
+
+            test("Open in tab opens the popup page as a tab", async () => {
+                // Arrange
+                const { popup, elements, calls } = openPopup();
+                popup.setupTabView();
+
+                // Act
+                await elements.openInTab.listeners.click();
+
+                // Assert
+                assert.deepEqual(calls.createdTabs, [{ url: "chrome-extension://test-extension/popup/popup.html?view=tab" }]);
+            });
+
+            test("as a tab it fills the page, hides Open in tab and opens on Studies", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ search: "?view=tab", sync: { activeTab: "settings" } });
+
+                // Act
+                popup.setupTabView();
+                await popup.setCurrentActiveTab();
+
+                // Assert
+                assert.ok(elements.body.classList.contains("is-tab"));
+                assert.equal(elements.openInTab.hidden, true);
+                assert.equal(elements.studies.style.display, "block");
+            });
+
+            test("as a popup it keeps its size and the last used section", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ sync: { activeTab: "settings" } });
+
+                // Act
+                popup.setupTabView();
+                await popup.setCurrentActiveTab();
+
+                // Assert
+                assert.equal(elements.body.classList.contains("is-tab"), false);
+                assert.notEqual(elements.openInTab.hidden, true);
+                assert.equal(elements.settings.style.display, "block");
+            });
+
+            test("redraws the list when studies change, keeping the scroll position", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.watchStudyChanges();
+                await popup.changeTab("studies");
+                elements["studies-container"].scrollTop = 200;
+
+                // Act
+                await storage.local.set({ currentStudies: [study("a1", "One"), study("b2", "Two")] });
+
+                // Assert
+                assert.deepEqual(titles(elements), ["One", "Two"]);
+                assert.equal(elements["studies-container"].scrollTop, 200);
+            });
+
+            test("does not redraw the list while another section is shown", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.watchStudyChanges();
+                await popup.changeTab("studies");
+                await popup.changeTab("settings");
+
+                // Act
+                await storage.local.set({ currentStudies: [study("b2", "Two")] });
+
+                // Assert
+                assert.deepEqual(titles(elements), ["One"]);
+            });
         });
 
         test("shows blacklist words as text, not HTML", async () => {
@@ -404,7 +979,7 @@ for (const build of BUILDS) {
                 assert.equal(elements.reviewPrompt.hidden, true);
             });
 
-            test("popup HTML carries the card copy, report link and cross-promo with UTM tags", () => {
+            test("popup HTML carries the card copy and report link", () => {
                 // Arrange
                 const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
 
@@ -412,8 +987,29 @@ for (const build of BUILDS) {
                 assert.match(html, /Enjoying Prolific Studies Notifier\?/);
                 assert.match(html, /A quick rating helps other participants find it\./);
                 assert.match(html, /href="https:\/\/github\.com\/spin311\/ProlificAutomaticStudies\/issues\/new"/);
-                assert.match(html, /More free tools by the same developer:/);
-                assert.match(html, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+            });
+        });
+
+        describe("cross-promo", () => {
+            const STORE = build === "chrome" ? "https://chromewebstore.google.com/" : "https://addons.mozilla.org/";
+
+            test("popup HTML shows Free Game Claimer as a card with its icon, name and UTM tags", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act
+                const card = html.match(/<a ([^>]*class="promo-tile"[^>]*)>([\s\S]*?)<\/a>/);
+                const iconPath = card?.[2].match(/<img [^>]*src="\/(imgs\/[^"]+)"/)?.[1];
+
+                // Assert
+                assert.ok(card, "promo card link is missing");
+                const [, attributes, content] = card;
+                assert.ok(attributes.includes(`href="${STORE}`), `card should link to ${STORE}`);
+                assert.match(attributes, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+                assert.match(attributes, /target="_blank" rel="noopener noreferrer"/);
+                assert.match(content, /<strong[^>]*>Free Game Claimer<\/strong>/);
+                assert.ok(iconPath, "promo card has no icon");
+                assert.ok(fs.existsSync(path.join(__dirname, "..", build, "prod", iconPath)), `${iconPath} is not in the store build`);
             });
         });
 

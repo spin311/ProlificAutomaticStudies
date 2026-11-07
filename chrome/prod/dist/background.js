@@ -111,8 +111,15 @@ function getValueFromStorage(key, defaultValue) {
         });
     });
 }
+// One listener per background: choosing Tab title again (or the startup setup plus a
+// popup click) must not add a second one, or every new study alerts twice.
 function setupTitleAlert() {
-    const tabsOnUpdatedListener = (_, _changeInfo, tab) => __awaiter(this, void 0, void 0, function* () {
+    if (!chrome.tabs.onUpdated.hasListener(onProlificTabUpdated)) {
+        chrome.tabs.onUpdated.addListener(onProlificTabUpdated);
+    }
+}
+function onProlificTabUpdated(_, _changeInfo, tab) {
+    return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
         const previousTitle = yield getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
         if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
@@ -124,7 +131,7 @@ function setupTitleAlert() {
             const titleStorageValues = yield chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
             const useOld = (_a = titleStorageValues[USE_OLD]) !== null && _a !== void 0 ? _a : false;
             if (!useOld) {
-                chrome.tabs.onUpdated.removeListener(tabsOnUpdatedListener);
+                chrome.tabs.onUpdated.removeListener(onProlificTabUpdated);
                 return;
             }
             const previousNumber = getNumberFromTitle(previousTitle);
@@ -149,7 +156,6 @@ function setupTitleAlert() {
             }
         }
     });
-    chrome.tabs.onUpdated.addListener(tabsOnUpdatedListener);
 }
 function getNumberFromTitle(title) {
     const match = title.match(/\((\d+)\)/);

@@ -24,6 +24,10 @@ function makeEvent() {
         async fire(...args) {
             for (const fn of [...listeners]) await fn(...args);
         },
+        // Like a real browser: every listener starts at once, none waits for another.
+        async fireConcurrently(...args) {
+            await Promise.all([...listeners].map((fn) => fn(...args)));
+        },
     };
 }
 
@@ -103,6 +107,7 @@ function createChrome({ storage = createStorage(), tabs = [] } = {}) {
             clear: () => {},
         },
         tabs: {
+            onUpdated: makeEvent(),
             query: async ({ url }) => tabs.filter((tab) => matchesPattern(url, tab.url)),
             reload: async (tabId) => {
                 calls.reloads.push(tabId);
