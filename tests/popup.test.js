@@ -60,7 +60,7 @@ const findAll = (node, className) => [
 
 const HOSTILE_TITLE = '<img src=x onerror="alert(1)">Free money';
 const HOSTILE_RESEARCHER = "<b>Lab</b>";
-const study = (id, title, researcher = "A lab") => ({
+const study = (id, title, researcher = "A lab", overrides = {}) => ({
     id,
     title,
     researcher,
@@ -68,7 +68,9 @@ const study = (id, title, researcher = "A lab") => ({
     rewardPerHour: "£10.00",
     time: "6 mins",
     timeInMinutes: 6,
+    places: "120 places",
     createdAt: "2026-11-06T10:00:00.000Z",
+    ...overrides,
 });
 
 const BUILDS = ["chrome", "firefox"];
@@ -157,6 +159,137 @@ for (const build of BUILDS) {
 
             // Assert
             assert.deepEqual(storage.local.data.currentStudies.map((s) => s.id), ["b2"]);
+        });
+
+        describe("study rows", () => {
+            const rows = (elements) => findAll(elements["studies-container"], "study-card");
+
+            test("shows pay, pay per hour, time and places on one line", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [meta] = findAll(elements["studies-container"], "study-meta");
+                assert.equal(textOf(meta), "£1.00 · £10.00/hr · 6 mins · 120 places");
+            });
+
+            test("leaves places out for studies saved before places were recorded", async () => {
+                // Arrange
+                const old = study("a1", "A study", "A lab", { places: undefined });
+                const { popup, elements } = openPopup({ local: { currentStudies: [old] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [meta] = findAll(elements["studies-container"], "study-meta");
+                assert.equal(textOf(meta), "£1.00 · £10.00/hr · 6 mins");
+            });
+
+            test("makes the title a link to the study, so it can be copied or middle-clicked", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [title] = findAll(elements["studies-container"], "study-title");
+                assert.equal(title.tagName, "A");
+                assert.equal(title.href, "https://app.prolific.com/studies/a1");
+                assert.equal(title.target, "_blank");
+                assert.equal(title.rel, "noopener noreferrer");
+            });
+
+            test("shows when the study was found as day/month and time", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+                const found = new Date("2026-11-06T10:00:00.000Z");
+                const pad = (n) => String(n).padStart(2, "0");
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [foundAt] = findAll(elements["studies-container"], "study-created-at");
+                const expected = `${pad(found.getDate())}/${pad(found.getMonth() + 1)} ${pad(found.getHours())}:${pad(found.getMinutes())}`;
+                assert.equal(foundAt.textContent, expected);
+            });
+
+            test("greys out studies that were opened before", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One"), study("b2", "Two")], openedStudyIds: ["a1"] },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.deepEqual(rows(elements).map((row) => row.classList.contains("is-opened")), [true, false]);
+            });
+
+            test("marks a study as opened when its link is clicked", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                await openLink.listeners.click({ button: 0 });
+
+                // Assert
+                assert.deepEqual([...storage.local.data.openedStudyIds], ["a1"]);
+                assert.ok(rows(elements)[0].classList.contains("is-opened"));
+            });
+
+            test("marks a study as opened on middle-click, not on right-click", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One"), study("b2", "Two")] },
+                });
+                await popup.populateStudies("", "created+");
+                const [first, second] = findAll(elements["studies-container"], "study-title");
+
+                // Act
+                await first.listeners.auxclick({ button: 1 });
+                await second.listeners.auxclick({ button: 2 });
+
+                // Assert
+                assert.deepEqual([...storage.local.data.openedStudyIds], ["a1"]);
+            });
+
+            test("exports places as the last CSV column, quoting every value", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act
+                const csv = popup.buildStudiesCsv([study("a1", 'Say "hi"')]);
+
+                // Assert
+                const [header, row] = csv.split("\n");
+                assert.equal(header, "id,title,researcher,reward,rewardPerHour,time,timeInMinutes,createdAt,places");
+                assert.equal(row, '"a1","Say ""hi""","A lab","£1.00","£10.00","6 mins","6","2026-11-06T10:00:00.000Z","120 places"');
+            });
+
+            test("remembers at most 1000 opened studies, dropping the oldest", () => {
+                // Arrange
+                const { popup } = openPopup();
+                const ids = Array.from({ length: 1000 }, (_, i) => `s${i}`);
+
+                // Act
+                const added = popup.addOpenedStudyId(ids, "new");
+                const reopened = popup.addOpenedStudyId(["a", "b"], "a");
+
+                // Assert
+                assert.equal(added.length, 1000);
+                assert.equal(added[0], "s1");
+                assert.equal(added[999], "new");
+                assert.deepEqual([...reopened], ["b", "a"]);
+            });
         });
 
         test("shows blacklist words as text, not HTML", async () => {

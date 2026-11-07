@@ -113,6 +113,22 @@ function showPromptCard(name, notifiedCount, onPrimary, onDismiss) {
         yield onDismiss();
     }));
 }
+const OPENED_STUDY_IDS = "openedStudyIds";
+// Weeks of studies; the oldest drop off first.
+const OPENED_STUDY_IDS_LIMIT = 1000;
+const MIDDLE_BUTTON = 1;
+let openedStudyIds = [];
+function addOpenedStudyId(ids, id) {
+    return [...ids.filter((openedId) => openedId !== id), id].slice(-OPENED_STUDY_IDS_LIMIT);
+}
+// Starts the storage write before anything else: a left click opens a tab, and the
+// popup can close as soon as it does.
+function markStudyOpened(id, row) {
+    openedStudyIds = addOpenedStudyId(openedStudyIds, id);
+    const saved = browser.storage.local.set({ [OPENED_STUDY_IDS]: openedStudyIds });
+    row.classList.add("is-opened");
+    return saved;
+}
 function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield browser.storage.sync.get("volume");
@@ -203,25 +219,26 @@ function resetValues() {
         yield renderPopup();
     });
 }
+// New columns go last, so spreadsheets built on older exports keep working.
+const CSV_COLUMNS = [
+    "id", "title", "researcher", "reward", "rewardPerHour",
+    "time", "timeInMinutes", "createdAt", "places"
+];
+function buildStudiesCsv(studies) {
+    const rows = studies.map((study) => CSV_COLUMNS.map((column) => {
+        const value = study[column];
+        if (value === null || value === undefined)
+            return "";
+        return `"${String(value).replace(/"/g, '""')}"`;
+    }).join(","));
+    return [CSV_COLUMNS.join(","), ...rows].join("\n");
+}
 function downloadStudies() {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         const result = yield browser.storage.local.get("currentStudies");
-        const studies = result["currentStudies"];
-        const headers = [
-            "id", "title", "researcher", "reward", "rewardPerHour",
-            "time", "timeInMinutes", "createdAt"
-        ];
-        const csvRows = [headers.join(",")];
-        studies.forEach(study => {
-            const values = headers.map(header => {
-                const value = study[header];
-                if (value === null || value === undefined)
-                    return "";
-                return `"${String(value).replace(/"/g, '""')}"`;
-            });
-            csvRows.push(values.join(","));
-        });
-        const csvContent = csvRows.join("\n");
+        const studies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        const csvContent = buildStudiesCsv(studies);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -234,14 +251,11 @@ function downloadStudies() {
         URL.revokeObjectURL(url);
     });
 }
+// Day/month and time: the history only holds recent studies, so the year adds nothing.
 function formatDate(dateStr) {
     const date = new Date(dateStr);
-    const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate().toString();
-    const month = (date.getMonth() + 1) < 10 ? '0' + (date.getMonth() + 1) : (date.getMonth() + 1).toString();
-    const year = date.getFullYear();
-    const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours().toString();
-    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes().toString();
-    return `${day}/${month}/${year} ${hours}:${minutes}`;
+    const pad = (value) => (value < 10 ? `0${value}` : String(value));
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function setSelectState(elementId, storageKey, callback) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -297,7 +311,7 @@ function setCurrentActiveTab() {
 }
 function populateStudies() {
     return __awaiter(this, arguments, void 0, function* (search = '', sort = "") {
-        var _a;
+        var _a, _b;
         if (!search) {
             const searchInput = document.getElementById("search-studies");
             search = searchInput.value;
@@ -308,8 +322,9 @@ function populateStudies() {
         }
         const studiesContainer = document.getElementById("studies-container");
         studiesContainer.replaceChildren();
-        const result = yield browser.storage.local.get("currentStudies");
+        const result = yield browser.storage.local.get(["currentStudies", OPENED_STUDY_IDS]);
         const savedStudies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        openedStudyIds = (_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [];
         let currentStudies = [...savedStudies];
         if (currentStudies.length === 0) {
             studiesContainer.append(createTextElement("p", "text-center", "No studies available."));
@@ -353,12 +368,15 @@ function populateStudies() {
             }
         });
         currentStudies.forEach((study) => {
-            studiesContainer.append(createStudyCard(study, () => __awaiter(this, void 0, void 0, function* () {
-                // Delete from everything saved, not only the studies the search shows.
-                const remaining = savedStudies.filter((saved) => saved.id !== study.id);
-                yield browser.storage.local.set({ currentStudies: remaining });
-                yield populateStudies();
-            })));
+            studiesContainer.append(createStudyCard(study, {
+                isOpened: study.id !== null && openedStudyIds.includes(study.id),
+                onDelete: () => __awaiter(this, void 0, void 0, function* () {
+                    // Delete from everything saved, not only the studies the search shows.
+                    const remaining = savedStudies.filter((saved) => saved.id !== study.id);
+                    yield browser.storage.local.set({ currentStudies: remaining });
+                    yield populateStudies();
+                }),
+            }));
         });
     });
 }
@@ -617,43 +635,59 @@ function createTextElement(tagName, className, text) {
     element.textContent = text;
     return element;
 }
-function createLabeledText(className, label, value) {
-    const element = document.createElement("div");
-    element.className = className;
-    const labelElement = document.createElement("strong");
-    labelElement.textContent = label;
-    element.append(labelElement, ` ${value}`);
-    return element;
-}
-function createStudyCard(study, onDelete) {
+function getStudyUrl(study) {
     var _a;
-    const header = document.createElement("div");
-    header.className = "study-header";
-    const image = document.createElement("img");
-    image.src = "/imgs/logo.png";
-    image.alt = "";
-    image.className = "study-img";
-    header.append(image, createTextElement("div", "study-title", study.title || "Untitled"));
-    const openLink = document.createElement("a");
-    openLink.className = "btn btn-success open-btn normal-link";
-    openLink.href = `https://app.prolific.com/studies/${encodeURIComponent((_a = study.id) !== null && _a !== void 0 ? _a : "")}`;
-    openLink.target = "_blank";
-    openLink.rel = "noopener noreferrer";
-    openLink.textContent = "Open";
+    return `https://app.prolific.com/studies/${encodeURIComponent((_a = study.id) !== null && _a !== void 0 ? _a : "")}`;
+}
+// A real link, so right-click > Copy link and middle-click work on it.
+function createStudyLink(study, className, text) {
+    const link = document.createElement("a");
+    link.className = className;
+    link.href = getStudyUrl(study);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = text;
+    return link;
+}
+function getStudyMeta(study) {
+    const rewardPerHour = study.rewardPerHour ? `${study.rewardPerHour}/hr` : null;
+    return [study.reward, rewardPerHour, study.time, study.places].filter(Boolean).join(" · ");
+}
+function watchStudyOpened(link, study, row) {
+    const id = study.id;
+    if (!id)
+        return;
+    link.addEventListener("click", () => markStudyOpened(id, row));
+    link.addEventListener("auxclick", (event) => {
+        if (event.button === MIDDLE_BUTTON)
+            return markStudyOpened(id, row);
+    });
+}
+function createStudyCard(study, options) {
+    const row = document.createElement("div");
+    row.className = options.isOpened ? "study-card is-opened" : "study-card";
+    const title = createStudyLink(study, "study-title", study.title || "Untitled");
+    title.title = study.title || "";
+    const openLink = createStudyLink(study, "btn open-btn normal-link", "Open");
+    watchStudyOpened(title, study, row);
+    watchStudyOpened(openLink, study, row);
+    const details = document.createElement("div");
+    details.className = "study-sub";
+    details.append(createTextElement("span", "study-researcher", study.researcher || "Unknown"), createTextElement("span", "study-created-at", study.createdAt ? formatDate(study.createdAt) : ""));
     const deleteButton = document.createElement("button");
-    deleteButton.className = "btn delete-btn";
+    deleteButton.className = "icon-btn delete-btn";
+    deleteButton.title = "Delete";
+    deleteButton.setAttribute("aria-label", `Delete ${study.title || "study"}`);
     const trashIcon = document.createElement("img");
     trashIcon.src = "/svgs/trash.svg";
     trashIcon.alt = "";
-    deleteButton.append(trashIcon, " Delete");
-    deleteButton.addEventListener("click", onDelete);
-    const info = document.createElement("div");
-    info.className = "study-info";
-    info.append(header, createTextElement("div", "study-researcher", study.researcher || "Unknown"), createLabeledText("study-reward", "Pay:", study.reward || "N/A"), createTextElement("div", "study-reward-hour", `${study.rewardPerHour || "N/A"} /hr`), createLabeledText("study-time", "Time:", study.time || "N/A"), createTextElement("div", "study-created-at", study.createdAt ? formatDate(study.createdAt) : "N/A"), openLink, deleteButton);
-    const card = document.createElement("div");
-    card.className = "study-card";
-    card.append(info);
-    return card;
+    deleteButton.append(trashIcon);
+    deleteButton.addEventListener("click", options.onDelete);
+    const actions = document.createElement("div");
+    actions.className = "study-actions";
+    actions.append(openLink, deleteButton);
+    row.append(title, createTextElement("div", "study-meta", getStudyMeta(study)), details, actions);
+    return row;
 }
 function createBlacklistChip(item, onRemove) {
     const chip = document.createElement("div");

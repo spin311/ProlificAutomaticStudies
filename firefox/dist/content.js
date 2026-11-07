@@ -243,7 +243,7 @@ function haveSameIds(previous, current) {
 function getPlaces(study) {
     var _a;
     if (study.querySelector('[data-testid="study-tag-places-infinite"]'))
-        return "Unlimited places";
+        return "∞ places";
     return ((_a = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _a === void 0 ? void 0 : _a.trim()) || null;
 }
 function getTextContent(element, selector) {

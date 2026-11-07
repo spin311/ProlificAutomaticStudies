@@ -253,7 +253,7 @@ function haveSameIds(previous: string[], current: string[]): boolean {
 // Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
 // It is the count when the study was first seen, so it goes stale.
 function getPlaces(study: Element): string | null {
-    if (study.querySelector('[data-testid="study-tag-places-infinite"]')) return "Unlimited places";
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]')) return "∞ places";
     return getTextContent(study, '[data-testid="study-tag-places"]')?.trim() || null;
 }
 

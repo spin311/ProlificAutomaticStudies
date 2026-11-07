@@ -337,7 +337,7 @@ test("stores the places Prolific shows for each new study", async () => {
     // JSON round trip: arrays made inside the vm have another realm's prototype.
     const studies = JSON.parse(JSON.stringify(page.chrome.storage.local.data.currentStudies));
     const stored = studies.map((study) => [study.id, study.places]);
-    assert.deepEqual(stored, [["a", "120 places"], ["b", "Unlimited places"], ["c", null]]);
+    assert.deepEqual(stored, [["a", "120 places"], ["b", "∞ places"], ["c", null]]);
 });
 });
 }
