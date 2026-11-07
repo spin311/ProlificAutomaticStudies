@@ -109,15 +109,19 @@ async function getValueFromStorageBg<T>(key: string, defaultValue: T): Promise<T
 }
 
 function setupTitleAlert(): void {
-    browser.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
-        if (!tab.url?.includes('https://app.prolific.com/') || !tab.title || changeInfo.status !== 'complete') return;
+    browser.tabs.onUpdated.addListener(async (_tabId, _changeInfo, tab) => {
+        // Prolific rewrites "(N) Prolific" in place, and that update carries only the new
+        // title, never changeInfo.status. So check the loaded tab, not this update's status.
+        if (!tab.url?.includes('https://app.prolific.com/') || !tab.title || tab.status !== 'complete') return;
 
         const previousTitle = await getValueFromStorageBg(PROLIFIC_TITLE, 'Prolific');
         const newTitle = tab.title.trim();
+        // Most updates (favicon, audio, ...) keep the title: skip them without a sync write.
+        if (newTitle === previousTitle) return;
         await browser.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
 
         const useOld = await getValueFromStorageBg(USE_OLD, false);
-        if (!useOld || newTitle === previousTitle || newTitle === 'Prolific') return;
+        if (!useOld || newTitle === 'Prolific') return;
 
         const previousNumber = getNumberFromTitle(previousTitle);
         const currentNumber = getNumberFromTitle(newTitle);

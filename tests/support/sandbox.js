@@ -103,6 +103,7 @@ function createChrome({ storage = createStorage(), tabs = [] } = {}) {
             clear: () => {},
         },
         tabs: {
+            onUpdated: makeEvent(),
             query: async ({ url }) => tabs.filter((tab) => matchesPattern(url, tab.url)),
             reload: async (tabId) => {
                 calls.reloads.push(tabId);
