@@ -3,7 +3,7 @@ const REVIEW_PROMPT_MIN_STUDIES = 10;
 
 const FIREFOX_REVIEW_URL = "https://addons.mozilla.org/firefox/addon/prolific-studies-notifier/reviews/";
 
-function getReviewUrl(): string | null {
+function getReviewUrl(): string {
     return FIREFOX_REVIEW_URL;
 }
 
@@ -14,13 +14,22 @@ function shouldShowReviewPrompt(notifiedCount: unknown, answer: unknown, reviewU
 }
 
 async function setupReviewPrompt(notifiedCount: number): Promise<void> {
+    // The prompt is optional: a failing storage read must not stop the rest of the popup.
+    try {
+        await showReviewPromptIfDue(notifiedCount);
+    } catch (error) {
+        console.error("Could not set up the review prompt", error);
+    }
+}
+
+async function showReviewPromptIfDue(notifiedCount: number): Promise<void> {
     const card = document.getElementById("reviewPrompt");
     const rateButton = document.getElementById("reviewRate");
     const dismissButton = document.getElementById("reviewDismiss");
     if (!card || !rateButton || !dismissButton) return;
     const reviewUrl = getReviewUrl();
     const stored = await browser.storage.sync.get(REVIEW_PROMPT_KEY);
-    if (reviewUrl === null || !shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl)) return;
+    if (!shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl)) return;
 
     const countElement = document.getElementById("reviewPromptCount");
     if (countElement) countElement.textContent = String(notifiedCount);

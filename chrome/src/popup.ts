@@ -17,6 +17,15 @@ function shouldShowReviewPrompt(notifiedCount: unknown, answer: unknown, reviewU
 }
 
 async function setupReviewPrompt(notifiedCount: number): Promise<void> {
+    // The prompt is optional: a failing storage read must not stop the rest of the popup.
+    try {
+        await showReviewPromptIfDue(notifiedCount);
+    } catch (error) {
+        console.error("Could not set up the review prompt", error);
+    }
+}
+
+async function showReviewPromptIfDue(notifiedCount: number): Promise<void> {
     const card = document.getElementById("reviewPrompt");
     const rateButton = document.getElementById("reviewRate");
     const dismissButton = document.getElementById("reviewDismiss");

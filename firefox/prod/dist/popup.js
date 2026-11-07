@@ -22,6 +22,17 @@ function shouldShowReviewPrompt(notifiedCount, answer, reviewUrl) {
 }
 function setupReviewPrompt(notifiedCount) {
     return __awaiter(this, void 0, void 0, function* () {
+        // The prompt is optional: a failing storage read must not stop the rest of the popup.
+        try {
+            yield showReviewPromptIfDue(notifiedCount);
+        }
+        catch (error) {
+            console.error("Could not set up the review prompt", error);
+        }
+    });
+}
+function showReviewPromptIfDue(notifiedCount) {
+    return __awaiter(this, void 0, void 0, function* () {
         const card = document.getElementById("reviewPrompt");
         const rateButton = document.getElementById("reviewRate");
         const dismissButton = document.getElementById("reviewDismiss");
@@ -29,7 +40,7 @@ function setupReviewPrompt(notifiedCount) {
             return;
         const reviewUrl = getReviewUrl();
         const stored = yield browser.storage.sync.get(REVIEW_PROMPT_KEY);
-        if (reviewUrl === null || !shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl))
+        if (!shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl))
             return;
         const countElement = document.getElementById("reviewPromptCount");
         if (countElement)

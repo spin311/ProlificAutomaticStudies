@@ -354,6 +354,28 @@ for (const build of BUILDS) {
                 assert.equal(elements.reviewPrompt.hidden, true);
             });
 
+            test("keeps the card hidden and logs when the storage read fails", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ extensionId: storeId });
+                storage.sync.get = async () => {
+                    throw new Error("storage unavailable");
+                };
+                const logged = [];
+                const originalError = console.error;
+                console.error = (...args) => logged.push(args);
+
+                // Act
+                try {
+                    await popup.setupReviewPrompt(50);
+                } finally {
+                    console.error = originalError;
+                }
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, true);
+                assert.equal(logged.length, 1);
+            });
+
             test("never shows for an unknown Chrome extension id", { skip: build !== "chrome" }, async () => {
                 // Arrange
                 const { popup, elements } = openPopup({ extensionId: "unpacked-dev-id" });
