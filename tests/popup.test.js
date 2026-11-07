@@ -979,7 +979,7 @@ for (const build of BUILDS) {
                 assert.equal(elements.reviewPrompt.hidden, true);
             });
 
-            test("popup HTML carries the card copy, report link and cross-promo with UTM tags", () => {
+            test("popup HTML carries the card copy and report link", () => {
                 // Arrange
                 const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
 
@@ -987,8 +987,29 @@ for (const build of BUILDS) {
                 assert.match(html, /Enjoying Prolific Studies Notifier\?/);
                 assert.match(html, /A quick rating helps other participants find it\./);
                 assert.match(html, /href="https:\/\/github\.com\/spin311\/ProlificAutomaticStudies\/issues\/new"/);
-                assert.match(html, /More free tools by the same developer:/);
-                assert.match(html, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+            });
+        });
+
+        describe("cross-promo", () => {
+            const STORE = build === "chrome" ? "https://chromewebstore.google.com/" : "https://addons.mozilla.org/";
+
+            test("popup HTML shows Free Game Claimer as a card with its icon, a short name and UTM tags", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act
+                const card = html.match(/<a ([^>]*class="promo-tile"[^>]*)>([\s\S]*?)<\/a>/);
+                const iconPath = card?.[2].match(/<img [^>]*src="\/(imgs\/[^"]+)"/)?.[1];
+
+                // Assert
+                assert.ok(card, "promo card link is missing");
+                const [, attributes, content] = card;
+                assert.ok(attributes.includes(`href="${STORE}`), `card should link to ${STORE}`);
+                assert.match(attributes, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+                assert.match(attributes, /target="_blank" rel="noopener noreferrer"/);
+                assert.match(content, /<strong[^>]*>Free games<\/strong>/);
+                assert.ok(iconPath, "promo card has no icon");
+                assert.ok(fs.existsSync(path.join(__dirname, "..", build, "prod", iconPath)), `${iconPath} is not in the store build`);
             });
         });
 

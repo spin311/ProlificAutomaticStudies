@@ -764,27 +764,62 @@ body.is-tab #studies-container {
     text-decoration: underline;
 }
 
-.app-promo {
-    margin: 0;
-    padding: 0 14px 4px;
-    color: var(--muted);
-    font-size: 11px;
-    text-align: center;
+/* ---------- Cross-promo ---------- */
+
+/* One quiet card, as tall as a settings row: the settings tab is ~6 px short
+   of the 600 px popup limit, so anything taller adds a scrollbar. */
+.promo {
+    padding: 0 12px 6px;
 }
 
-.app-promo a {
+.promo-tile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px 5px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
     color: var(--muted);
-    text-decoration: underline;
+    font-size: 11.5px;
+    text-decoration: none;
+    transition: border-color 0.15s ease;
 }
 
-.app-promo a:hover {
-    color: var(--brand-dark);
+.promo-tile:hover {
+    border-color: var(--brand);
+}
+
+.promo-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+}
+
+.promo-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.promo-text strong {
+    margin-right: 3px;
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.promo-tile:hover .promo-arrow {
+    color: var(--brand);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .is-ready .switch,
     .is-ready .switch::before,
-    .tooltip-icon::after {
+    .tooltip-icon::after,
+    .promo-tile {
         transition: none;
     }
 }
