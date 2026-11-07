@@ -1,3 +1,50 @@
+const REVIEW_PROMPT_KEY = "reviewPrompt";
+const REVIEW_PROMPT_MIN_STUDIES = 10;
+
+// Store review pages. Chrome: only the Web Store build gets the prompt, so unpacked
+// dev builds and other listings (e.g. Edge Add-ons) never point at the wrong store.
+const CHROME_STORE_EXTENSION_ID = "mlicfddkgjkeajfgkihplfbgpmbonbao";
+const CHROME_REVIEW_URL = `https://chromewebstore.google.com/detail/prolific-studies-notifier/${CHROME_STORE_EXTENSION_ID}/reviews`;
+
+function getReviewUrl(extensionId: string | undefined): string | null {
+    return extensionId === CHROME_STORE_EXTENSION_ID ? CHROME_REVIEW_URL : null;
+}
+
+// Ask once: any stored answer ('rated' or 'dismissed') hides the card for good.
+function shouldShowReviewPrompt(notifiedCount: unknown, answer: unknown, reviewUrl: string | null): boolean {
+    if (reviewUrl === null || answer === "rated" || answer === "dismissed") return false;
+    return typeof notifiedCount === "number" && notifiedCount >= REVIEW_PROMPT_MIN_STUDIES;
+}
+
+async function setupReviewPrompt(notifiedCount: number): Promise<void> {
+    const card = document.getElementById("reviewPrompt");
+    const rateButton = document.getElementById("reviewRate");
+    const dismissButton = document.getElementById("reviewDismiss");
+    if (!card || !rateButton || !dismissButton) return;
+    const reviewUrl = getReviewUrl(chrome.runtime.id);
+    const stored = await chrome.storage.sync.get(REVIEW_PROMPT_KEY);
+    if (reviewUrl === null || !shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl)) return;
+
+    const countElement = document.getElementById("reviewPromptCount");
+    if (countElement) countElement.textContent = String(notifiedCount);
+    card.hidden = false;
+    // One ask at a time: the Sponsor button waits until the card is answered.
+    const sponsorButton = document.getElementById("sponsorButton");
+    if (sponsorButton) sponsorButton.hidden = true;
+
+    const answer = async (value: "rated" | "dismissed"): Promise<void> => {
+        card.hidden = true;
+        if (sponsorButton) sponsorButton.hidden = false;
+        await chrome.storage.sync.set({[REVIEW_PROMPT_KEY]: value});
+    };
+    rateButton.addEventListener("click", async (): Promise<void> => {
+        // Store the answer first: the popup can close as soon as the tab opens.
+        await answer("rated");
+        await chrome.tabs.create({url: reviewUrl, active: true});
+    });
+    dismissButton.addEventListener("click", () => answer("dismissed"));
+}
+
 async function setVolume(volume: HTMLInputElement) {
     const result = await chrome.storage.sync.get("volume");
     const vol = result["volume"];
@@ -36,7 +83,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     await setupSearch();
 
     if(counter) {
-        await setCounter(counter);
+        const notifiedCount = await setCounter(counter);
+        await setupReviewPrompt(notifiedCount);
     }
 
     if(playAudio) {
@@ -57,12 +105,13 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 });
 
-async function setCounter(counter: HTMLSpanElement): Promise<void> {
+async function setCounter(counter: HTMLSpanElement): Promise<number> {
     const result = await chrome.storage.sync.get("counter");
     const count = result["counter"];
     if (count !== undefined) {
         counter.innerText = count.toString();
     }
+    return typeof count === "number" ? count : 0;
 }
 
 async function playAlert(): Promise<void> {

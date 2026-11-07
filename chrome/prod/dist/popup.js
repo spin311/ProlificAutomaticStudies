@@ -8,6 +8,54 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+const REVIEW_PROMPT_KEY = "reviewPrompt";
+const REVIEW_PROMPT_MIN_STUDIES = 10;
+// Store review pages. Chrome: only the Web Store build gets the prompt, so unpacked
+// dev builds and other listings (e.g. Edge Add-ons) never point at the wrong store.
+const CHROME_STORE_EXTENSION_ID = "mlicfddkgjkeajfgkihplfbgpmbonbao";
+const CHROME_REVIEW_URL = `https://chromewebstore.google.com/detail/prolific-studies-notifier/${CHROME_STORE_EXTENSION_ID}/reviews`;
+function getReviewUrl(extensionId) {
+    return extensionId === CHROME_STORE_EXTENSION_ID ? CHROME_REVIEW_URL : null;
+}
+// Ask once: any stored answer ('rated' or 'dismissed') hides the card for good.
+function shouldShowReviewPrompt(notifiedCount, answer, reviewUrl) {
+    if (reviewUrl === null || answer === "rated" || answer === "dismissed")
+        return false;
+    return typeof notifiedCount === "number" && notifiedCount >= REVIEW_PROMPT_MIN_STUDIES;
+}
+function setupReviewPrompt(notifiedCount) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const card = document.getElementById("reviewPrompt");
+        const rateButton = document.getElementById("reviewRate");
+        const dismissButton = document.getElementById("reviewDismiss");
+        if (!card || !rateButton || !dismissButton)
+            return;
+        const reviewUrl = getReviewUrl(chrome.runtime.id);
+        const stored = yield chrome.storage.sync.get(REVIEW_PROMPT_KEY);
+        if (reviewUrl === null || !shouldShowReviewPrompt(notifiedCount, stored[REVIEW_PROMPT_KEY], reviewUrl))
+            return;
+        const countElement = document.getElementById("reviewPromptCount");
+        if (countElement)
+            countElement.textContent = String(notifiedCount);
+        card.hidden = false;
+        // One ask at a time: the Sponsor button waits until the card is answered.
+        const sponsorButton = document.getElementById("sponsorButton");
+        if (sponsorButton)
+            sponsorButton.hidden = true;
+        const answer = (value) => __awaiter(this, void 0, void 0, function* () {
+            card.hidden = true;
+            if (sponsorButton)
+                sponsorButton.hidden = false;
+            yield chrome.storage.sync.set({ [REVIEW_PROMPT_KEY]: value });
+        });
+        rateButton.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+            // Store the answer first: the popup can close as soon as the tab opens.
+            yield answer("rated");
+            yield chrome.tabs.create({ url: reviewUrl, active: true });
+        }));
+        dismissButton.addEventListener("click", () => answer("dismissed"));
+    });
+}
 function setVolume(volume) {
     return __awaiter(this, void 0, void 0, function* () {
         const result = yield chrome.storage.sync.get("volume");
@@ -44,7 +92,8 @@ document.addEventListener('DOMContentLoaded', function () {
         yield setBlacklist();
         yield setupSearch();
         if (counter) {
-            yield setCounter(counter);
+            const notifiedCount = yield setCounter(counter);
+            yield setupReviewPrompt(notifiedCount);
         }
         if (playAudio) {
             playAudio.addEventListener("click", playAlert);
@@ -67,6 +116,7 @@ function setCounter(counter) {
         if (count !== undefined) {
             counter.innerText = count.toString();
         }
+        return typeof count === "number" ? count : 0;
     });
 }
 function playAlert() {

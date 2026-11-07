@@ -75,10 +75,16 @@ const BUILDS = ["chrome", "firefox"];
 
 for (const build of BUILDS) {
     describe(build, () => {
-        function openPopup({ local = {}, sync = {} } = {}) {
+        function openPopup({ local = {}, sync = {}, extensionId } = {}) {
             const storage = createStorage({ local, sync });
-            const { chrome } = createChrome({ storage });
+            const { chrome, calls } = createChrome({ storage });
+            if (extensionId) chrome.runtime.id = extensionId;
             const elements = {
+                reviewPrompt: Object.assign(new FakeElement("section"), { hidden: true }),
+                reviewRate: new FakeElement("button"),
+                reviewDismiss: new FakeElement("button"),
+                reviewPromptCount: new FakeElement("span"),
+                sponsorButton: new FakeElement("a"),
                 "studies-container": new FakeElement("div"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
@@ -94,7 +100,7 @@ for (const build of BUILDS) {
                 getElementById: (id) => elements[id] ?? null,
             };
             const popup = loadScripts([dist(build, "popup.js")], { chrome, globals: { document } });
-            return { popup, elements, storage };
+            return { popup, elements, storage, calls };
         }
 
         test("shows study titles and researchers as text, not HTML", async () => {
@@ -237,6 +243,139 @@ for (const build of BUILDS) {
                 autoAudio: true, showNotification: true, trackIds: true, focusProlific: false, openProlific: false, fastMode: false,
             });
             assert.match(html, /<option value="alert1\.mp3" selected>/);
+        });
+
+        describe("review prompt", () => {
+            const STORE_ID = "mlicfddkgjkeajfgkihplfbgpmbonbao";
+            const storeId = build === "chrome" ? STORE_ID : undefined;
+            const reviewUrl = (popup) => (build === "chrome" ? popup.getReviewUrl(STORE_ID) : popup.getReviewUrl());
+
+            test("uses this store's review page", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act
+                const url = reviewUrl(popup);
+
+                // Assert
+                assert.equal(
+                    url,
+                    build === "chrome"
+                        ? `https://chromewebstore.google.com/detail/prolific-studies-notifier/${STORE_ID}/reviews`
+                        : "https://addons.mozilla.org/firefox/addon/prolific-studies-notifier/reviews/"
+                );
+            });
+
+            test("has no review page for an unknown Chrome extension id", { skip: build !== "chrome" }, () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                assert.equal(popup.getReviewUrl("some-dev-id"), null);
+                assert.equal(popup.getReviewUrl(undefined), null);
+            });
+
+            test("shows from 10 notified studies until answered", () => {
+                // Arrange
+                const { popup } = openPopup();
+                const url = reviewUrl(popup);
+
+                // Act + Assert
+                assert.equal(popup.shouldShowReviewPrompt(9, undefined, url), false);
+                assert.equal(popup.shouldShowReviewPrompt(10, undefined, url), true);
+                assert.equal(popup.shouldShowReviewPrompt(500, "rated", url), false);
+                assert.equal(popup.shouldShowReviewPrompt(500, "dismissed", url), false);
+                assert.equal(popup.shouldShowReviewPrompt("12", undefined, url), false);
+                assert.equal(popup.shouldShowReviewPrompt(50, undefined, null), false);
+            });
+
+            test("shows the card with the count and hides the Sponsor button", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: storeId });
+
+                // Act
+                await popup.setupReviewPrompt(42);
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, false);
+                assert.equal(elements.reviewPromptCount.textContent, "42");
+                assert.equal(elements.sponsorButton.hidden, true);
+            });
+
+            test("stays hidden below the threshold", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: storeId });
+
+                // Act
+                await popup.setupReviewPrompt(9);
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, true);
+                assert.notEqual(elements.sponsorButton.hidden, true);
+            });
+
+            test("stays hidden once answered", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: storeId, sync: { reviewPrompt: "dismissed" } });
+
+                // Act
+                await popup.setupReviewPrompt(100);
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, true);
+            });
+
+            test("Not now stores 'dismissed' and brings the Sponsor button back", async () => {
+                // Arrange
+                const { popup, elements, storage, calls } = openPopup({ extensionId: storeId });
+                await popup.setupReviewPrompt(20);
+
+                // Act
+                await elements.reviewDismiss.listeners.click();
+
+                // Assert
+                assert.equal(storage.sync.data.reviewPrompt, "dismissed");
+                assert.equal(elements.reviewPrompt.hidden, true);
+                assert.equal(elements.sponsorButton.hidden, false);
+                assert.equal(calls.createdTabs.length, 0);
+            });
+
+            test("Rate it stores 'rated' and opens the review page in a new tab", async () => {
+                // Arrange
+                const { popup, elements, storage, calls } = openPopup({ extensionId: storeId });
+                await popup.setupReviewPrompt(20);
+
+                // Act
+                await elements.reviewRate.listeners.click();
+
+                // Assert
+                assert.equal(storage.sync.data.reviewPrompt, "rated");
+                assert.deepEqual(calls.createdTabs, [{ url: reviewUrl(popup), active: true }]);
+                assert.equal(elements.reviewPrompt.hidden, true);
+            });
+
+            test("never shows for an unknown Chrome extension id", { skip: build !== "chrome" }, async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: "unpacked-dev-id" });
+
+                // Act
+                await popup.setupReviewPrompt(100);
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, true);
+            });
+
+            test("popup HTML carries the card copy, report link and cross-promo with UTM tags", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act + Assert
+                assert.match(html, /Enjoying Prolific Studies Notifier\?/);
+                assert.match(html, /A quick rating helps other participants find it\./);
+                assert.match(html, /href="https:\/\/github\.com\/spin311\/ProlificAutomaticStudies\/issues\/new"/);
+                assert.match(html, /More free tools by the same developer:/);
+                assert.match(html, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+            });
         });
     });
 }
