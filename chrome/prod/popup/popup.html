@@ -153,7 +153,13 @@
                 <option value="time-">Longest</option>
             </select>
         </div>
-        <button id="downloadCSV" class="btn btn-quiet">Download CSV</button>
+        <div class="studies-bar">
+            <div class="view-switch" role="group" aria-label="Show">
+                <button type="button" id="view-all" class="view-btn" aria-pressed="true">All</button>
+                <button type="button" id="view-saved" class="view-btn" aria-pressed="false">&starf; Saved <span id="saved-count" class="saved-count">0</span></button>
+            </div>
+            <button id="downloadCSV" class="btn btn-quiet">Download CSV</button>
+        </div>
         <div id="studies-container"></div>
     </section>
 

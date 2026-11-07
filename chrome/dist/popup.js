@@ -132,6 +132,42 @@ function markStudyOpened(id, row) {
     row.classList.add("is-opened");
     return saved;
 }
+// Saved ("bookmarked") studies are full copies under their own key, so trimming or
+// clearing the history never removes them.
+const BOOKMARKED_STUDIES = "bookmarkedStudies";
+const STUDIES_VIEW = "studiesView";
+function toggleBookmark(bookmarks, study) {
+    const isSaved = bookmarks.some((saved) => saved.id === study.id);
+    return isSaved ? bookmarks.filter((saved) => saved.id !== study.id) : [...bookmarks, study];
+}
+// Reads the list again first, like Delete: another popup or tab may have changed it.
+function toggleStudyBookmark(study) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const result = yield chrome.storage.local.get(BOOKMARKED_STUDIES);
+        const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
+        yield chrome.storage.local.set({ [BOOKMARKED_STUDIES]: toggleBookmark(bookmarks, study) });
+        yield populateStudies();
+    });
+}
+function setupStudiesView() {
+    const views = [["view-all", "all"], ["view-saved", "saved"]];
+    views.forEach(([elementId, view]) => {
+        var _a;
+        (_a = document.getElementById(elementId)) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
+            yield chrome.storage.local.set({ [STUDIES_VIEW]: view });
+            yield showStudiesFromTop();
+        }));
+    });
+}
+function showStudiesViewState(view, savedCount) {
+    var _a, _b;
+    (_a = document.getElementById("view-all")) === null || _a === void 0 ? void 0 : _a.setAttribute("aria-pressed", String(view === "all"));
+    (_b = document.getElementById("view-saved")) === null || _b === void 0 ? void 0 : _b.setAttribute("aria-pressed", String(view === "saved"));
+    const countElement = document.getElementById("saved-count");
+    if (countElement)
+        countElement.textContent = String(savedCount);
+}
 const SEARCH_STUDIES = "searchStudies";
 const STUDIES_SCROLL = "studiesScroll";
 // Reopening soon after opening a study lands where the list was left; later, at the top.
@@ -208,6 +244,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("settings-tab", "settings");
         setTabState("filters-tab", "filters");
         setTabState("studies-tab", "studies");
+        setupStudiesView();
         // The saved search must be in the box before the first list is drawn.
         yield setupSearch();
         yield setCurrentActiveTab();
@@ -361,7 +398,7 @@ function setCurrentActiveTab() {
 }
 function populateStudies() {
     return __awaiter(this, arguments, void 0, function* (search = '', sort = "") {
-        var _a, _b;
+        var _a, _b, _c;
         if (!search) {
             const searchInput = document.getElementById("search-studies");
             search = searchInput.value;
@@ -371,12 +408,17 @@ function populateStudies() {
             sort = result["sortStudies"];
         }
         const studiesContainer = getStudiesContainer();
-        const result = yield chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS]);
-        const savedStudies = (_a = result["currentStudies"]) !== null && _a !== void 0 ? _a : [];
+        const result = yield chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW]);
+        const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
+        const view = result[STUDIES_VIEW] === "saved" ? "saved" : "all";
         openedStudyIds = (_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [];
-        let currentStudies = [...savedStudies];
+        showStudiesViewState(view, bookmarks.length);
+        let currentStudies = view === "saved" ? [...bookmarks] : [...((_c = result["currentStudies"]) !== null && _c !== void 0 ? _c : [])];
         if (currentStudies.length === 0) {
-            replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", "No studies available.")]);
+            const message = view === "saved"
+                ? "No saved studies yet. Click ☆ on a study to keep it here."
+                : "No studies available.";
+            replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", message)]);
             return;
         }
         if (search.trim() !== "") {
@@ -416,9 +458,13 @@ function populateStudies() {
                     return 0;
             }
         });
+        const bookmarkedIds = new Set(bookmarks.map((saved) => saved.id));
         const rows = currentStudies.map((study) => createStudyCard(study, {
             isOpened: study.id !== null && openedStudyIds.includes(study.id),
-            onDelete: () => deleteStudy(study.id),
+            isSaved: bookmarkedIds.has(study.id),
+            onToggleSaved: () => toggleStudyBookmark(study),
+            // In Saved, the star is the way to remove a study.
+            onDelete: view === "all" ? () => deleteStudy(study.id) : null,
         }));
         replaceKeepingScroll(studiesContainer, rows);
     });
@@ -719,29 +765,47 @@ function watchStudyOpened(link, study, row) {
             return markStudyOpened(id, row);
     });
 }
+function createSaveButton(study, options) {
+    const name = study.title || "study";
+    const button = document.createElement("button");
+    button.className = "icon-btn save-btn";
+    button.textContent = options.isSaved ? "★" : "☆";
+    button.title = options.isSaved ? "Remove from saved" : "Save for later";
+    button.setAttribute("aria-pressed", String(options.isSaved));
+    button.setAttribute("aria-label", `Save ${name}`);
+    button.addEventListener("click", options.onToggleSaved);
+    return button;
+}
+function createDeleteButton(study, onDelete) {
+    const button = document.createElement("button");
+    button.className = "icon-btn delete-btn";
+    button.title = "Delete";
+    button.setAttribute("aria-label", `Delete ${study.title || "study"}`);
+    const trashIcon = document.createElement("img");
+    trashIcon.src = "/svgs/trash.svg";
+    trashIcon.alt = "";
+    button.append(trashIcon);
+    button.addEventListener("click", onDelete);
+    return button;
+}
 function createStudyCard(study, options) {
     const row = document.createElement("div");
     row.className = options.isOpened ? "study-card is-opened" : "study-card";
     const title = createStudyLink(study, "study-title", study.title || "Untitled");
     title.title = study.title || "";
-    const openLink = createStudyLink(study, "btn open-btn normal-link", "Open");
+    const openLink = createStudyLink(study, "btn open-btn normal-link", "↗");
+    openLink.title = "Open in a new tab";
+    openLink.setAttribute("aria-label", `Open ${study.title || "study"} in a new tab`);
     watchStudyOpened(title, study, row);
     watchStudyOpened(openLink, study, row);
     const details = document.createElement("div");
     details.className = "study-sub";
     details.append(createTextElement("span", "study-researcher", study.researcher || "Unknown"), createTextElement("span", "study-created-at", study.createdAt ? formatDate(study.createdAt) : ""));
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "icon-btn delete-btn";
-    deleteButton.title = "Delete";
-    deleteButton.setAttribute("aria-label", `Delete ${study.title || "study"}`);
-    const trashIcon = document.createElement("img");
-    trashIcon.src = "/svgs/trash.svg";
-    trashIcon.alt = "";
-    deleteButton.append(trashIcon);
-    deleteButton.addEventListener("click", options.onDelete);
     const actions = document.createElement("div");
     actions.className = "study-actions";
-    actions.append(openLink, deleteButton);
+    actions.append(openLink, createSaveButton(study, options));
+    if (options.onDelete)
+        actions.append(createDeleteButton(study, options.onDelete));
     row.append(title, createTextElement("div", "study-meta", getStudyMeta(study)), details, actions);
     return row;
 }

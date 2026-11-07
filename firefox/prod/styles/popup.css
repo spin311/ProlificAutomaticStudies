@@ -467,6 +467,45 @@ input[type="range"] {
     padding-left: 28px !important;
 }
 
+.studies-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.studies-bar .btn-quiet {
+    width: auto;
+    margin: 0 0 0 auto;
+}
+
+.view-switch {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+}
+
+.view-btn {
+    height: 24px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.view-btn[aria-pressed="true"] {
+    background: var(--brand);
+    color: #fff;
+}
+
+.saved-count {
+    font-weight: 600;
+}
+
 #studies-container {
     display: flex;
     flex-direction: column;
@@ -555,8 +594,10 @@ input[type="range"] {
 }
 
 .open-btn {
+    width: 26px;
     height: 26px;
-    padding: 0 10px;
+    padding: 0;
+    font-size: 15px;
     text-decoration: none;
 }
 
@@ -581,6 +622,16 @@ input[type="range"] {
     width: 15px;
     height: 15px;
     opacity: 0.7;
+}
+
+.save-btn {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.save-btn[aria-pressed="true"] {
+    color: #d4a017;
 }
 
 .delete-btn:hover img {

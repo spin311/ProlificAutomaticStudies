@@ -95,6 +95,9 @@ for (const build of BUILDS) {
                 sponsorDismiss: new FakeElement("button"),
                 sponsorPromptCount: new FakeElement("span"),
                 "studies-container": new FakeElement("div"),
+                "view-all": new FakeElement("button"),
+                "view-saved": new FakeElement("button"),
+                "saved-count": new FakeElement("span"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
                 "researcher-list": new FakeElement("div"),
@@ -220,6 +223,19 @@ for (const build of BUILDS) {
                 const [foundAt] = findAll(elements["studies-container"], "study-created-at");
                 const expected = `${pad(found.getDate())}/${pad(found.getMonth() + 1)} ${pad(found.getHours())}:${pad(found.getMinutes())}`;
                 assert.equal(foundAt.textContent, expected);
+            });
+
+            test("has a compact Open button that names the study for screen readers", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                assert.equal(openLink.textContent, "↗");
+                assert.equal(openLink["aria-label"], "Open A study in a new tab");
             });
 
             test("greys out studies that were opened before", async () => {
@@ -421,6 +437,111 @@ for (const build of BUILDS) {
                 // Assert
                 assert.equal(storage.local.data.studiesScroll.top, 250);
                 assert.ok(Date.now() - storage.local.data.studiesScroll.at <= 1000);
+            });
+        });
+
+        describe("saved studies", () => {
+            const titles = (elements) => findAll(elements["studies-container"], "study-title").map((t) => t.textContent);
+            // Array.from builds a test-realm array; arrays made inside the vm fail deepEqual.
+            const ids = (studies) => Array.from(studies, (s) => s.id);
+
+            test("saves a study with the star and marks it as saved", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [, saveButton] = findAll(elements["studies-container"], "save-btn");
+                await saveButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["b2"]);
+                const stars = findAll(elements["studies-container"], "save-btn").map((b) => b["aria-pressed"]);
+                assert.deepEqual(stars, ["false", "true"]);
+            });
+
+            test("unsaves a saved study when its star is clicked again", async () => {
+                // Arrange
+                const one = study("a1", "One");
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [one], bookmarkedStudies: [one] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [saveButton] = findAll(elements["studies-container"], "save-btn");
+                await saveButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), []);
+            });
+
+            test("Saved lists only saved studies, including ones gone from the history", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("x9", "Old but saved")], studiesView: "saved" },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.deepEqual(titles(elements), ["Old but saved"]);
+                assert.equal(findAll(elements["studies-container"], "delete-btn").length, 0);
+            });
+
+            test("switches to Saved, remembers it and marks the pressed button", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("b2", "Two")] },
+                });
+                popup.setupStudiesView();
+
+                // Act
+                await elements["view-saved"].listeners.click();
+
+                // Assert
+                assert.equal(storage.local.data.studiesView, "saved");
+                assert.deepEqual(titles(elements), ["Two"]);
+                assert.equal(elements["view-saved"]["aria-pressed"], "true");
+                assert.equal(elements["view-all"]["aria-pressed"], "false");
+            });
+
+            test("shows how many studies are saved", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], bookmarkedStudies: [study("a1", "One"), study("b2", "Two")] },
+                });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(elements["saved-count"].textContent, "2");
+            });
+
+            test("explains the star when nothing is saved", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One")], studiesView: "saved" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(textOf(elements["studies-container"]), "No saved studies yet. Click ☆ on a study to keep it here.");
+            });
+
+            test("deleting a saved study from All keeps it in Saved", async () => {
+                // Arrange
+                const one = study("a1", "One");
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [one], bookmarkedStudies: [one] } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                const [deleteButton] = findAll(elements["studies-container"], "delete-btn");
+                await deleteButton.listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.currentStudies), []);
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["a1"]);
             });
         });
 

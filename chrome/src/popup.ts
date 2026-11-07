@@ -134,6 +134,42 @@ function markStudyOpened(id: string, row: HTMLElement): Promise<void> {
     return saved;
 }
 
+// Saved ("bookmarked") studies are full copies under their own key, so trimming or
+// clearing the history never removes them.
+const BOOKMARKED_STUDIES = "bookmarkedStudies";
+const STUDIES_VIEW = "studiesView";
+type StudiesView = "all" | "saved";
+
+function toggleBookmark(bookmarks: Study[], study: Study): Study[] {
+    const isSaved = bookmarks.some((saved) => saved.id === study.id);
+    return isSaved ? bookmarks.filter((saved) => saved.id !== study.id) : [...bookmarks, study];
+}
+
+// Reads the list again first, like Delete: another popup or tab may have changed it.
+async function toggleStudyBookmark(study: Study): Promise<void> {
+    const result = await chrome.storage.local.get(BOOKMARKED_STUDIES);
+    const bookmarks: Study[] = result[BOOKMARKED_STUDIES] ?? [];
+    await chrome.storage.local.set({[BOOKMARKED_STUDIES]: toggleBookmark(bookmarks, study)});
+    await populateStudies();
+}
+
+function setupStudiesView(): void {
+    const views: [string, StudiesView][] = [["view-all", "all"], ["view-saved", "saved"]];
+    views.forEach(([elementId, view]) => {
+        document.getElementById(elementId)?.addEventListener("click", async (): Promise<void> => {
+            await chrome.storage.local.set({[STUDIES_VIEW]: view});
+            await showStudiesFromTop();
+        });
+    });
+}
+
+function showStudiesViewState(view: StudiesView, savedCount: number): void {
+    document.getElementById("view-all")?.setAttribute("aria-pressed", String(view === "all"));
+    document.getElementById("view-saved")?.setAttribute("aria-pressed", String(view === "saved"));
+    const countElement = document.getElementById("saved-count");
+    if (countElement) countElement.textContent = String(savedCount);
+}
+
 const SEARCH_STUDIES = "searchStudies";
 const STUDIES_SCROLL = "studiesScroll";
 // Reopening soon after opening a study lands where the list was left; later, at the top.
@@ -210,6 +246,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     setTabState("settings-tab", "settings");
     setTabState("filters-tab", "filters");
     setTabState("studies-tab", "studies");
+    setupStudiesView();
     // The saved search must be in the box before the first list is drawn.
     await setupSearch();
     await setCurrentActiveTab();
@@ -375,13 +412,18 @@ async function populateStudies(search: string = '', sort: string = "") {
         sort = result["sortStudies"];
     }
     const studiesContainer = getStudiesContainer();
-    const result = await chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS]);
-    const savedStudies: Study[] = result["currentStudies"] ?? [];
+    const result = await chrome.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW]);
+    const bookmarks: Study[] = result[BOOKMARKED_STUDIES] ?? [];
+    const view: StudiesView = result[STUDIES_VIEW] === "saved" ? "saved" : "all";
     openedStudyIds = result[OPENED_STUDY_IDS] ?? [];
-    let currentStudies: Study[] = [...savedStudies];
+    showStudiesViewState(view, bookmarks.length);
+    let currentStudies: Study[] = view === "saved" ? [...bookmarks] : [...(result["currentStudies"] ?? [])];
 
     if (currentStudies.length === 0) {
-        replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", "No studies available.")]);
+        const message = view === "saved"
+            ? "No saved studies yet. Click ☆ on a study to keep it here."
+            : "No studies available.";
+        replaceKeepingScroll(studiesContainer, [createTextElement("p", "text-center", message)]);
         return;
     }
 
@@ -423,9 +465,13 @@ async function populateStudies(search: string = '', sort: string = "") {
         }
     });
 
+    const bookmarkedIds = new Set(bookmarks.map((saved) => saved.id));
     const rows = currentStudies.map((study) => createStudyCard(study, {
         isOpened: study.id !== null && openedStudyIds.includes(study.id),
-        onDelete: () => deleteStudy(study.id),
+        isSaved: bookmarkedIds.has(study.id),
+        onToggleSaved: () => toggleStudyBookmark(study),
+        // In Saved, the star is the way to remove a study.
+        onDelete: view === "all" ? () => deleteStudy(study.id) : null,
     }));
     replaceKeepingScroll(studiesContainer, rows);
 }
@@ -713,8 +759,35 @@ function watchStudyOpened(link: HTMLAnchorElement, study: Study, row: HTMLElemen
 
 type StudyCardOptions = {
     isOpened: boolean;
-    onDelete: () => void;
+    isSaved: boolean;
+    onToggleSaved: () => void;
+    onDelete: (() => void) | null;
 };
+
+function createSaveButton(study: Study, options: StudyCardOptions): HTMLButtonElement {
+    const name = study.title || "study";
+    const button = document.createElement("button");
+    button.className = "icon-btn save-btn";
+    button.textContent = options.isSaved ? "★" : "☆";
+    button.title = options.isSaved ? "Remove from saved" : "Save for later";
+    button.setAttribute("aria-pressed", String(options.isSaved));
+    button.setAttribute("aria-label", `Save ${name}`);
+    button.addEventListener("click", options.onToggleSaved);
+    return button;
+}
+
+function createDeleteButton(study: Study, onDelete: () => void): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.className = "icon-btn delete-btn";
+    button.title = "Delete";
+    button.setAttribute("aria-label", `Delete ${study.title || "study"}`);
+    const trashIcon = document.createElement("img");
+    trashIcon.src = "/svgs/trash.svg";
+    trashIcon.alt = "";
+    button.append(trashIcon);
+    button.addEventListener("click", onDelete);
+    return button;
+}
 
 function createStudyCard(study: Study, options: StudyCardOptions): HTMLElement {
     const row = document.createElement("div");
@@ -722,7 +795,9 @@ function createStudyCard(study: Study, options: StudyCardOptions): HTMLElement {
 
     const title = createStudyLink(study, "study-title", study.title || "Untitled");
     title.title = study.title || "";
-    const openLink = createStudyLink(study, "btn open-btn normal-link", "Open");
+    const openLink = createStudyLink(study, "btn open-btn normal-link", "↗");
+    openLink.title = "Open in a new tab";
+    openLink.setAttribute("aria-label", `Open ${study.title || "study"} in a new tab`);
     watchStudyOpened(title, study, row);
     watchStudyOpened(openLink, study, row);
 
@@ -734,19 +809,10 @@ function createStudyCard(study: Study, options: StudyCardOptions): HTMLElement {
     );
 
 
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "icon-btn delete-btn";
-    deleteButton.title = "Delete";
-    deleteButton.setAttribute("aria-label", `Delete ${study.title || "study"}`);
-    const trashIcon = document.createElement("img");
-    trashIcon.src = "/svgs/trash.svg";
-    trashIcon.alt = "";
-    deleteButton.append(trashIcon);
-    deleteButton.addEventListener("click", options.onDelete);
-
     const actions = document.createElement("div");
     actions.className = "study-actions";
-    actions.append(openLink, deleteButton);
+    actions.append(openLink, createSaveButton(study, options));
+    if (options.onDelete) actions.append(createDeleteButton(study, options.onDelete));
 
     row.append(title, createTextElement("div", "study-meta", getStudyMeta(study)), details, actions);
     return row;
