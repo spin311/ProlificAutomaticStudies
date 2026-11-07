@@ -78,6 +78,9 @@ async function observeStudyChanges(): Promise<void> {
     });
 
     globalObserver.observe(document.body, { childList: true, subtree: true });
+    // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+    // not the Studies list, so a title change is a reason to scan too.
+    observeTitle(globalObserver);
     // Studies already listed when the script starts cause no mutation.
     void extractAndSendStudies();
 
@@ -144,6 +147,8 @@ async function waitForElement(selector: string): Promise<Element | null> {
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+    // Read with the list, before any await, so both describe the same moment.
+    const projectStudies = requestProjectStudies();
     const storageValues = await chrome.storage.sync.get([
         "trackIds",
         "studyHistoryLen",
@@ -159,7 +164,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     ]);
 
     const shouldIgnoreOldStudies: boolean = storageValues["trackIds"] ?? true;
-    if (!studyElements || studyElements.length === 0) {
+    if (studyElements.length === 0 && projectStudies.length === 0) {
         if (!shouldIgnoreOldStudies) {
             await chrome.storage.local.set({["currentStudies"]: []});
         }
@@ -178,7 +183,8 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     // is. Before this, studies trimmed from the history while still listed were
     // re-notified on every page mutation. The set only grows (up to its limit),
     // so an empty re-render or a second tab with an older list can't reset it.
-    const listedIds = getStudyIds(studyElements);
+    const pageIds = getStudyIds(studyElements);
+    const listedIds = [...pageIds, ...projectStudies.map((study) => study.id as string).filter((id) => !pageIds.includes(id))];
     const storedSeenIds: string[] | undefined = localValues[SEEN_STUDY_IDS];
     // First scan after upgrading: adopt what is listed without notifying it again.
     const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -221,6 +227,9 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             createdAt: new Date().toISOString(),
         });
     });
+    projectStudies.forEach((study) => {
+        if (!knownIds.has(study.id) && !pageIds.includes(study.id as string)) studies.push(study);
+    });
 
     if (shouldFilterStudies()) {
         studies = studies.filter((study) => shouldIncludeStudy(study));
@@ -244,6 +253,11 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     }
 
     return studies;
+}
+
+function observeTitle(observer: MutationObserver): void {
+    const title = document.querySelector("title");
+    if (title) observer.observe(title, { childList: true });
 }
 
 function getStudyId(study: Element): string | null {

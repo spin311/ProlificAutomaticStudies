@@ -18,6 +18,7 @@
         "https://app.prolific.com/*"
       ],
       "js": [
+        "dist/projectStudies.js",
         "dist/content.js",
         "dist/tabWatchdog.js",
         "dist/fastMode.js"

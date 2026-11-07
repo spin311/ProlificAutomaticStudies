@@ -78,9 +78,68 @@ function handleBridgeRequest(event) {
         }));
     });
 }
+// ---------- Project studies ----------
+// Prolific's Studies list leaves out studies that belong to a researcher's project
+// (they sit in a Projects tab), so the content script never sees them in the page.
+// Read them from the page's own store instead, picking only the fields it needs.
+const BRIDGE_PROJECT_STUDIES_REQUEST_EVENT = "psn:project-studies-request";
+const BRIDGE_PROJECT_STUDIES_RESULT_EVENT = "psn:project-studies-result";
+// The opposite of the rule Prolific's store uses for its Studies list
+// (displayedStudiesForDashboard: no project, or an official Prolific study).
+function isBridgeHiddenProjectStudy(study) {
+    return Boolean(study.project) && !study.is_official_prolific_study;
+}
+function pickBridgeMoney(money) {
+    return money ? { amount: money.amount, currency: money.currency } : null;
+}
+function toBridgeProjectStudy(study) {
+    var _a, _b, _c, _d, _e, _f;
+    const averagePerHour = study.study_average_reward_per_hour;
+    return {
+        id: study.id,
+        name: study.name,
+        // The name Prolific's card shows under the title.
+        host: ((_b = (_a = study.publisher) === null || _a === void 0 ? void 0 : _a.institution) === null || _b === void 0 ? void 0 : _b.name) || ((_c = study.publisher) === null || _c === void 0 ? void 0 : _c.name)
+            || ((_e = (_d = study.researcher) === null || _d === void 0 ? void 0 : _d.institution) === null || _e === void 0 ? void 0 : _e.name) || ((_f = study.researcher) === null || _f === void 0 ? void 0 : _f.name),
+        reward: pickBridgeMoney(study.study_reward),
+        // Like Prolific's card: the average rate once there is one, else the estimate.
+        rewardPerHour: pickBridgeMoney((averagePerHour === null || averagePerHour === void 0 ? void 0 : averagePerHour.amount) ? averagePerHour : study.study_estimated_reward_per_hour),
+        completionMinutes: study.estimated_completion_time,
+        totalPlaces: study.total_available_places,
+        placesTaken: study.places_taken,
+    };
+}
+function readBridgeProjectStudies() {
+    var _a, _b, _c;
+    const studiesStore = (_c = (_b = (_a = getProlificGlobals()) === null || _a === void 0 ? void 0 : _a.$pinia) === null || _b === void 0 ? void 0 : _b._s) === null || _c === void 0 ? void 0 : _c.get(BRIDGE_STUDIES_STORE_ID);
+    const list = studiesStore === null || studiesStore === void 0 ? void 0 : studiesStore.displayStudiesList;
+    if (!list || typeof list.length !== "number")
+        return [];
+    const studies = [];
+    // Plain indexed reads work the same on Vue's proxies and on Firefox's wrappers.
+    for (let i = 0; i < list.length; i++) {
+        const study = list[i];
+        if (study && isBridgeHiddenProjectStudy(study))
+            studies.push(toBridgeProjectStudy(study));
+    }
+    return studies;
+}
+// Answers synchronously, so the content script has the list as soon as its
+// dispatchEvent call returns.
+function handleBridgeProjectStudiesRequest() {
+    let studies = [];
+    try {
+        studies = readBridgeProjectStudies();
+    }
+    catch (_a) {
+        studies = [];
+    }
+    window.dispatchEvent(new CustomEvent(BRIDGE_PROJECT_STUDIES_RESULT_EVENT, { detail: JSON.stringify(studies) }));
+}
 // A second copy of the bridge would answer every request twice.
 const bridgeWindow = window;
 if (!bridgeWindow.__prolificStudiesNotifierBridge) {
     bridgeWindow.__prolificStudiesNotifierBridge = true;
     window.addEventListener(BRIDGE_REQUEST_EVENT, handleBridgeRequest);
+    window.addEventListener(BRIDGE_PROJECT_STUDIES_REQUEST_EVENT, handleBridgeProjectStudiesRequest);
 }

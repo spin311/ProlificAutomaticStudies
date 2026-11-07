@@ -68,6 +68,9 @@ function observeStudyChanges() {
             }
         }));
         globalObserver.observe(document.body, { childList: true, subtree: true });
+        // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+        // not the Studies list, so a title change is a reason to scan too.
+        observeTitle(globalObserver);
         // Studies already listed when the script starts cause no mutation.
         void extractAndSendStudies();
         // Setup polling fallback
@@ -139,6 +142,8 @@ function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+        // Read with the list, before any await, so both describe the same moment.
+        const projectStudies = requestProjectStudies();
         const storageValues = yield chrome.storage.sync.get([
             "trackIds",
             "studyHistoryLen",
@@ -153,7 +158,7 @@ function extractStudies(targetNode) {
             SEEN_STUDY_IDS,
         ]);
         const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
-        if (!studyElements || studyElements.length === 0) {
+        if (studyElements.length === 0 && projectStudies.length === 0) {
             if (!shouldIgnoreOldStudies) {
                 yield chrome.storage.local.set({ ["currentStudies"]: [] });
             }
@@ -171,7 +176,8 @@ function extractStudies(targetNode) {
         // is. Before this, studies trimmed from the history while still listed were
         // re-notified on every page mutation. The set only grows (up to its limit),
         // so an empty re-render or a second tab with an older list can't reset it.
-        const listedIds = getStudyIds(studyElements);
+        const pageIds = getStudyIds(studyElements);
+        const listedIds = [...pageIds, ...projectStudies.map((study) => study.id).filter((id) => !pageIds.includes(id))];
         const storedSeenIds = localValues[SEEN_STUDY_IDS];
         // First scan after upgrading: adopt what is listed without notifying it again.
         const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -217,6 +223,10 @@ function extractStudies(targetNode) {
                 createdAt: new Date().toISOString(),
             });
         });
+        projectStudies.forEach((study) => {
+            if (!knownIds.has(study.id) && !pageIds.includes(study.id))
+                studies.push(study);
+        });
         if (shouldFilterStudies()) {
             studies = studies.filter((study) => shouldIncludeStudy(study));
         }
@@ -238,6 +248,11 @@ function extractStudies(targetNode) {
         }
         return studies;
     });
+}
+function observeTitle(observer) {
+    const title = document.querySelector("title");
+    if (title)
+        observer.observe(title, { childList: true });
 }
 function getStudyId(study) {
     var _a;

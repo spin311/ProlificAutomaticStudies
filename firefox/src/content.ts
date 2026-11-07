@@ -104,6 +104,9 @@ async function observeStudyChanges(): Promise<void> {
     });
 
     globalObserver.observe(targetNode, { childList: true, subtree: true });
+    // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+    // not the Studies list, so a title change is a reason to scan too.
+    observeTitle(globalObserver);
     await extractAndSendStudies(targetNode);
 
     const storage = await browser.storage.sync.get(["refreshRate"]);
@@ -150,7 +153,9 @@ async function extractAndSendStudies(targetNode: Element): Promise<void> {
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const studyElements = targetNode.querySelectorAll("li.list-item");
-    if (!studyElements.length) return [];
+    // Read with the list, before any await, so both describe the same moment.
+    const projectStudies = requestProjectStudies();
+    if (!studyElements.length && !projectStudies.length) return [];
 
     const storageValues = await browser.storage.sync.get([
         "trackIds", "studyHistoryLen",
@@ -172,7 +177,8 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     // is. Before this, studies trimmed from the history while still listed were
     // re-notified on every page mutation. The set only grows (up to its limit),
     // so an empty re-render or a second tab with an older list can't reset it.
-    const listedIds = getStudyIds(studyElements);
+    const pageIds = getStudyIds(studyElements);
+    const listedIds = [...pageIds, ...projectStudies.map(study => study.id as string).filter(id => !pageIds.includes(id))];
     const storedSeenIds: string[] | undefined = localValues[SEEN_STUDY_IDS];
     // First scan after upgrading: adopt what is listed without notifying it again.
     const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -208,6 +214,10 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
         });
     });
 
+    projectStudies.forEach(study => {
+        if (!knownIds.has(study.id) && !pageIds.includes(study.id as string)) newStudies.push(study);
+    });
+
     const filteredStudies = newStudies.filter(study => {
         if (reward > 0 && study.reward && getFloatValueFromMoney(study.reward) < reward) return false;
         if (time > 0 && study.timeInMinutes && study.timeInMinutes < time) return false;
@@ -232,6 +242,11 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     }
 
     return filteredStudies;
+}
+
+function observeTitle(observer: MutationObserver): void {
+    const title = document.querySelector("title");
+    if (title) observer.observe(title, { childList: true });
 }
 
 function getStudyId(study: Element): string | null {
