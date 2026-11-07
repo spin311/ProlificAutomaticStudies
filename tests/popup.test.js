@@ -85,6 +85,10 @@ for (const build of BUILDS) {
                 reviewDismiss: new FakeElement("button"),
                 reviewPromptCount: new FakeElement("span"),
                 sponsorButton: new FakeElement("a"),
+                sponsorPrompt: Object.assign(new FakeElement("section"), { hidden: true }),
+                sponsorStart: new FakeElement("button"),
+                sponsorDismiss: new FakeElement("button"),
+                sponsorPromptCount: new FakeElement("span"),
                 "studies-container": new FakeElement("div"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
@@ -294,7 +298,7 @@ for (const build of BUILDS) {
                 const { popup, elements } = openPopup({ extensionId: storeId });
 
                 // Act
-                await popup.setupReviewPrompt(42);
+                await popup.setupPrompts(42);
 
                 // Assert
                 assert.equal(elements.reviewPrompt.hidden, false);
@@ -307,7 +311,7 @@ for (const build of BUILDS) {
                 const { popup, elements } = openPopup({ extensionId: storeId });
 
                 // Act
-                await popup.setupReviewPrompt(9);
+                await popup.setupPrompts(9);
 
                 // Assert
                 assert.equal(elements.reviewPrompt.hidden, true);
@@ -319,16 +323,29 @@ for (const build of BUILDS) {
                 const { popup, elements } = openPopup({ extensionId: storeId, sync: { reviewPrompt: "dismissed" } });
 
                 // Act
-                await popup.setupReviewPrompt(100);
+                await popup.setupPrompts(100);
 
                 // Assert
                 assert.equal(elements.reviewPrompt.hidden, true);
             });
 
+            test("Rate it and Not now record when the review was answered", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ extensionId: storeId });
+                await popup.setupPrompts(20);
+                const before = Date.now();
+
+                // Act
+                await elements.reviewDismiss.listeners.click();
+
+                // Assert
+                assert.ok(storage.sync.data.reviewPromptAnsweredAt >= before);
+            });
+
             test("Not now stores 'dismissed' and brings the Sponsor button back", async () => {
                 // Arrange
                 const { popup, elements, storage, calls } = openPopup({ extensionId: storeId });
-                await popup.setupReviewPrompt(20);
+                await popup.setupPrompts(20);
 
                 // Act
                 await elements.reviewDismiss.listeners.click();
@@ -343,7 +360,7 @@ for (const build of BUILDS) {
             test("Rate it stores 'rated' and opens the review page in a new tab", async () => {
                 // Arrange
                 const { popup, elements, storage, calls } = openPopup({ extensionId: storeId });
-                await popup.setupReviewPrompt(20);
+                await popup.setupPrompts(20);
 
                 // Act
                 await elements.reviewRate.listeners.click();
@@ -366,7 +383,7 @@ for (const build of BUILDS) {
 
                 // Act
                 try {
-                    await popup.setupReviewPrompt(50);
+                    await popup.setupPrompts(50);
                 } finally {
                     console.error = originalError;
                 }
@@ -381,7 +398,7 @@ for (const build of BUILDS) {
                 const { popup, elements } = openPopup({ extensionId: "unpacked-dev-id" });
 
                 // Act
-                await popup.setupReviewPrompt(100);
+                await popup.setupPrompts(100);
 
                 // Assert
                 assert.equal(elements.reviewPrompt.hidden, true);
@@ -397,6 +414,171 @@ for (const build of BUILDS) {
                 assert.match(html, /href="https:\/\/github\.com\/spin311\/ProlificAutomaticStudies\/issues\/new"/);
                 assert.match(html, /More free tools by the same developer:/);
                 assert.match(html, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
+            });
+        });
+
+        describe("sponsor milestone prompt", () => {
+            const DAY = 24 * 60 * 60 * 1000;
+            const NOW = 1_800_000_000_000;
+            const STORE_ID = "mlicfddkgjkeajfgkihplfbgpmbonbao";
+            const MILESTONE_URL = "https://github.com/sponsors/spin311?metadata_source=ProlificAutomaticStudies-milestone";
+            const storeId = build === "chrome" ? STORE_ID : undefined;
+            const reviewUrl = (popup) => (build === "chrome" ? popup.getReviewUrl(STORE_ID) : popup.getReviewUrl());
+            const state = (popup, overrides = {}) => ({
+                notifiedCount: 100,
+                reviewUrl: reviewUrl(popup),
+                reviewAnswer: "rated",
+                reviewAnsweredAt: NOW - 7 * DAY,
+                sponsorAnswer: undefined,
+                now: NOW,
+                ...overrides,
+            });
+
+            test("needs 100 notified studies", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { notifiedCount: 99 })), false);
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { notifiedCount: 100 })), true);
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { notifiedCount: "500" })), false);
+            });
+
+            test("waits 7 days after the review was answered", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { reviewAnsweredAt: NOW - 7 * DAY + 1 })), false);
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { reviewAnsweredAt: NOW - 7 * DAY })), true);
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { reviewAnsweredAt: undefined })), false);
+            });
+
+            test("waits while the review is unanswered", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { reviewAnswer: undefined, reviewAnsweredAt: undefined })), false);
+            });
+
+            test("is asked once", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { sponsorAnswer: "clicked" })), false);
+                assert.equal(popup.shouldShowSponsorPrompt(state(popup, { sponsorAnswer: "dismissed" })), false);
+            });
+
+            test("skips the 7-day wait when the build has no review card", () => {
+                // Arrange
+                const { popup } = openPopup();
+
+                // Act + Assert
+                const noReview = state(popup, { reviewUrl: null, reviewAnswer: undefined, reviewAnsweredAt: undefined });
+                assert.equal(popup.shouldShowSponsorPrompt(noReview), true);
+                assert.equal(popup.shouldShowSponsorPrompt({ ...noReview, notifiedCount: 99 }), false);
+            });
+
+            test("never picks both cards", () => {
+                // Arrange
+                const { popup } = openPopup();
+                const url = reviewUrl(popup);
+
+                // Act + Assert
+                const unanswered = { reviewAnswer: undefined, reviewAnsweredAt: undefined };
+                assert.equal(popup.getDuePrompt(state(popup, { ...unanswered, notifiedCount: 500 })), "review");
+                assert.equal(popup.getDuePrompt(state(popup)), "sponsor");
+                assert.equal(popup.getDuePrompt(state(popup, { notifiedCount: 50 })), null);
+                assert.equal(popup.getDuePrompt(state(popup, { reviewUrl: null, ...unanswered })), "sponsor");
+                assert.notEqual(url, undefined);
+            });
+
+            test("shows only the sponsor card, with the count, after a week-old review answer", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({
+                    extensionId: storeId,
+                    sync: { reviewPrompt: "rated", reviewPromptAnsweredAt: Date.now() - 8 * DAY },
+                });
+
+                // Act
+                await popup.setupPrompts(150);
+
+                // Assert
+                assert.equal(elements.sponsorPrompt.hidden, false);
+                assert.equal(elements.sponsorPromptCount.textContent, "150");
+                assert.equal(elements.reviewPrompt.hidden, true);
+                assert.equal(elements.sponsorButton.hidden, true);
+            });
+
+            test("shows only the review card when both are due", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: storeId });
+
+                // Act
+                await popup.setupPrompts(150);
+
+                // Assert
+                assert.equal(elements.reviewPrompt.hidden, false);
+                assert.equal(elements.sponsorPrompt.hidden, true);
+            });
+
+            test("shows the sponsor card on a Chrome build with an unknown id", { skip: build !== "chrome" }, async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ extensionId: "unpacked-dev-id" });
+
+                // Act
+                await popup.setupPrompts(100);
+
+                // Assert
+                assert.equal(elements.sponsorPrompt.hidden, false);
+                assert.equal(elements.reviewPrompt.hidden, true);
+            });
+
+            test("Sponsor on GitHub stores 'clicked' and opens the milestone link", async () => {
+                // Arrange
+                const { popup, elements, storage, calls } = openPopup({
+                    extensionId: storeId,
+                    sync: { reviewPrompt: "rated", reviewPromptAnsweredAt: Date.now() - 8 * DAY },
+                });
+                await popup.setupPrompts(120);
+
+                // Act
+                await elements.sponsorStart.listeners.click();
+
+                // Assert
+                assert.equal(storage.sync.data.sponsorPrompt, "clicked");
+                assert.deepEqual(calls.createdTabs, [{ url: MILESTONE_URL, active: true }]);
+                assert.equal(elements.sponsorPrompt.hidden, true);
+                assert.equal(elements.sponsorButton.hidden, false);
+            });
+
+            test("Not now stores 'dismissed' and opens nothing", async () => {
+                // Arrange
+                const { popup, elements, storage, calls } = openPopup({
+                    extensionId: storeId,
+                    sync: { reviewPrompt: "dismissed", reviewPromptAnsweredAt: Date.now() - 8 * DAY },
+                });
+                await popup.setupPrompts(120);
+
+                // Act
+                await elements.sponsorDismiss.listeners.click();
+
+                // Assert
+                assert.equal(storage.sync.data.sponsorPrompt, "dismissed");
+                assert.equal(calls.createdTabs.length, 0);
+                assert.equal(elements.sponsorPrompt.hidden, true);
+            });
+
+            test("popup HTML carries the sponsor card copy", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act + Assert
+                assert.match(html, /studies<\/h2>/);
+                assert.match(html, /monthly from \$2, or one-time\) keeps it working when Prolific changes\./);
+                assert.match(html, /Sponsor on GitHub/);
             });
         });
     });
