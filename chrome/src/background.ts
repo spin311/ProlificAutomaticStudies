@@ -9,6 +9,8 @@ type Study = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
+    // Missing on studies saved before 4.2.0.
+    places?: string | null;
     createdAt: string | null;
 };
 

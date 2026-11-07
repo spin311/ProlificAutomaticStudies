@@ -198,6 +198,7 @@ function extractStudies(targetNode) {
                 rewardPerHour,
                 time,
                 timeInMinutes,
+                places: getPlaces(study),
                 createdAt: new Date().toISOString(),
             });
         });
@@ -245,6 +246,14 @@ function getUpdatedSeenIds(seenIds, listedIds, notified) {
 }
 function haveSameIds(previous, current) {
     return previous.length === current.length && previous.every((id, index) => id === current[index]);
+}
+// Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
+// It is the count when the study was first seen, so it goes stale.
+function getPlaces(study) {
+    var _a;
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]'))
+        return "Unlimited places";
+    return ((_a = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _a === void 0 ? void 0 : _a.trim()) || null;
 }
 function getTextContent(element, selector) {
     var _a;

@@ -6,6 +6,7 @@ type StudyContent = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
+    places: string | null;
     createdAt: string | null;
 };
 
@@ -201,6 +202,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             rewardPerHour,
             time,
             timeInMinutes,
+            places: getPlaces(study),
             createdAt: new Date().toISOString(),
         });
     });
@@ -253,6 +255,13 @@ function getUpdatedSeenIds(seenIds: string[], listedIds: string[], notified: Stu
 
 function haveSameIds(previous: string[], current: string[]): boolean {
     return previous.length === current.length && previous.every((id, index) => id === current[index]);
+}
+
+// Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
+// It is the count when the study was first seen, so it goes stale.
+function getPlaces(study: Element): string | null {
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]')) return "Unlimited places";
+    return getTextContent(study, '[data-testid="study-tag-places"]')?.trim() || null;
 }
 
 function getTextContent(element: Element | null, selector: string): string | null {
