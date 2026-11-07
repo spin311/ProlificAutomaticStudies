@@ -121,11 +121,18 @@ let openedStudyIds = [];
 function addOpenedStudyId(ids, id) {
     return [...ids.filter((openedId) => openedId !== id), id].slice(-OPENED_STUDY_IDS_LIMIT);
 }
-// Starts the storage write before anything else: a left click opens a tab, and the
+// A redraw's storage read can predate a study opened while it was pending, so it adds
+// to what this page already knows instead of replacing it. Nothing else removes ids.
+function mergeOpenedStudyIds(stored, known) {
+    const storedIds = new Set(stored);
+    return [...stored, ...known.filter((id) => !storedIds.has(id))].slice(-OPENED_STUDY_IDS_LIMIT);
+}
+// Starts the storage writes before anything else: a left click opens a tab, and the
 // popup can close as soon as it does.
 function markStudyOpened(id, row) {
     openedStudyIds = addOpenedStudyId(openedStudyIds, id);
     const saved = browser.storage.local.set({ [OPENED_STUDY_IDS]: openedStudyIds });
+    flushStudiesScrollSave();
     row.classList.add("is-opened");
     return saved;
 }
@@ -212,26 +219,59 @@ function restoreStudiesScroll() {
         if (Date.now() - saved.at > SCROLL_RESTORE_MAX_AGE_MS)
             return;
         getStudiesContainer().scrollTop = saved.top;
+        // Counts from this open, not from the last scroll.
+        yield browser.storage.local.set({ [STUDIES_SCROLL]: { top: saved.top, at: Date.now() } });
     });
+}
+let pendingScrollSave;
+function saveStudiesScroll() {
+    clearTimeout(pendingScrollSave);
+    pendingScrollSave = undefined;
+    return browser.storage.local.set({ [STUDIES_SCROLL]: { top: getStudiesContainer().scrollTop, at: Date.now() } });
 }
 // The popup is destroyed when it closes (e.g. after a click opens a study), so the
 // position is saved as the user scrolls.
 function watchStudiesScroll() {
-    const container = getStudiesContainer();
-    let saveTimer;
-    container.addEventListener("scroll", () => {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-            void browser.storage.local.set({ [STUDIES_SCROLL]: { top: container.scrollTop, at: Date.now() } });
-        }, SCROLL_SAVE_DELAY_MS);
+    getStudiesContainer().addEventListener("scroll", () => {
+        clearTimeout(pendingScrollSave);
+        pendingScrollSave = setTimeout(saveStudiesScroll, SCROLL_SAVE_DELAY_MS);
     });
 }
-// Swaps the rows in one step, keeping the scroll position. Emptying the list first
-// would let the browser clamp it to 0 while the storage read is pending.
+// Opening a study can close the popup before a pending save runs.
+function flushStudiesScrollSave() {
+    if (pendingScrollSave !== undefined)
+        void saveStudiesScroll();
+}
+const FOCUSABLE_ROW_CONTROLS = ["study-title", "open-btn", "save-btn", "delete-btn"];
+function getFocusedRowControl(container) {
+    const active = document.activeElement;
+    if (!active)
+        return null;
+    const rows = Array.from(container.children);
+    const rowIndex = rows.findIndex((row) => row.contains(active));
+    const control = FOCUSABLE_ROW_CONTROLS.find((name) => active.classList.contains(name));
+    if (rowIndex === -1 || !control)
+        return null;
+    return { studyId: rows[rowIndex].getAttribute("data-study-id"), control, rowIndex };
+}
+// Puts focus back on the same control of the same study, or of the row that took the
+// place of a deleted one, so keyboard users don't drop back to the top of the page.
+function restoreRowFocus(container, focused) {
+    var _a, _b;
+    const rows = Array.from(container.children);
+    const row = (_a = rows.find((candidate) => candidate.getAttribute("data-study-id") === focused.studyId)) !== null && _a !== void 0 ? _a : rows[Math.min(focused.rowIndex, rows.length - 1)];
+    (_b = row === null || row === void 0 ? void 0 : row.querySelector(`.${focused.control}`)) === null || _b === void 0 ? void 0 : _b.focus({ preventScroll: true });
+}
+// Swaps the rows in one step, then puts back the scroll position and keyboard focus.
+// Emptying the list first would let the browser clamp the scroll position to 0 while
+// the storage read is pending.
 function replaceKeepingScroll(container, nodes) {
     const scrollTop = container.scrollTop;
+    const focused = getFocusedRowControl(container);
     container.replaceChildren(...nodes);
     container.scrollTop = scrollTop;
+    if (focused)
+        restoreRowFocus(container, focused);
 }
 function showStudiesFromTop() {
     return __awaiter(this, arguments, void 0, function* (search = "") {
@@ -447,7 +487,7 @@ function populateStudies() {
         const result = yield browser.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW]);
         const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
         const view = result[STUDIES_VIEW] === "saved" ? "saved" : "all";
-        openedStudyIds = (_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [];
+        openedStudyIds = mergeOpenedStudyIds((_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [], openedStudyIds);
         showStudiesViewState(view, bookmarks.length);
         let currentStudies = view === "saved" ? [...bookmarks] : [...((_c = result["currentStudies"]) !== null && _c !== void 0 ? _c : [])];
         if (currentStudies.length === 0) {
@@ -825,12 +865,16 @@ function createDeleteButton(study, onDelete) {
     return button;
 }
 function createStudyCard(study, options) {
+    var _a;
     const row = document.createElement("div");
     row.className = options.isOpened ? "study-card is-opened" : "study-card";
+    row.setAttribute("data-study-id", (_a = study.id) !== null && _a !== void 0 ? _a : "");
     const title = createStudyLink(study, "study-title", study.title || "Untitled");
     title.title = study.title || "";
     const openLink = createStudyLink(study, "btn open-btn normal-link", "↗");
     openLink.title = "Open in a new tab";
+    // The title link opens the same page; one Tab stop per study is enough.
+    openLink.tabIndex = -1;
     openLink.setAttribute("aria-label", `Open ${study.title || "study"} in a new tab`);
     watchStudyOpened(title, study, row);
     watchStudyOpened(openLink, study, row);

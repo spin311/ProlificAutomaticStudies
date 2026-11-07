@@ -8,6 +8,8 @@ const path = require("node:path");
 const { createChrome, createStorage, loadScripts, dist, startClock, advance } = require("./support/sandbox");
 
 // Just enough DOM for the popup's renderers. Setting innerHTML to markup fails the test.
+let activeElement = null;
+
 class FakeElement {
     constructor(tagName) {
         this.tagName = tagName.toUpperCase();
@@ -35,11 +37,22 @@ class FakeElement {
         this.children.push(node);
         return node;
     }
-    // An emptied list collapses, and the browser clamps its scroll position to 0.
+    // Pessimistic: replacing the rows may drop the scroll position (an emptied list
+    // collapses and is clamped to 0), so the popup has to put it back itself.
     replaceChildren(...nodes) {
         this.children = [];
-        if (nodes.length === 0) this.scrollTop = 0;
+        this.scrollTop = 0;
         this.append(...nodes);
+    }
+    focus() {
+        activeElement = this;
+    }
+    contains(node) {
+        return node === this || this.children.some((child) => child.contains?.(node));
+    }
+    // Class selectors only (".name").
+    querySelector(selector) {
+        return findAll(this, selector.slice(1))[0] ?? null;
     }
     addEventListener(type, listener) {
         this.listeners[type] = listener;
@@ -107,7 +120,11 @@ for (const build of BUILDS) {
                 elements[tab] = new FakeElement("section");
                 elements[`${tab}-tab`] = new FakeElement("li");
             }
+            activeElement = null;
             const document = {
+                get activeElement() {
+                    return activeElement;
+                },
                 body: new FakeElement("body"),
                 addEventListener() {},
                 createElement: (tagName) => new FakeElement(tagName),
@@ -260,11 +277,11 @@ for (const build of BUILDS) {
                 const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
                 await popup.populateStudies("", "created+");
 
-                // Act
+                // Act: not awaited, the popup may close as soon as the tab opens
                 const [openLink] = findAll(elements["studies-container"], "open-btn");
-                await openLink.listeners.click({ button: 0 });
+                openLink.listeners.click({ button: 0 });
 
-                // Assert
+                // Assert: the write was already issued inside the click handler
                 assert.deepEqual([...storage.local.data.openedStudyIds], ["a1"]);
                 assert.ok(rows(elements)[0].classList.contains("is-opened"));
             });
@@ -296,6 +313,36 @@ for (const build of BUILDS) {
                 const [header, row] = csv.split("\n");
                 assert.equal(header, "id,title,researcher,reward,rewardPerHour,time,timeInMinutes,createdAt,places");
                 assert.equal(row, '"a1","Say ""hi""","A lab","£1.00","£10.00","6 mins","6","2026-11-06T10:00:00.000Z","120 places"');
+            });
+
+            test("keeps a study opened during a redraw that read the list before it", async () => {
+                // Arrange: X opened, then Y opened while a redraw's storage read still held [X]
+                const studies = [study("x", "X"), study("y", "Y"), study("z", "Z")];
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: studies } });
+                await popup.populateStudies("", "created+");
+                const titleLinks = () => findAll(elements["studies-container"], "study-title");
+                await titleLinks()[0].listeners.click({ button: 0 });
+                await titleLinks()[1].listeners.auxclick({ button: 1 });
+                storage.local.data.openedStudyIds = ["x"];
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await titleLinks()[2].listeners.auxclick({ button: 1 });
+
+                // Assert
+                assert.deepEqual([...storage.local.data.openedStudyIds].sort(), ["x", "y", "z"]);
+            });
+
+            test("leaves the arrow out of the Tab order, since the title opens the same page", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [openLink] = findAll(elements["studies-container"], "open-btn");
+                assert.equal(openLink.tabIndex, -1);
             });
 
             test("remembers at most 1000 opened studies, dropping the oldest", () => {
@@ -380,6 +427,71 @@ for (const build of BUILDS) {
                 // Assert
                 assert.deepEqual(titles(elements), ["Study a", "Study c"]);
                 assert.equal(elements["studies-container"].scrollTop, 500);
+            });
+
+            test("keeps keyboard focus on the star after saving a study", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One"), study("b2", "Two")] } });
+                await popup.populateStudies("", "created+");
+                const [, star] = findAll(elements["studies-container"], "save-btn");
+                star.focus();
+
+                // Act
+                await star.listeners.click();
+
+                // Assert
+                const [, newStar] = findAll(elements["studies-container"], "save-btn");
+                assert.notEqual(newStar, star);
+                assert.equal(activeElement, newStar);
+            });
+
+            test("moves keyboard focus to the next study's Delete after a delete", async () => {
+                // Arrange
+                const studies = ["a", "b", "c"].map((id) => study(id, `Study ${id}`));
+                const { popup, elements } = openPopup({ local: { currentStudies: studies } });
+                await popup.populateStudies("", "created+");
+                const [, deleteB] = findAll(elements["studies-container"], "delete-btn");
+                deleteB.focus();
+
+                // Act
+                await deleteB.listeners.click();
+
+                // Assert
+                const [, deleteC] = findAll(elements["studies-container"], "delete-btn");
+                assert.equal(activeElement, deleteC);
+            });
+
+            test("re-dates a restored scroll position, so it lasts 10 minutes from the last open", async () => {
+                // Arrange
+                const { popup, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One")], studiesScroll: { top: 400, at: Date.now() - 9 * MINUTE } },
+                });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await popup.restoreStudiesScroll();
+
+                // Assert
+                assert.equal(storage.local.data.studiesScroll.top, 400);
+                assert.ok(Date.now() - storage.local.data.studiesScroll.at < MINUTE);
+            });
+
+            test("saves the scroll position right away when a study is opened", async (t) => {
+                // Arrange
+                startClock(t);
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                await popup.populateStudies("", "created+");
+                popup.watchStudiesScroll();
+                const container = elements["studies-container"];
+                container.scrollTop = 320;
+                container.listeners.scroll();
+
+                // Act: no time passes, the popup closes as soon as the tab opens
+                const [openLink] = findAll(container, "open-btn");
+                openLink.listeners.click({ button: 0 });
+
+                // Assert
+                assert.equal(storage.local.data.studiesScroll?.top, 320);
             });
 
             test("deletes from the latest saved list, keeping studies found after the list was drawn", async () => {
