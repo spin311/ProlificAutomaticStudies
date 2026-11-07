@@ -993,7 +993,7 @@ for (const build of BUILDS) {
         describe("cross-promo", () => {
             const STORE = build === "chrome" ? "https://chromewebstore.google.com/" : "https://addons.mozilla.org/";
 
-            test("popup HTML shows Free Game Claimer as a card with its icon, a short name and UTM tags", () => {
+            test("popup HTML shows Free Game Claimer as a card with its icon, name and UTM tags", () => {
                 // Arrange
                 const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
 
@@ -1007,7 +1007,7 @@ for (const build of BUILDS) {
                 assert.ok(attributes.includes(`href="${STORE}`), `card should link to ${STORE}`);
                 assert.match(attributes, /utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo/);
                 assert.match(attributes, /target="_blank" rel="noopener noreferrer"/);
-                assert.match(content, /<strong[^>]*>Free games<\/strong>/);
+                assert.match(content, /<strong[^>]*>Free Game Claimer<\/strong>/);
                 assert.ok(iconPath, "promo card has no icon");
                 assert.ok(fs.existsSync(path.join(__dirname, "..", build, "prod", iconPath)), `${iconPath} is not in the store build`);
             });
