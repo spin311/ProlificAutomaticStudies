@@ -1356,14 +1356,15 @@ for (const build of BUILDS) {
                 assert.equal(elements.sponsorPrompt.hidden, true);
             });
 
-            test("popup HTML carries the sponsor card copy", () => {
+            test("popup HTML carries the sponsor card copy, heart badge and pink button", () => {
                 // Arrange
                 const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
 
                 // Act + Assert
-                assert.match(html, /studies<\/h2>/);
-                assert.match(html, /monthly from \$2, or one-time\) keeps it working when Prolific changes\./);
-                assert.match(html, /Sponsor on GitHub/);
+                assert.match(html, /It has alerted you to <strong id="sponsorPromptCount" class="prompt-count">0<\/strong> studies<\/h2>/);
+                assert.match(html, /Free and built in my spare time\. Sponsoring keeps it working when Prolific changes\./);
+                assert.match(html, /<span class="prompt-badge" aria-hidden="true">&hearts;<\/span>/);
+                assert.match(html, /id="sponsorStart" type="button" class="btn btn-sponsor" title="On GitHub, monthly or one-time"><span aria-hidden="true">&hearts;<\/span> Sponsor from \$2<\/button>/);
             });
         });
     });
