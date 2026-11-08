@@ -140,6 +140,9 @@ function markStudyOpened(id, row) {
 // clearing the history never removes them.
 const BOOKMARKED_STUDIES = "bookmarkedStudies";
 const STUDIES_VIEW = "studiesView";
+// List: one compact row per study, so several fit in the 600 px popup. Cards: the
+// pre-4.2.0 look, with the full title and one labelled line per detail.
+const STUDIES_LAYOUT = "studiesLayout";
 function toggleBookmark(bookmarks, study) {
     const isSaved = bookmarks.some((saved) => saved.id === study.id);
     return isSaved ? bookmarks.filter((saved) => saved.id !== study.id) : [...bookmarks, study];
@@ -154,20 +157,31 @@ function toggleStudyBookmark(study) {
         yield populateStudies();
     });
 }
-function setupStudiesView() {
-    const views = [["view-all", "all"], ["view-saved", "saved"]];
-    views.forEach(([elementId, view]) => {
+// Each button stores its value under the key, then the list is drawn again from the top.
+function setupStudiesSwitch(storageKey, buttons) {
+    buttons.forEach(([elementId, value]) => {
         var _a;
         (_a = document.getElementById(elementId)) === null || _a === void 0 ? void 0 : _a.addEventListener("click", () => __awaiter(this, void 0, void 0, function* () {
-            yield browser.storage.local.set({ [STUDIES_VIEW]: view });
+            yield browser.storage.local.set({ [storageKey]: value });
             yield showStudiesFromTop();
         }));
     });
 }
-function showStudiesViewState(view, savedCount) {
-    var _a, _b;
-    (_a = document.getElementById("view-all")) === null || _a === void 0 ? void 0 : _a.setAttribute("aria-pressed", String(view === "all"));
-    (_b = document.getElementById("view-saved")) === null || _b === void 0 ? void 0 : _b.setAttribute("aria-pressed", String(view === "saved"));
+function setupStudiesView() {
+    setupStudiesSwitch(STUDIES_VIEW, [["view-all", "all"], ["view-saved", "saved"]]);
+}
+function setupStudiesLayout() {
+    setupStudiesSwitch(STUDIES_LAYOUT, [["layout-list", "list"], ["layout-cards", "cards"]]);
+}
+function setPressed(elementId, isPressed) {
+    var _a;
+    (_a = document.getElementById(elementId)) === null || _a === void 0 ? void 0 : _a.setAttribute("aria-pressed", String(isPressed));
+}
+function showStudiesViewState(view, layout, savedCount) {
+    setPressed("view-all", view === "all");
+    setPressed("view-saved", view === "saved");
+    setPressed("layout-list", layout === "list");
+    setPressed("layout-cards", layout === "cards");
     const countElement = document.getElementById("saved-count");
     if (countElement)
         countElement.textContent = String(savedCount);
@@ -313,6 +327,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setTabState("studies-tab", "studies");
         setupTabView();
         setupStudiesView();
+        setupStudiesLayout();
         // The saved search must be in the box before the first list is drawn.
         yield setupSearch();
         yield setCurrentActiveTab();
@@ -484,11 +499,12 @@ function populateStudies() {
             sort = result["sortStudies"];
         }
         const studiesContainer = getStudiesContainer();
-        const result = yield browser.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW]);
+        const result = yield browser.storage.local.get(["currentStudies", OPENED_STUDY_IDS, BOOKMARKED_STUDIES, STUDIES_VIEW, STUDIES_LAYOUT]);
         const bookmarks = (_a = result[BOOKMARKED_STUDIES]) !== null && _a !== void 0 ? _a : [];
         const view = result[STUDIES_VIEW] === "saved" ? "saved" : "all";
+        const layout = result[STUDIES_LAYOUT] === "cards" ? "cards" : "list";
         openedStudyIds = mergeOpenedStudyIds((_b = result[OPENED_STUDY_IDS]) !== null && _b !== void 0 ? _b : [], openedStudyIds);
-        showStudiesViewState(view, bookmarks.length);
+        showStudiesViewState(view, layout, bookmarks.length);
         let currentStudies = view === "saved" ? [...bookmarks] : [...((_c = result["currentStudies"]) !== null && _c !== void 0 ? _c : [])];
         if (currentStudies.length === 0) {
             const message = view === "saved"
@@ -535,7 +551,8 @@ function populateStudies() {
             }
         });
         const bookmarkedIds = new Set(bookmarks.map((saved) => saved.id));
-        const rows = currentStudies.map((study) => createStudyCard(study, {
+        const createItem = layout === "cards" ? createStudyCard : createStudyRow;
+        const rows = currentStudies.map((study) => createItem(study, {
             isOpened: study.id !== null && openedStudyIds.includes(study.id),
             isSaved: bookmarkedIds.has(study.id),
             onToggleSaved: () => toggleStudyBookmark(study),
@@ -841,53 +858,99 @@ function watchStudyOpened(link, study, row) {
             return markStudyOpened(id, row);
     });
 }
-function createSaveButton(study, options) {
+// Cards spell out what the buttons do; list rows only have room for icons.
+function createSaveButton(study, options, isLabelled) {
     const name = study.title || "study";
+    const star = options.isSaved ? "★" : "☆";
     const button = document.createElement("button");
-    button.className = "icon-btn save-btn";
-    button.textContent = options.isSaved ? "★" : "☆";
+    button.className = isLabelled ? "btn text-btn save-btn" : "icon-btn save-btn";
+    // The word stays "Save": aria-pressed carries the state, and voice control
+    // matches the visible word against the aria-label.
+    button.textContent = isLabelled ? `${star} Save` : star;
     button.title = options.isSaved ? "Remove from saved" : "Save for later";
     button.setAttribute("aria-pressed", String(options.isSaved));
     button.setAttribute("aria-label", `Save ${name}`);
     button.addEventListener("click", options.onToggleSaved);
     return button;
 }
-function createDeleteButton(study, onDelete) {
+function createDeleteButton(study, onDelete, isLabelled) {
     const button = document.createElement("button");
-    button.className = "icon-btn delete-btn";
+    button.className = isLabelled ? "btn text-btn delete-btn" : "icon-btn delete-btn";
     button.title = "Delete";
     button.setAttribute("aria-label", `Delete ${study.title || "study"}`);
     const trashIcon = document.createElement("img");
     trashIcon.src = "/svgs/trash.svg";
     trashIcon.alt = "";
     button.append(trashIcon);
+    if (isLabelled)
+        button.append("Delete");
     button.addEventListener("click", onDelete);
     return button;
 }
-function createStudyCard(study, options) {
+function createStudyShell(study, options, layoutClass) {
     var _a;
-    const row = document.createElement("div");
-    row.className = options.isOpened ? "study-card is-opened" : "study-card";
-    row.setAttribute("data-study-id", (_a = study.id) !== null && _a !== void 0 ? _a : "");
+    const item = document.createElement("div");
+    item.className = ["study-card", layoutClass, options.isOpened ? "is-opened" : ""].filter(Boolean).join(" ");
+    item.setAttribute("data-study-id", (_a = study.id) !== null && _a !== void 0 ? _a : "");
+    return item;
+}
+function createTitleLink(study, item) {
     const title = createStudyLink(study, "study-title", study.title || "Untitled");
     title.title = study.title || "";
-    const openLink = createStudyLink(study, "btn open-btn normal-link", "↗");
+    watchStudyOpened(title, study, item);
+    return title;
+}
+function createOpenLink(study, item, isLabelled) {
+    const openLink = createStudyLink(study, "btn open-btn normal-link", isLabelled ? "Open ↗" : "↗");
     openLink.title = "Open in a new tab";
-    // The title link opens the same page; one Tab stop per study is enough.
-    openLink.tabIndex = -1;
+    // The title link opens the same page, so a row's small arrow is left out of the
+    // Tab order. A card's labelled Open button is a visible control and keeps its stop.
+    if (!isLabelled)
+        openLink.tabIndex = -1;
     openLink.setAttribute("aria-label", `Open ${study.title || "study"} in a new tab`);
-    watchStudyOpened(title, study, row);
-    watchStudyOpened(openLink, study, row);
-    const details = document.createElement("div");
-    details.className = "study-sub";
-    details.append(createTextElement("span", "study-researcher", study.researcher || "Unknown"), createTextElement("span", "study-created-at", study.createdAt ? formatDate(study.createdAt) : ""));
+    watchStudyOpened(openLink, study, item);
+    return openLink;
+}
+function createStudyActions(study, item, options, isLabelled) {
     const actions = document.createElement("div");
     actions.className = "study-actions";
-    actions.append(openLink, createSaveButton(study, options));
+    actions.append(createOpenLink(study, item, isLabelled), createSaveButton(study, options, isLabelled));
     if (options.onDelete)
-        actions.append(createDeleteButton(study, options.onDelete));
-    row.append(title, createTextElement("div", "study-meta", getStudyMeta(study)), details, actions);
+        actions.append(createDeleteButton(study, options.onDelete, isLabelled));
+    return actions;
+}
+// The researcher and when the study was found, on one line.
+function createStudySub(study) {
+    const sub = document.createElement("div");
+    sub.className = "study-sub";
+    sub.append(createTextElement("span", "study-researcher", study.researcher || "Unknown"), createTextElement("span", "study-created-at", study.createdAt ? formatDate(study.createdAt) : ""));
+    return sub;
+}
+function createStudyRow(study, options) {
+    const row = createStudyShell(study, options, "is-compact");
+    row.append(createTitleLink(study, row), createTextElement("div", "study-meta", getStudyMeta(study)), createStudySub(study), createStudyActions(study, row, options, false));
     return row;
+}
+function createLabeledText(className, label, value) {
+    const element = document.createElement("div");
+    element.className = className;
+    const labelElement = document.createElement("strong");
+    labelElement.textContent = label;
+    element.append(labelElement, ` ${value}`);
+    return element;
+}
+function createStudyCard(study, options) {
+    const card = createStudyShell(study, options, "is-detailed");
+    const details = [
+        createStudySub(study),
+        createLabeledText("study-reward", "Pay:", study.reward || "N/A"),
+        createTextElement("div", "study-reward-hour", study.rewardPerHour ? `${study.rewardPerHour}/hr` : ""),
+        createLabeledText("study-time", "Time:", study.time || "N/A"),
+        // Studies saved before 4.2.0 have no places.
+        ...(study.places ? [createTextElement("div", "study-places", study.places)] : []),
+    ];
+    card.append(createTitleLink(study, card), ...details, createStudyActions(study, card, options, true));
+    return card;
 }
 function createBlacklistChip(item, onRemove) {
     const chip = document.createElement("div");

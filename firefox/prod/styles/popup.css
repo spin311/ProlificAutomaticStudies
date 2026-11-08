@@ -449,7 +449,25 @@ input[type="range"] {
 
 .toolbar {
     display: flex;
+    align-items: center;
     gap: 6px;
+}
+
+.search-container,
+.toolbar .form-select {
+    min-width: 0;
+}
+
+/* Beats .view-btn's padding, which comes later in the file. */
+.view-btn.layout-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
+}
+
+.layout-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .search-container {
@@ -523,10 +541,16 @@ input[type="range"] {
     overflow-y: auto;
 }
 
-/* One study per compact row: the title across the top, then the pay line and the
-   researcher line with the actions beside them. */
 .study-card {
     display: grid;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+/* List: one study per compact row, the title across the top, then the pay line and
+   the researcher line with the actions beside them. */
+.study-card.is-compact {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
         "title title"
@@ -536,9 +560,6 @@ input[type="range"] {
     column-gap: 8px;
     padding: 4px 6px 4px 10px;
     line-height: 1.3;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 6px;
 }
 
 /* Opened from the popup: kept, but pushed back. */
@@ -645,6 +666,89 @@ input[type="range"] {
 
 .delete-btn:hover img {
     opacity: 1;
+}
+
+/* Cards: the full title, then one labelled detail per cell, then labelled buttons. */
+.study-card.is-detailed {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+        "title title"
+        "sub sub"
+        "reward reward-hour"
+        "time places"
+        "actions actions";
+    gap: 3px 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+}
+
+/* Cards show the whole title and researcher, wrapping instead of cutting them off. */
+.is-detailed .study-title,
+.is-detailed .study-sub {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.is-detailed .study-sub {
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+}
+
+.study-reward {
+    grid-area: reward;
+}
+
+.study-reward-hour {
+    grid-area: reward-hour;
+}
+
+.study-time {
+    grid-area: time;
+}
+
+.study-places {
+    grid-area: places;
+}
+
+.is-detailed .study-actions {
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.is-detailed .open-btn {
+    width: auto;
+    height: 28px;
+    padding: 0 12px;
+    font-size: inherit;
+}
+
+.text-btn {
+    padding: 0 10px;
+    background: var(--surface);
+    color: var(--brand-dark);
+    border: 1px solid var(--line);
+}
+
+.text-btn:hover {
+    background: var(--mint);
+}
+
+.text-btn img {
+    width: 14px;
+    height: 14px;
+}
+
+.text-btn.save-btn {
+    font-size: inherit;
+}
+
+.text-btn.save-btn[aria-pressed="true"] {
+    color: #a07a0c;
+}
+
+.text-btn.delete-btn {
+    color: var(--danger);
 }
 
 /* ---------- Tab view (popup.html?view=tab) ---------- */

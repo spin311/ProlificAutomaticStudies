@@ -111,6 +111,8 @@ for (const build of BUILDS) {
                 "view-all": new FakeElement("button"),
                 "view-saved": new FakeElement("button"),
                 "saved-count": new FakeElement("span"),
+                "layout-list": new FakeElement("button"),
+                "layout-cards": new FakeElement("button"),
                 openInTab: new FakeElement("button"),
                 "search-studies": Object.assign(new FakeElement("input"), { value: "" }),
                 "name-list": new FakeElement("div"),
@@ -731,6 +733,151 @@ for (const build of BUILDS) {
 
                 // Assert
                 assert.deepEqual(titles(elements), ["One"]);
+            });
+        });
+
+        describe("list and card layouts", () => {
+            const container = (elements) => elements["studies-container"];
+            const textOfClass = (elements, className) => textOf(findAll(container(elements), className)[0] ?? {});
+
+            test("popup HTML has a List / Cards switch, with List pressed", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act
+                const studies = html.match(/<section id="studies">([\s\S]*?)<\/section>/)?.[1] ?? "";
+
+                // Assert
+                assert.match(studies, /<button [^>]*id="layout-list"[^>]*aria-pressed="true"/);
+                assert.match(studies, /<button [^>]*id="layout-cards"[^>]*aria-pressed="false"/);
+            });
+
+            test("shows compact list rows when no layout was chosen", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")] } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(findAll(container(elements), "is-compact").length, 1);
+                assert.equal(findAll(container(elements), "is-detailed").length, 0);
+                assert.equal(elements["layout-list"]["aria-pressed"], "true");
+                assert.equal(elements["layout-cards"]["aria-pressed"], "false");
+            });
+
+            test("cards put every detail on its own labelled line", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")], studiesLayout: "cards" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(findAll(container(elements), "is-detailed").length, 1);
+                assert.equal(findAll(container(elements), "study-meta").length, 0);
+                assert.equal(textOfClass(elements, "study-reward"), "Pay: £1.00");
+                assert.equal(textOfClass(elements, "study-reward-hour"), "£10.00/hr");
+                assert.equal(textOfClass(elements, "study-time"), "Time: 6 mins");
+                assert.equal(textOfClass(elements, "study-places"), "120 places");
+                assert.equal(textOfClass(elements, "study-researcher"), "A lab");
+                assert.equal(elements["layout-cards"]["aria-pressed"], "true");
+            });
+
+            test("cards leave places out for studies saved before places were recorded", async () => {
+                // Arrange
+                const old = study("a1", "A study", "A lab", { places: undefined });
+                const { popup, elements } = openPopup({ local: { currentStudies: [old], studiesLayout: "cards" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                assert.equal(findAll(container(elements), "study-places").length, 0);
+            });
+
+            test("cards keep the title link and labelled Open, Save and Delete buttons", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")], studiesLayout: "cards" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [title] = findAll(container(elements), "study-title");
+                assert.equal(title.tagName, "A");
+                assert.equal(title.href, "https://app.prolific.com/studies/a1");
+                assert.equal(textOfClass(elements, "open-btn"), "Open ↗");
+                assert.equal(textOfClass(elements, "save-btn"), "☆ Save");
+                assert.equal(textOfClass(elements, "delete-btn"), "Delete");
+            });
+
+            test("cards keep the labelled Open button in the Tab order", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "A study")], studiesLayout: "cards" } });
+
+                // Act
+                await popup.populateStudies("", "created+");
+
+                // Assert
+                const [openLink] = findAll(container(elements), "open-btn");
+                assert.notEqual(openLink.tabIndex, -1);
+            });
+
+            test("cards grey out opened studies and save, unsave and delete like rows", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({
+                    local: { currentStudies: [study("a1", "One"), study("b2", "Two")], openedStudyIds: ["a1"], studiesLayout: "cards" },
+                });
+                await popup.populateStudies("", "created+");
+                const ids = (studies) => Array.from(studies, (s) => s.id);
+
+                // Act
+                await findAll(container(elements), "save-btn")[1].listeners.click();
+                await findAll(container(elements), "delete-btn")[0].listeners.click();
+
+                // Assert
+                assert.deepEqual(ids(storage.local.data.bookmarkedStudies), ["b2"]);
+                assert.deepEqual(ids(storage.local.data.currentStudies), ["b2"]);
+                const [saveButton] = findAll(container(elements), "save-btn");
+                assert.equal(textOf(saveButton), "★ Save");
+                assert.equal(saveButton["aria-pressed"], "true");
+            });
+
+            test("marks an opened card right away", async () => {
+                // Arrange
+                const { popup, elements } = openPopup({ local: { currentStudies: [study("a1", "One")], studiesLayout: "cards" } });
+                await popup.populateStudies("", "created+");
+
+                // Act
+                await findAll(container(elements), "open-btn")[0].listeners.click();
+
+                // Assert
+                assert.ok(findAll(container(elements), "study-card")[0].classList.contains("is-opened"));
+            });
+
+            // Rows and cards differ in height, so the old offset would land on another study.
+            test("switching layout remembers it and redraws from the top", async () => {
+                // Arrange
+                const { popup, elements, storage } = openPopup({ local: { currentStudies: [study("a1", "One")] } });
+                popup.setupStudiesLayout();
+                await popup.populateStudies("", "created+");
+                container(elements).scrollTop = 120;
+
+                // Act
+                await elements["layout-cards"].listeners.click();
+
+                // Assert
+                assert.equal(storage.local.data.studiesLayout, "cards");
+                assert.equal(findAll(container(elements), "is-detailed").length, 1);
+                assert.equal(container(elements).scrollTop, 0);
+
+                // Act
+                await elements["layout-list"].listeners.click();
+
+                // Assert
+                assert.equal(storage.local.data.studiesLayout, "list");
+                assert.equal(findAll(container(elements), "is-compact").length, 1);
             });
         });
 
