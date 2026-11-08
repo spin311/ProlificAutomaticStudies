@@ -88,7 +88,7 @@
                 <span class="row-label">
                     <label for="fastMode" id="fastMode-label">Fast mode</label>
                     <span class="tooltip-icon tooltip-warning" tabindex="0" role="img" aria-label="Unofficial, use at your own risk"
-                          data-tooltip="Prolific's page checks for new studies every 2 minutes; fast mode checks more often. Unofficial: Prolific only supports its own extension, and frequent checking could get your account flagged. It pauses itself if Prolific restricts or rate-limits you.">!</span>
+                          data-tooltip="Only use if normal detection doesn't work. Calls Prolific's API. Use at your own risk.">!</span>
                 </span>
                 <input class="switch" type="checkbox" id="fastMode">
             </div>
@@ -101,7 +101,7 @@
                 <span class="row-label">
                     <label for="trackIds" id="trackIdsLabel">Notify once per study</label>
                     <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                          data-tooltip="Don't notify again when a study you were already told about comes back.">i</span>
+                          data-tooltip="Don't notify again for a study you were already told about.">i</span>
                 </span>
                 <input class="switch" type="checkbox" id="trackIds" checked>
             </div>
@@ -118,7 +118,7 @@
                 <span class="row-label">
                     Detect studies from
                     <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                          data-tooltip="Page reads the study list, with details and filters. Tab title only counts studies; use it if page detection stops working.">i</span>
+                          data-tooltip="Page: full details and filters. Tab title: count only; use if Page stops working.">i</span>
                 </span>
                 <div class="alerts" role="group" aria-label="Detect studies from">
                     <ul>
@@ -195,11 +195,7 @@
         </div>
 
         <div class="group">
-            <h2 class="group-title">
-                Skip studies containing
-                <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                      data-tooltip="No notification for studies whose name or researcher contains these words. Not case sensitive.">i</span>
-            </h2>
+            <h2 class="group-title">Skip studies containing</h2>
             <div class="row">
                 <label class="row-label" for="blacklist-name">In the name</label>
                 <input class="blacklist-input" type="text" id="blacklist-name">
@@ -219,7 +215,7 @@
 
 <nav class="promo" aria-label="More from the developer">
     <a href="https://chromewebstore.google.com/detail/free-game-claimer-for-ste/mndghaafpgiinfecbbbcppppiblmjepk?utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo" class="promo-tile" target="_blank" rel="noopener noreferrer"
-       title="A free extension by the same developer that claims free games for you">
+       title="A free extension that claims free games for you">
         <img src="/imgs/free-games.png" alt="" class="promo-icon">
         <span class="promo-text"><strong>Free Game Claimer</strong> Epic, Steam, GOG &amp; Prime</span>
         <span class="promo-arrow" aria-hidden="true">&#8599;</span>

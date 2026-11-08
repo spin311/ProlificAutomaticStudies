@@ -1158,6 +1158,34 @@ for (const build of BUILDS) {
                 assert.ok(iconPath, "promo card has no icon");
                 assert.ok(fs.existsSync(path.join(__dirname, "..", build, "prod", iconPath)), `${iconPath} is not in the store build`);
             });
+
+            test("popup HTML describes Free Game Claimer without 'by the same developer'", () => {
+                // Arrange
+                const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+
+                // Act
+                const title = html.match(/<a [^>]*class="promo-tile"[^>]*title="([^"]*)"/)?.[1];
+
+                // Assert
+                assert.equal(title, "A free extension that claims free games for you");
+            });
+        });
+
+        describe("popup HTML tooltips", () => {
+            const html = () => fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
+            const section = (id) => html().match(new RegExp(`<section id="${id}">([\\s\\S]*?)</section>`))?.[1] ?? "";
+
+            test("Filters has no tooltips", () => {
+                assert.doesNotMatch(section("filters"), /tooltip/);
+            });
+
+            test("Fast mode says when to use it, that it calls Prolific's API, and that it's at your own risk", () => {
+                // Act
+                const tooltip = section("settings").match(/<label for="fastMode"[\s\S]*?data-tooltip="([^"]*)"/)?.[1];
+
+                // Assert
+                assert.equal(tooltip, "Only use if normal detection doesn't work. Calls Prolific's API. Use at your own risk.");
+            });
         });
 
         describe("sponsor milestone prompt", () => {
