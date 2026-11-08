@@ -165,6 +165,44 @@ main {
 /* ---------- Settings list ---------- */
 
 .group {
+/* ---------- Popup height ---------- */
+
+/* Browsers cap a popup at 600 px, and the settings tab alone is ~598 px. Everything but
+   main keeps its height; main takes what is left and scrolls itself, and on the Studies
+   tab the list shrinks instead. So a review or sponsor card never makes the whole popup
+   scroll, and the list never scrolls inside a scrolling popup. */
+body:not(.is-tab) {
+    display: flex;
+    flex-direction: column;
+    max-height: 600px;
+}
+
+body:not(.is-tab) > * {
+    flex: none;
+}
+
+body:not(.is-tab) > main {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+main > section {
+    flex: none;
+}
+
+#studies {
+    display: flex;
+    flex-direction: column;
+}
+
+body:not(.is-tab) #studies {
+    flex: 0 1 auto;
+    min-height: 0;
+}
+
     margin-bottom: 10px;
     background: var(--surface);
     border: 1px solid var(--line);
@@ -539,7 +577,9 @@ input[type="range"] {
     gap: 4px;
     max-height: 330px;
     overflow-y: auto;
+    flex: 0 1 auto;
 }
+    min-height: 0;
 
 .study-card {
     display: grid;
@@ -831,19 +871,21 @@ body.is-tab #studies-container {
     gap: 8px;
 }
 
+    align-items: center;
 .review-actions .btn {
     flex: 1;
     margin: 0;
 }
 
 .review-report {
-    display: inline-block;
-    margin-top: 6px;
+    flex: none;
+/* Beside the buttons rather than under them: a line less in a popup with no height to spare. */
     color: var(--muted);
     font-size: 12px;
 }
 
 .review-report:hover {
+    white-space: nowrap;
     color: var(--brand-dark);
 }
 
