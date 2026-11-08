@@ -27,15 +27,16 @@
     <div class="review-actions">
         <button id="reviewRate" type="button" class="btn">Rate it</button>
         <button id="reviewDismiss" type="button" class="btn btn-quiet review-dismiss">Not now</button>
+        <a class="review-report" href="https://github.com/spin311/ProlificAutomaticStudies/issues/new" target="_blank" rel="noopener noreferrer">Not working? Report it</a>
     </div>
-    <a class="review-report" href="https://github.com/spin311/ProlificAutomaticStudies/issues/new" target="_blank" rel="noopener noreferrer">Something not working? Report it</a>
 </section>
 
-<section id="sponsorPrompt" class="review-card" aria-labelledby="sponsorPromptTitle" hidden>
-    <h2 id="sponsorPromptTitle">It has alerted you to <span id="sponsorPromptCount">0</span> studies</h2>
-    <p>Prolific Studies Notifier is free and built in my spare time. If it's helped you catch paid studies, sponsoring on GitHub (monthly from $2, or one-time) keeps it working when Prolific changes.</p>
+<section id="sponsorPrompt" class="review-card sponsor-card" aria-labelledby="sponsorPromptTitle" hidden>
+    <span class="prompt-badge" aria-hidden="true">&hearts;</span>
+    <h2 id="sponsorPromptTitle">It has alerted you to <strong id="sponsorPromptCount" class="prompt-count">0</strong> studies</h2>
+    <p>Free and built in my spare time. Sponsoring keeps it working when Prolific changes.</p>
     <div class="review-actions">
-        <button id="sponsorStart" type="button" class="btn">Sponsor on GitHub</button>
+        <button id="sponsorStart" type="button" class="btn btn-sponsor" title="On GitHub, monthly or one-time"><span aria-hidden="true">&hearts;</span> Sponsor from $2</button>
         <button id="sponsorDismiss" type="button" class="btn btn-quiet review-dismiss">Not now</button>
     </div>
 </section>

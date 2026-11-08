@@ -12,6 +12,9 @@
     --line: #cfe5df;
     --switch-off: #b8cdd0;
     --sponsor: #bf3989;
+    --sponsor-dark: #9c2e6f;
+    --sponsor-soft: #fdf2f8;
+    --sponsor-line: #f2cde1;
     --warning: #b45309;
     --danger: #c2413b;
     --radius: 8px;
@@ -105,7 +108,7 @@ select {
 }
 
 .sponsor-button:hover {
-    background: #fdf2f8;
+    background: var(--sponsor-soft);
 }
 
 .sponsor-heart {
@@ -160,6 +163,44 @@ select {
 
 main {
     padding: 10px 12px 4px;
+}
+
+/* ---------- Popup height ---------- */
+
+/* Browsers cap a popup at 600 px, and the settings tab alone is ~598 px. Everything but
+   main keeps its height; main takes what is left and scrolls itself, and on the Studies
+   tab the list shrinks instead. So a review or sponsor card never makes the whole popup
+   scroll, and the list never scrolls inside a scrolling popup. */
+body:not(.is-tab) {
+    display: flex;
+    flex-direction: column;
+    max-height: 600px;
+}
+
+body:not(.is-tab) > * {
+    flex: none;
+}
+
+body:not(.is-tab) > main {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+main > section {
+    flex: none;
+}
+
+#studies {
+    display: flex;
+    flex-direction: column;
+}
+
+body:not(.is-tab) #studies {
+    flex: 0 1 auto;
+    min-height: 0;
 }
 
 /* ---------- Settings list ---------- */
@@ -536,7 +577,9 @@ input[type="range"] {
 #studies-container {
     display: flex;
     flex-direction: column;
+    flex: 0 1 auto;
     gap: 4px;
+    min-height: 0;
     max-height: 330px;
     overflow-y: auto;
 }
@@ -828,6 +871,7 @@ body.is-tab #studies-container {
 
 .review-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -836,15 +880,89 @@ body.is-tab #studies-container {
     margin: 0;
 }
 
+/* Beside the buttons rather than under them: a line less in a popup with no height to spare. */
 .review-report {
-    display: inline-block;
-    margin-top: 6px;
+    flex: none;
     color: var(--muted);
     font-size: 12px;
+    white-space: nowrap;
 }
 
 .review-report:hover {
     color: var(--brand-dark);
+}
+
+/* ---------- Sponsor prompt ---------- */
+
+/* The header's pink Sponsor colour, as a soft tint, a heart badge beside the copy and a
+   pink button, so the milestone reads as a thank-you rather than another settings box. */
+.sponsor-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 10px;
+    background: linear-gradient(135deg, var(--sponsor-soft) 0%, var(--surface) 75%);
+    border-color: var(--sponsor-line);
+}
+
+.sponsor-card h2,
+.sponsor-card p {
+    grid-column: 2;
+}
+
+.sponsor-card h2 {
+    margin-bottom: 1px;
+    color: var(--ink);
+}
+
+.sponsor-card p {
+    margin-bottom: 9px;
+    font-size: 12.5px;
+}
+
+.sponsor-card .review-actions {
+    grid-column: 1 / -1;
+}
+
+.prompt-badge {
+    grid-row: 1 / span 2;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0619f, var(--sponsor));
+    box-shadow: 0 2px 6px rgba(191, 57, 137, 0.3);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1;
+    animation: heartbeat 1.4s ease-in-out 0.4s 2;
+}
+
+.prompt-count {
+    color: var(--sponsor);
+    font-weight: 700;
+}
+
+.review-actions .btn-sponsor {
+    flex: 1.5;
+    white-space: nowrap;
+    background: var(--sponsor);
+}
+
+.review-actions .btn-sponsor:hover {
+    background: var(--sponsor-dark);
+}
+
+@keyframes heartbeat {
+    0%, 40%, 100% {
+        transform: scale(1);
+    }
+    12% {
+        transform: scale(1.14);
+    }
+    26% {
+        transform: scale(1.06);
+    }
 }
 
 /* ---------- Footer ---------- */
@@ -925,5 +1043,9 @@ body.is-tab #studies-container {
     .tooltip-icon::after,
     .promo-tile {
         transition: none;
+    }
+
+    .prompt-badge {
+        animation: none;
     }
 }

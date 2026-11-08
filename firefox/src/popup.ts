@@ -214,7 +214,8 @@ function setupTabView(): void {
 const STUDY_LIST_KEYS = ["currentStudies", BOOKMARKED_STUDIES, OPENED_STUDY_IDS];
 
 function isStudiesSectionShown(): boolean {
-    return document.getElementById("studies")?.style.display === "block";
+    const studies = document.getElementById("studies");
+    return studies !== null && !studies.hidden;
 }
 
 // Keeps an open popup or tab current while studies are found, saved or opened elsewhere.
@@ -614,14 +615,15 @@ async function changeTab(activeTab: string): Promise<void> {
     windows.forEach(window => {
         const currentTab = window.tab;
         const currentItem = window.item;
-        const currentTabElement = document.getElementById(currentTab) as HTMLDivElement;
+        const currentTabElement = document.getElementById(currentTab) as HTMLElement;
         const currentItemElement = document.getElementById(currentItem)  as HTMLElement;
+        // The hidden attribute, not an inline display, so the CSS can lay a section out
+        // (the Studies section is a flex column whose list shrinks to fit the popup).
+        currentTabElement.hidden = activeTab !== currentTab;
         if(activeTab === currentTab) {
-            currentTabElement.style.display = "block";
             currentItemElement.classList.add("active");
         }
         else {
-            currentTabElement.style.display = "none";
             currentItemElement.classList.remove("active");
         }
     });

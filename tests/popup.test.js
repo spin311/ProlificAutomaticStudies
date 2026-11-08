@@ -689,7 +689,7 @@ for (const build of BUILDS) {
                 // Assert
                 assert.ok(elements.body.classList.contains("is-tab"));
                 assert.equal(elements.openInTab.hidden, true);
-                assert.equal(elements.studies.style.display, "block");
+                assert.equal(elements.studies.hidden, false);
             });
 
             test("as a popup it keeps its size and the last used section", async () => {
@@ -703,7 +703,7 @@ for (const build of BUILDS) {
                 // Assert
                 assert.equal(elements.body.classList.contains("is-tab"), false);
                 assert.notEqual(elements.openInTab.hidden, true);
-                assert.equal(elements.settings.style.display, "block");
+                assert.equal(elements.settings.hidden, false);
             });
 
             test("redraws the list when studies change, keeping the scroll position", async () => {
@@ -907,7 +907,7 @@ for (const build of BUILDS) {
         });
 
         const visibleSections = (elements) =>
-            ["settings", "studies", "filters"].filter((tab) => elements[tab].style.display === "block");
+            ["settings", "studies", "filters"].filter((tab) => elements[tab].hidden === false);
 
         test("opens on Settings when no tab was saved", async () => {
             // Arrange: e.g. an install that never stored one
@@ -930,6 +930,20 @@ for (const build of BUILDS) {
 
             // Assert
             assert.deepEqual(visibleSections(elements), ["settings"]);
+        });
+
+        test("shows a section with the hidden attribute and leaves its display to the CSS", async () => {
+            // Arrange: the Studies section is a flex column, so its list can shrink to fit the popup
+            const { popup, elements } = openPopup({ sync: { activeTab: "studies" } });
+
+            // Act
+            await popup.setCurrentActiveTab();
+
+            // Assert
+            assert.equal(elements.settings.hidden, true);
+            assert.equal(elements.filters.hidden, true);
+            assert.equal(elements.studies.hidden, false);
+            assert.deepEqual(["settings", "studies", "filters"].map((tab) => elements[tab].style.display), [undefined, undefined, undefined]);
         });
 
         test("reopens the tab that was used last", async () => {
@@ -1342,14 +1356,15 @@ for (const build of BUILDS) {
                 assert.equal(elements.sponsorPrompt.hidden, true);
             });
 
-            test("popup HTML carries the sponsor card copy", () => {
+            test("popup HTML carries the sponsor card copy, heart badge and pink button", () => {
                 // Arrange
                 const html = fs.readFileSync(path.join(__dirname, "..", build, "prod", "popup", "popup.html"), "utf8");
 
                 // Act + Assert
-                assert.match(html, /studies<\/h2>/);
-                assert.match(html, /monthly from \$2, or one-time\) keeps it working when Prolific changes\./);
-                assert.match(html, /Sponsor on GitHub/);
+                assert.match(html, /It has alerted you to <strong id="sponsorPromptCount" class="prompt-count">0<\/strong> studies<\/h2>/);
+                assert.match(html, /Free and built in my spare time\. Sponsoring keeps it working when Prolific changes\./);
+                assert.match(html, /<span class="prompt-badge" aria-hidden="true">&hearts;<\/span>/);
+                assert.match(html, /id="sponsorStart" type="button" class="btn btn-sponsor" title="On GitHub, monthly or one-time"><span aria-hidden="true">&hearts;<\/span> Sponsor from \$2<\/button>/);
             });
         });
     });
