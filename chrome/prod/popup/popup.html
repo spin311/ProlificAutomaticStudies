@@ -88,7 +88,7 @@
                 <span class="row-label">
                     <label for="fastMode" id="fastMode-label">Fast mode</label>
                     <span class="tooltip-icon tooltip-warning" tabindex="0" role="img" aria-label="Unofficial, use at your own risk"
-                          data-tooltip="Prolific's page checks for new studies every 2 minutes; fast mode checks more often. Unofficial: Prolific only supports its own extension, and frequent checking could get your account flagged. It pauses itself if Prolific restricts or rate-limits you.">!</span>
+                          data-tooltip="Only use if normal detection doesn't work. Calls Prolific's API. Use at your own risk.">!</span>
                 </span>
                 <input class="switch" type="checkbox" id="fastMode">
             </div>
@@ -101,7 +101,7 @@
                 <span class="row-label">
                     <label for="trackIds" id="trackIdsLabel">Notify once per study</label>
                     <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                          data-tooltip="Don't notify again when a study you were already told about comes back.">i</span>
+                          data-tooltip="Don't notify again for a study you were already told about.">i</span>
                 </span>
                 <input class="switch" type="checkbox" id="trackIds" checked>
             </div>
@@ -118,7 +118,7 @@
                 <span class="row-label">
                     Detect studies from
                     <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                          data-tooltip="Page reads the study list, with details and filters. Tab title only counts studies; use it if page detection stops working.">i</span>
+                          data-tooltip="Page: full details and filters. Tab title: count only; use if Page stops working.">i</span>
                 </span>
                 <div class="alerts" role="group" aria-label="Detect studies from">
                     <ul>
@@ -140,7 +140,7 @@
                 <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
                 </svg>
-                <input type="text" placeholder="Search studies" id="search-studies" class="input-search" aria-label="Search studies">
+                <input type="text" placeholder="Search" id="search-studies" class="input-search" aria-label="Search studies">
             </span>
             <select name="sortStudies" id="sort-studies" class="form-select" aria-label="Sort studies">
                 <option value="created+">Newest</option>
@@ -152,8 +152,28 @@
                 <option value="time+">Shortest</option>
                 <option value="time-">Longest</option>
             </select>
+            <div class="view-switch layout-switch" role="group" aria-label="Layout">
+                <button type="button" id="layout-list" class="view-btn layout-btn" aria-pressed="true" aria-label="List" title="List">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <button type="button" id="layout-cards" class="view-btn layout-btn" aria-pressed="false" aria-label="Cards" title="Cards">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <rect x="4" y="4" width="16" height="7" rx="1.5" stroke-width="2"/>
+                        <rect x="4" y="13" width="16" height="7" rx="1.5" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
         </div>
-        <button id="downloadCSV" class="btn btn-quiet">Download CSV</button>
+        <div class="studies-bar">
+            <div class="view-switch" role="group" aria-label="Show">
+                <button type="button" id="view-all" class="view-btn" aria-pressed="true">All</button>
+                <button type="button" id="view-saved" class="view-btn" aria-pressed="false">&starf; Saved <span id="saved-count" class="saved-count">0</span></button>
+            </div>
+            <button id="openInTab" type="button" class="btn btn-quiet" title="Open the list in a tab that stays open">Open in tab</button>
+            <button id="downloadCSV" type="button" class="btn btn-quiet" title="Download CSV" aria-label="Download CSV">CSV</button>
+        </div>
         <div id="studies-container"></div>
     </section>
 
@@ -175,11 +195,7 @@
         </div>
 
         <div class="group">
-            <h2 class="group-title">
-                Skip studies containing
-                <span class="tooltip-icon" tabindex="0" role="img" aria-label="More information"
-                      data-tooltip="No notification for studies whose name or researcher contains these words. Not case sensitive.">i</span>
-            </h2>
+            <h2 class="group-title">Skip studies containing</h2>
             <div class="row">
                 <label class="row-label" for="blacklist-name">In the name</label>
                 <input class="blacklist-input" type="text" id="blacklist-name">
@@ -197,6 +213,15 @@
     </section>
 </main>
 
+<nav class="promo" aria-label="More from the developer">
+    <a href="https://chromewebstore.google.com/detail/free-game-claimer-for-ste/mndghaafpgiinfecbbbcppppiblmjepk?utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo" class="promo-tile" target="_blank" rel="noopener noreferrer"
+       title="A free extension that claims free games for you">
+        <img src="/imgs/free-games.png" alt="" class="promo-icon">
+        <span class="promo-text"><strong>Free Game Claimer</strong> Epic, Steam, GOG &amp; Prime</span>
+        <span class="promo-arrow" aria-hidden="true">&#8599;</span>
+    </a>
+</nav>
+
 <footer class="app-footer">
     <a href="https://svitspindler.com/prolific-studies-notifier" target="_blank" rel="noopener noreferrer">Help</a>
     <a href="https://github.com/spin311/ProlificAutomaticStudies" target="_blank" rel="noopener noreferrer">GitHub</a>
@@ -206,9 +231,6 @@
     <a href="https://svitspindler.com/donate" target="_blank" rel="noopener noreferrer" id="donateText">Donate</a>
 </footer>
 
-<p class="app-promo">More free tools by the same developer:
-    <a href="https://chromewebstore.google.com/detail/free-game-claimer-for-ste/mndghaafpgiinfecbbbcppppiblmjepk?utm_source=ProlificAutomaticStudies-popup&amp;utm_medium=cross-promo" target="_blank" rel="noopener noreferrer">Free Game Claimer &mdash; free games from Epic, Steam, GOG &amp; Prime</a>
-</p>
 
 <script src="../dist/popup.js"></script>
 </body>

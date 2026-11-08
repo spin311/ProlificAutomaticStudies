@@ -6,6 +6,7 @@ type StudyContent = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
+    places: string | null;
     createdAt: string | null;
 };
 
@@ -13,6 +14,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver: MutationObserver | null = null;
 let globalInterval: number | null = null;
 let isProcessing: boolean = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded: boolean = false;
 
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
@@ -63,19 +66,23 @@ async function observeStudyChanges(): Promise<void> {
     if (isObserverActive()) return;
 
     globalObserver = new MutationObserver(async (mutationsList) => {
-        const targetNode = document.querySelector(targetSelector);
-        if (!targetNode || isProcessing) return;
+        if (!document.querySelector(targetSelector)) return;
 
         const hasChanges = mutationsList.some(mutation =>
             mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList'
         );
 
         if (hasChanges) {
-            await extractAndSendStudies(targetNode);
+            await extractAndSendStudies();
         }
     });
 
     globalObserver.observe(document.body, { childList: true, subtree: true });
+    // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+    // not the Studies list, so a title change is a reason to scan too.
+    observeTitle(globalObserver);
+    // Studies already listed when the script starts cause no mutation.
+    void extractAndSendStudies();
 
     // Setup polling fallback
     const result = await chrome.storage.sync.get(["refreshRate"]);
@@ -84,25 +91,37 @@ async function observeStudyChanges(): Promise<void> {
         const timer = (result["refreshRate"] ?? 5) * 1000;
         globalInterval = setInterval(async () => {
             const node = await waitForElement(targetSelector);
-            if (node && !isProcessing) {
-                await extractAndSendStudies(node);
+            if (node) {
+                await extractAndSendStudies();
             }
         }, timer);
     }
 }
 
-async function extractAndSendStudies(targetNode: Element): Promise<void> {
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
+async function extractAndSendStudies(): Promise<void> {
+    if (isProcessing) {
+        isRescanNeeded = true;
+        return;
+    }
+    isProcessing = true;
     try {
-        if (isProcessing) return;
-        isProcessing = true;
-        const studies = await extractStudies(targetNode);
-        if (studies.length > 0) {
-            void chrome.runtime.sendMessage({
-                target: "background",
-                type: "new-studies",
-                data: studies,
-            });
-        }
+        do {
+            isRescanNeeded = false;
+            // Read the list afresh each time: Prolific may have re-rendered it.
+            const targetNode = document.querySelector(targetSelector);
+            if (!targetNode) return;
+            const studies = await extractStudies(targetNode);
+            if (studies.length > 0) {
+                void chrome.runtime.sendMessage({
+                    target: "background",
+                    type: "new-studies",
+                    data: studies,
+                });
+            }
+        } while (isRescanNeeded);
     } finally {
         isProcessing = false;
     }
@@ -128,6 +147,8 @@ async function waitForElement(selector: string): Promise<Element | null> {
 
 async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+    // Read with the list, before any await, so both describe the same moment.
+    const projectStudies = requestProjectStudies();
     const storageValues = await chrome.storage.sync.get([
         "trackIds",
         "studyHistoryLen",
@@ -143,7 +164,7 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     ]);
 
     const shouldIgnoreOldStudies: boolean = storageValues["trackIds"] ?? true;
-    if (!studyElements || studyElements.length === 0) {
+    if (studyElements.length === 0 && projectStudies.length === 0) {
         if (!shouldIgnoreOldStudies) {
             await chrome.storage.local.set({["currentStudies"]: []});
         }
@@ -162,7 +183,8 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     // is. Before this, studies trimmed from the history while still listed were
     // re-notified on every page mutation. The set only grows (up to its limit),
     // so an empty re-render or a second tab with an older list can't reset it.
-    const listedIds = getStudyIds(studyElements);
+    const pageIds = getStudyIds(studyElements);
+    const listedIds = [...pageIds, ...projectStudies.map((study) => study.id as string).filter((id) => !pageIds.includes(id))];
     const storedSeenIds: string[] | undefined = localValues[SEEN_STUDY_IDS];
     // First scan after upgrading: adopt what is listed without notifying it again.
     const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -201,8 +223,12 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
             rewardPerHour,
             time,
             timeInMinutes,
+            places: getPlaces(study),
             createdAt: new Date().toISOString(),
         });
+    });
+    projectStudies.forEach((study) => {
+        if (!knownIds.has(study.id) && !pageIds.includes(study.id as string)) studies.push(study);
     });
 
     if (shouldFilterStudies()) {
@@ -229,6 +255,11 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
     return studies;
 }
 
+function observeTitle(observer: MutationObserver): void {
+    const title = document.querySelector("title");
+    if (title) observer.observe(title, { childList: true });
+}
+
 function getStudyId(study: Element): string | null {
     return study.getAttribute("data-testid")?.split("-")[1] || null;
 }
@@ -253,6 +284,13 @@ function getUpdatedSeenIds(seenIds: string[], listedIds: string[], notified: Stu
 
 function haveSameIds(previous: string[], current: string[]): boolean {
     return previous.length === current.length && previous.every((id, index) => id === current[index]);
+}
+
+// Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
+// It is the count when the study was first seen, so it goes stale.
+function getPlaces(study: Element): string | null {
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]')) return "∞ places";
+    return getTextContent(study, '[data-testid="study-tag-places"]')?.trim() || null;
 }
 
 function getTextContent(element: Element | null, selector: string): string | null {

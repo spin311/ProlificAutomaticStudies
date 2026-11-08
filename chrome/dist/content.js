@@ -12,6 +12,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let globalInterval = null;
 let isProcessing = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
@@ -58,15 +60,19 @@ function observeStudyChanges() {
         if (isObserverActive())
             return;
         globalObserver = new MutationObserver((mutationsList) => __awaiter(this, void 0, void 0, function* () {
-            const targetNode = document.querySelector(targetSelector);
-            if (!targetNode || isProcessing)
+            if (!document.querySelector(targetSelector))
                 return;
             const hasChanges = mutationsList.some(mutation => mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0 || mutation.type === 'childList');
             if (hasChanges) {
-                yield extractAndSendStudies(targetNode);
+                yield extractAndSendStudies();
             }
         }));
         globalObserver.observe(document.body, { childList: true, subtree: true });
+        // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+        // not the Studies list, so a title change is a reason to scan too.
+        observeTitle(globalObserver);
+        // Studies already listed when the script starts cause no mutation.
+        void extractAndSendStudies();
         // Setup polling fallback
         const result = yield chrome.storage.sync.get(["refreshRate"]);
         const refreshRate = result["refreshRate"];
@@ -74,27 +80,39 @@ function observeStudyChanges() {
             const timer = ((_a = result["refreshRate"]) !== null && _a !== void 0 ? _a : 5) * 1000;
             globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 const node = yield waitForElement(targetSelector);
-                if (node && !isProcessing) {
-                    yield extractAndSendStudies(node);
+                if (node) {
+                    yield extractAndSendStudies();
                 }
             }), timer);
         }
     });
 }
-function extractAndSendStudies(targetNode) {
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
+function extractAndSendStudies() {
     return __awaiter(this, void 0, void 0, function* () {
+        if (isProcessing) {
+            isRescanNeeded = true;
+            return;
+        }
+        isProcessing = true;
         try {
-            if (isProcessing)
-                return;
-            isProcessing = true;
-            const studies = yield extractStudies(targetNode);
-            if (studies.length > 0) {
-                void chrome.runtime.sendMessage({
-                    target: "background",
-                    type: "new-studies",
-                    data: studies,
-                });
-            }
+            do {
+                isRescanNeeded = false;
+                // Read the list afresh each time: Prolific may have re-rendered it.
+                const targetNode = document.querySelector(targetSelector);
+                if (!targetNode)
+                    return;
+                const studies = yield extractStudies(targetNode);
+                if (studies.length > 0) {
+                    void chrome.runtime.sendMessage({
+                        target: "background",
+                        type: "new-studies",
+                        data: studies,
+                    });
+                }
+            } while (isRescanNeeded);
         }
         finally {
             isProcessing = false;
@@ -124,6 +142,8 @@ function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         const studyElements = targetNode.querySelectorAll("li[class='list-item']");
+        // Read with the list, before any await, so both describe the same moment.
+        const projectStudies = requestProjectStudies();
         const storageValues = yield chrome.storage.sync.get([
             "trackIds",
             "studyHistoryLen",
@@ -138,7 +158,7 @@ function extractStudies(targetNode) {
             SEEN_STUDY_IDS,
         ]);
         const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
-        if (!studyElements || studyElements.length === 0) {
+        if (studyElements.length === 0 && projectStudies.length === 0) {
             if (!shouldIgnoreOldStudies) {
                 yield chrome.storage.local.set({ ["currentStudies"]: [] });
             }
@@ -156,7 +176,8 @@ function extractStudies(targetNode) {
         // is. Before this, studies trimmed from the history while still listed were
         // re-notified on every page mutation. The set only grows (up to its limit),
         // so an empty re-render or a second tab with an older list can't reset it.
-        const listedIds = getStudyIds(studyElements);
+        const pageIds = getStudyIds(studyElements);
+        const listedIds = [...pageIds, ...projectStudies.map((study) => study.id).filter((id) => !pageIds.includes(id))];
         const storedSeenIds = localValues[SEEN_STUDY_IDS];
         // First scan after upgrading: adopt what is listed without notifying it again.
         const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -198,8 +219,13 @@ function extractStudies(targetNode) {
                 rewardPerHour,
                 time,
                 timeInMinutes,
+                places: getPlaces(study),
                 createdAt: new Date().toISOString(),
             });
+        });
+        projectStudies.forEach((study) => {
+            if (!knownIds.has(study.id) && !pageIds.includes(study.id))
+                studies.push(study);
         });
         if (shouldFilterStudies()) {
             studies = studies.filter((study) => shouldIncludeStudy(study));
@@ -223,6 +249,11 @@ function extractStudies(targetNode) {
         return studies;
     });
 }
+function observeTitle(observer) {
+    const title = document.querySelector("title");
+    if (title)
+        observer.observe(title, { childList: true });
+}
 function getStudyId(study) {
     var _a;
     return ((_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1]) || null;
@@ -245,6 +276,14 @@ function getUpdatedSeenIds(seenIds, listedIds, notified) {
 }
 function haveSameIds(previous, current) {
     return previous.length === current.length && previous.every((id, index) => id === current[index]);
+}
+// Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
+// It is the count when the study was first seen, so it goes stale.
+function getPlaces(study) {
+    var _a;
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]'))
+        return "∞ places";
+    return ((_a = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _a === void 0 ? void 0 : _a.trim()) || null;
 }
 function getTextContent(element, selector) {
     var _a;

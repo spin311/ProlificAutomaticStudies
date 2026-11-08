@@ -12,6 +12,8 @@ const targetSelector = 'div[data-testid="studies-list"]';
 let globalObserver = null;
 let globalInterval = null;
 let isProcessing = false;
+// Set when the page changes during a scan, so the scan runs once more right after.
+let isRescanNeeded = false;
 let isObserverInitializing = false;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
@@ -88,13 +90,14 @@ function observeStudyChanges() {
         if (!targetNode)
             return;
         globalObserver = new MutationObserver((mutations) => __awaiter(this, void 0, void 0, function* () {
-            if (isProcessing)
-                return;
             const hasChanges = mutations.some(m => m.addedNodes.length > 0 || m.removedNodes.length > 0);
             if (hasChanges)
                 yield extractAndSendStudies(targetNode);
         }));
         globalObserver.observe(targetNode, { childList: true, subtree: true });
+        // Project studies (see projectStudies.ts) change Prolific's tab-title count,
+        // not the Studies list, so a title change is a reason to scan too.
+        observeTitle(globalObserver);
         yield extractAndSendStudies(targetNode);
         const storage = yield browser.storage.sync.get(["refreshRate"]);
         const refreshRate = storage["refreshRate"];
@@ -102,27 +105,35 @@ function observeStudyChanges() {
             const intervalMs = refreshRate * 1000;
             globalInterval = setInterval(() => __awaiter(this, void 0, void 0, function* () {
                 const node = yield waitForElement(targetSelector);
-                if (node && !isProcessing) {
+                if (node) {
                     yield extractAndSendStudies(node);
                 }
             }), intervalMs);
         }
     });
 }
+// One scan at a time, but a page change during a scan is never dropped: the scan
+// runs again when it ends. Otherwise a study rendered a moment after another waited
+// for the next unrelated page change (up to Prolific's 2-minute refresh).
 function extractAndSendStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (isProcessing)
+        if (isProcessing) {
+            isRescanNeeded = true;
             return;
+        }
         isProcessing = true;
         try {
-            const studies = yield extractStudies(targetNode);
-            if (studies.length > 0) {
-                yield browser.runtime.sendMessage({
-                    target: "background",
-                    type: "new-studies",
-                    data: studies,
-                });
-            }
+            do {
+                isRescanNeeded = false;
+                const studies = yield extractStudies(targetNode);
+                if (studies.length > 0) {
+                    yield browser.runtime.sendMessage({
+                        target: "background",
+                        type: "new-studies",
+                        data: studies,
+                    });
+                }
+            } while (isRescanNeeded);
         }
         catch (e) {
             console.error("Error extracting studies:", e);
@@ -136,7 +147,9 @@ function extractStudies(targetNode) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e;
         const studyElements = targetNode.querySelectorAll("li.list-item");
-        if (!studyElements.length)
+        // Read with the list, before any await, so both describe the same moment.
+        const projectStudies = requestProjectStudies();
+        if (!studyElements.length && !projectStudies.length)
             return [];
         const storageValues = yield browser.storage.sync.get([
             "trackIds", "studyHistoryLen",
@@ -156,7 +169,8 @@ function extractStudies(targetNode) {
         // is. Before this, studies trimmed from the history while still listed were
         // re-notified on every page mutation. The set only grows (up to its limit),
         // so an empty re-render or a second tab with an older list can't reset it.
-        const listedIds = getStudyIds(studyElements);
+        const pageIds = getStudyIds(studyElements);
+        const listedIds = [...pageIds, ...projectStudies.map(study => study.id).filter(id => !pageIds.includes(id))];
         const storedSeenIds = localValues[SEEN_STUDY_IDS];
         // First scan after upgrading: adopt what is listed without notifying it again.
         const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
@@ -186,8 +200,13 @@ function extractStudies(targetNode) {
                 rewardPerHour,
                 time,
                 timeInMinutes,
+                places: getPlaces(el),
                 createdAt: new Date().toISOString(),
             });
+        });
+        projectStudies.forEach(study => {
+            if (!knownIds.has(study.id) && !pageIds.includes(study.id))
+                newStudies.push(study);
         });
         const filteredStudies = newStudies.filter(study => {
             if (reward > 0 && study.reward && getFloatValueFromMoney(study.reward) < reward)
@@ -214,6 +233,11 @@ function extractStudies(targetNode) {
         return filteredStudies;
     });
 }
+function observeTitle(observer) {
+    const title = document.querySelector("title");
+    if (title)
+        observer.observe(title, { childList: true });
+}
 function getStudyId(study) {
     var _a;
     return ((_a = study.getAttribute("data-testid")) === null || _a === void 0 ? void 0 : _a.split("-")[1]) || null;
@@ -236,6 +260,14 @@ function getUpdatedSeenIds(seenIds, listedIds, notified) {
 }
 function haveSameIds(previous, current) {
     return previous.length === current.length && previous.every((id, index) => id === current[index]);
+}
+// Prolific shows places left as "120 places", or an infinity sign when a study has no limit.
+// It is the count when the study was first seen, so it goes stale.
+function getPlaces(study) {
+    var _a;
+    if (study.querySelector('[data-testid="study-tag-places-infinite"]'))
+        return "∞ places";
+    return ((_a = getTextContent(study, '[data-testid="study-tag-places"]')) === null || _a === void 0 ? void 0 : _a.trim()) || null;
 }
 function getTextContent(element, selector) {
     var _a;

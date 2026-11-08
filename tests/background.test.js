@@ -118,6 +118,54 @@ for (const build of BUILDS) {
         assert.match(calls.notifications[0].title, /60 minutes/);
     });
 
+    describe("tab title detection", () => {
+        const TITLE_MODE = { useOld: true, prolificTitle: "Prolific", audioActive: false };
+        const prolificTab = (title) => ({ id: 1, url: "https://app.prolific.com/studies", title, status: "complete" });
+
+        test("alerts when Prolific updates the study count in the title without reloading", async () => {
+            // Arrange: title mode was chosen earlier, so the listener is set up at startup
+            const { chrome, calls, storage } = loadBackground({ sync: TITLE_MODE });
+            await settle();
+
+            // Act: Prolific's page rewrites document.title in place, so only the title changes
+            await chrome.tabs.onUpdated.fire(1, { title: "(2) Prolific" }, prolificTab("(2) Prolific"));
+
+            // Assert
+            assert.equal(calls.notifications.length, 1);
+            assert.equal(storage.sync.data.counter, 2);
+        });
+
+        test("alerts once when Tab title is chosen again while it is already on", async () => {
+            // Arrange: set up at startup, then the popup's Tab title button is clicked twice
+            const { chrome, calls, storage } = loadBackground({ sync: TITLE_MODE });
+            await settle();
+            const chooseTitleMode = { target: "background", type: "change-alert-type", data: "title" };
+            await chrome.runtime.onMessage.fire(chooseTitleMode, {});
+            await chrome.runtime.onMessage.fire(chooseTitleMode, {});
+
+            // Act
+            await chrome.tabs.onUpdated.fireConcurrently(1, { title: "(2) Prolific" }, prolificTab("(2) Prolific"));
+
+            // Assert
+            assert.equal(calls.notifications.length, 1);
+            assert.equal(storage.sync.data.counter, 2);
+        });
+
+        test("does not alert again for tab updates that keep the same title", async () => {
+            // Arrange
+            const { chrome, calls, storage } = loadBackground({ sync: TITLE_MODE });
+            await settle();
+            await chrome.tabs.onUpdated.fire(1, { title: "(2) Prolific" }, prolificTab("(2) Prolific"));
+
+            // Act: e.g. the favicon finishes loading
+            await chrome.tabs.onUpdated.fire(1, { favIconUrl: "https://app.prolific.com/favicon.ico" }, prolificTab("(2) Prolific"));
+
+            // Assert
+            assert.equal(calls.notifications.length, 1);
+            assert.equal(storage.sync.data.counter, 2);
+        });
+    });
+
     test("does not open a study page when the fast mode notice is clicked", async () => {
         // Arrange
         const { chrome, calls } = loadBackground();

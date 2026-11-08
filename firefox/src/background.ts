@@ -6,6 +6,8 @@ type Study = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
+    // Missing on studies saved before 4.2.0.
+    places?: string | null;
     createdAt: string | null;
 };
 
@@ -106,39 +108,49 @@ async function getValueFromStorageBg<T>(key: string, defaultValue: T): Promise<T
     return result[key] !== undefined ? result[key] as T : defaultValue;
 }
 
+// One listener per background: choosing Tab title again (or the startup setup plus a
+// popup click) must not add a second one, or every new study alerts twice.
 function setupTitleAlert(): void {
-    browser.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
-        if (!tab.url?.includes('https://app.prolific.com/') || !tab.title || changeInfo.status !== 'complete') return;
+    if (!browser.tabs.onUpdated.hasListener(onProlificTabUpdated)) {
+        browser.tabs.onUpdated.addListener(onProlificTabUpdated);
+    }
+}
 
-        const previousTitle = await getValueFromStorageBg(PROLIFIC_TITLE, 'Prolific');
-        const newTitle = tab.title.trim();
-        await browser.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+async function onProlificTabUpdated(_tabId: number, _changeInfo: browser.tabs._OnUpdatedChangeInfo, tab: browser.tabs.Tab): Promise<void> {
+    // Prolific rewrites "(N) Prolific" in place, and that update carries only the new
+    // title, never changeInfo.status. So check the loaded tab, not this update's status.
+    if (!tab.url?.includes('https://app.prolific.com/') || !tab.title || tab.status !== 'complete') return;
 
-        const useOld = await getValueFromStorageBg(USE_OLD, false);
-        if (!useOld || newTitle === previousTitle || newTitle === 'Prolific') return;
+    const previousTitle = await getValueFromStorageBg(PROLIFIC_TITLE, 'Prolific');
+    const newTitle = tab.title.trim();
+    // Most updates (favicon, audio, ...) keep the title: skip them without a sync write.
+    if (newTitle === previousTitle) return;
+    await browser.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
 
-        const previousNumber = getNumberFromTitle(previousTitle);
-        const currentNumber = getNumberFromTitle(newTitle);
-        if (currentNumber <= previousNumber) return;
+    const useOld = await getValueFromStorageBg(USE_OLD, false);
+    if (!useOld || newTitle === 'Prolific') return;
 
-        const settings = await browser.storage.sync.get([
-            FOCUS_PROLIFIC,
-            SHOW_NOTIFICATION,
-            AUDIO_ACTIVE,
-            AUDIO,
-            VOLUME
-        ]);
+    const previousNumber = getNumberFromTitle(previousTitle);
+    const currentNumber = getNumberFromTitle(newTitle);
+    if (currentNumber <= previousNumber) return;
 
-        if (settings[SHOW_NOTIFICATION] ?? true) sendNotification();
-        if (settings[AUDIO_ACTIVE] ?? true) {
-            const audio = settings[AUDIO] ?? 'alert1.mp3';
-            const volume = (settings[VOLUME] ?? 100) / 100;
-            await playAudio(audio, volume);
-        }
-        if (settings[FOCUS_PROLIFIC] ?? false) await focusProlific();
+    const settings = await browser.storage.sync.get([
+        FOCUS_PROLIFIC,
+        SHOW_NOTIFICATION,
+        AUDIO_ACTIVE,
+        AUDIO,
+        VOLUME
+    ]);
 
-        await updateCounterAndBadge(currentNumber - previousNumber);
-    });
+    if (settings[SHOW_NOTIFICATION] ?? true) sendNotification();
+    if (settings[AUDIO_ACTIVE] ?? true) {
+        const audio = settings[AUDIO] ?? 'alert1.mp3';
+        const volume = (settings[VOLUME] ?? 100) / 100;
+        await playAudio(audio, volume);
+    }
+    if (settings[FOCUS_PROLIFIC] ?? false) await focusProlific();
+
+    await updateCounterAndBadge(currentNumber - previousNumber);
 }
 
 function getNumberFromTitle(title: string): number {

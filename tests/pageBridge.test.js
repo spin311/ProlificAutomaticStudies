@@ -8,10 +8,11 @@ const { loadScripts, dist, settle, toPlain } = require("./support/sandbox");
 const RATE_LIMITED_ROUTE = "error.participant-studies-rate-limited";
 
 // A minimal stand-in for Prolific's Vue app: Pinia stores and the router.
-function fakeProlificApp({ fetchList = async () => {}, otherStores = [] } = {}) {
+function fakeProlificApp({ fetchList = async () => {}, otherStores = [], studies = [] } = {}) {
     const fetchCalls = [];
     const route = { value: { name: "studies" } };
     const studiesStore = {
+        displayStudiesList: studies,
         fetchList: (options) => {
             fetchCalls.push(toPlain(options));
             return fetchList(route);
@@ -20,6 +21,32 @@ function fakeProlificApp({ fetchList = async () => {}, otherStores = [] } = {}) 
     const stores = new Map([["participant/studies", studiesStore], ...otherStores.map((store, i) => [`store-${i}`, store])]);
     const app = { config: { globalProperties: { $pinia: { _s: stores }, $router: { currentRoute: route } } } };
     return { app, fetchCalls };
+}
+
+// A study as Prolific's participant/studies store holds it (amounts in pence/cents).
+const prolificStudy = (id, overrides = {}) => ({
+    id,
+    name: `Study ${id}`,
+    researcher: { id: "r1", name: "Agate Astica" },
+    study_reward: { amount: 107, currency: "GBP" },
+    study_average_reward_per_hour: { amount: 1211, currency: "GBP" },
+    study_estimated_reward_per_hour: { amount: 1300, currency: "GBP" },
+    estimated_completion_time: 5,
+    total_available_places: 300,
+    places_taken: 97,
+    is_official_prolific_study: false,
+    ...overrides,
+});
+const PROJECT = { id: "p1", title: "AI tasks" };
+
+// The bridge answers synchronously, inside dispatchEvent, like across Chrome's worlds.
+function requestProjectStudies(window) {
+    let detail = null;
+    const onResult = (event) => { detail = event.detail; };
+    window.addEventListener("psn:project-studies-result", onResult);
+    window.dispatchEvent(new CustomEvent("psn:project-studies-request"));
+    window.removeEventListener("psn:project-studies-result", onResult);
+    return detail === null ? null : JSON.parse(detail);
 }
 
 const BUILDS = ["chrome", "firefox"];
@@ -142,6 +169,58 @@ for (const build of BUILDS) {
         assert.equal(first, "ok");
         assert.equal(second, "throttled");
         assert.equal(fetchCalls.length, 1);
+    });
+
+    describe("project studies", () => {
+        test("answers with the studies Prolific keeps out of its Studies list", () => {
+            // Arrange: Prolific's list shows studies without a project, and official ones
+            const { app } = fakeProlificApp({ studies: [
+                prolificStudy("a"),
+                prolificStudy("b", { project: PROJECT }),
+                prolificStudy("c", { project: PROJECT, is_official_prolific_study: true }),
+            ] });
+            const window = loadBridge(app);
+
+            // Act
+            const studies = requestProjectStudies(window);
+
+            // Assert
+            assert.deepEqual(studies, [{
+                id: "b",
+                name: "Study b",
+                host: "Agate Astica",
+                reward: { amount: 107, currency: "GBP" },
+                rewardPerHour: { amount: 1211, currency: "GBP" },
+                completionMinutes: 5,
+                totalPlaces: 300,
+                placesTaken: 97,
+            }]);
+        });
+
+        test("uses the host name and hourly rate that Prolific's card shows", () => {
+            // Arrange: no average rate yet, and the study is published by an institution
+            const { app } = fakeProlificApp({ studies: [prolificStudy("b", {
+                project: PROJECT,
+                publisher: { name: "A lab", institution: { name: "University of Somewhere" } },
+                study_average_reward_per_hour: { amount: 0, currency: "GBP" },
+            })] });
+            const window = loadBridge(app);
+
+            // Act
+            const [study] = requestProjectStudies(window);
+
+            // Assert
+            assert.equal(study.host, "University of Somewhere");
+            assert.deepEqual(study.rewardPerHour, { amount: 1300, currency: "GBP" });
+        });
+
+        test("answers with no studies when the page has no studies store", () => {
+            // Arrange
+            const window = loadBridge(null);
+
+            // Act + Assert
+            assert.deepEqual(requestProjectStudies(window), []);
+        });
     });
 
     test("answers each request once when the bridge is loaded twice", async () => {

@@ -9,6 +9,8 @@ type Study = {
     rewardPerHour: string | null;
     time: string | null;
     timeInMinutes: number | null;
+    // Missing on studies saved before 4.2.0.
+    places?: string | null;
     createdAt: string | null;
 };
 
@@ -119,45 +121,49 @@ function getValueFromStorage<T>(key: string, defaultValue: T): Promise<T> {
     });
 }
 
+// One listener per background: choosing Tab title again (or the startup setup plus a
+// popup click) must not add a second one, or every new study alerts twice.
 function setupTitleAlert(): void {
-    const tabsOnUpdatedListener = async (_: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> => {
-        const previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
-        if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
-            const newTitle = tab.title.trim();
-            if (newTitle === 'Prolific') {
-                await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
-                return;
-            }
-            const titleStorageValues = await chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
-            const useOld = titleStorageValues[USE_OLD] ?? false;
-            if (!useOld) {
-                chrome.tabs.onUpdated.removeListener(tabsOnUpdatedListener);
-                return;
-            }
-            const previousNumber: number = getNumberFromTitle(previousTitle);
-            const currentNumber: number = getNumberFromTitle(tab.title);
-            const shouldFocusProlific = titleStorageValues[FOCUS_PROLIFIC] ?? false;
-            await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
-            if (currentNumber > previousNumber) {
-                const shouldSendNotification = titleStorageValues[SHOW_NOTIFICATION] ?? true;
-                if (shouldSendNotification) {
-                    sendNotification();
-                }
-                const shouldPlayAudio = titleStorageValues[AUDIO_ACTIVE] ?? true;
-                if (shouldPlayAudio) {
-                    const audio = titleStorageValues[AUDIO] ?? 'alert1.mp3';
-                    const volume = (titleStorageValues[VOLUME] ?? 100) / 100;
-                    await playAudio(audio, volume);
-                }
-                if (shouldFocusProlific) {
-                    await focusProlific();
-                }
-                await updateCounterAndBadge(currentNumber - previousNumber);
-            }
-        }
+    if (!chrome.tabs.onUpdated.hasListener(onProlificTabUpdated)) {
+        chrome.tabs.onUpdated.addListener(onProlificTabUpdated);
+    }
+}
 
-    };
-    chrome.tabs.onUpdated.addListener(tabsOnUpdatedListener);
+async function onProlificTabUpdated(_: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> {
+    const previousTitle = await getValueFromStorage(PROLIFIC_TITLE, 'Prolific');
+    if (tab.url && tab.url.includes('https://app.prolific.com/') && tab.title && tab.title !== previousTitle && tab.status === 'complete') {
+        const newTitle = tab.title.trim();
+        if (newTitle === 'Prolific') {
+            await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+            return;
+        }
+        const titleStorageValues = await chrome.storage.sync.get([USE_OLD, FOCUS_PROLIFIC, SHOW_NOTIFICATION, AUDIO_ACTIVE, AUDIO, VOLUME]);
+        const useOld = titleStorageValues[USE_OLD] ?? false;
+        if (!useOld) {
+            chrome.tabs.onUpdated.removeListener(onProlificTabUpdated);
+            return;
+        }
+        const previousNumber: number = getNumberFromTitle(previousTitle);
+        const currentNumber: number = getNumberFromTitle(tab.title);
+        const shouldFocusProlific = titleStorageValues[FOCUS_PROLIFIC] ?? false;
+        await chrome.storage.sync.set({ [PROLIFIC_TITLE]: newTitle });
+        if (currentNumber > previousNumber) {
+            const shouldSendNotification = titleStorageValues[SHOW_NOTIFICATION] ?? true;
+            if (shouldSendNotification) {
+                sendNotification();
+            }
+            const shouldPlayAudio = titleStorageValues[AUDIO_ACTIVE] ?? true;
+            if (shouldPlayAudio) {
+                const audio = titleStorageValues[AUDIO] ?? 'alert1.mp3';
+                const volume = (titleStorageValues[VOLUME] ?? 100) / 100;
+                await playAudio(audio, volume);
+            }
+            if (shouldFocusProlific) {
+                await focusProlific();
+            }
+            await updateCounterAndBadge(currentNumber - previousNumber);
+        }
+    }
 }
 
 function getNumberFromTitle(title: string): number {
