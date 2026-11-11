@@ -237,15 +237,15 @@ async function extractStudies(targetNode: Element): Promise<StudyContent[]> {
         return !(study.researcher && researcherBlacklist.some((res: string) => study.researcher!.toLowerCase().includes(res)));
     });
 
-    savedStudies = shouldIgnoreOldStudies
-        ? [...savedStudies, ...filteredStudies]
-        : filteredStudies;
+    savedStudies = addToHistory(savedStudies, filteredStudies);
 
     if (savedStudies.length > numberOfStudiesToStore) {
         savedStudies = savedStudies.slice(-numberOfStudiesToStore);
     }
 
-    await browser.storage.local.set({ "currentStudies": savedStudies });
+    if (filteredStudies.length > 0) {
+        await browser.storage.local.set({ "currentStudies": savedStudies });
+    }
 
     const updatedSeenIds = getUpdatedSeenIds(seenIds, listedIds, filteredStudies);
     if (!haveSameIds(storedSeenIds ?? [], updatedSeenIds)) {
@@ -277,6 +277,14 @@ function trackReturnedIds(listedIds: string[]): Set<string> {
     const previous = previouslyListedIds;
     previouslyListedIds = new Set(listedIds);
     return new Set(previous ? listedIds.filter(id => !previous.has(id)) : []);
+}
+
+// The popup's list is a history with either "Notify once per study" setting:
+// new studies go to the end, and a study notified again because it came back
+// (setting off) keeps its first entry instead of being listed twice.
+function addToHistory(history: StudyContent[], notified: StudyContent[]): StudyContent[] {
+    const historyIds = new Set(history.map(study => study.id));
+    return [...history, ...notified.filter(study => !historyIds.has(study.id))];
 }
 
 // Moves still-listed seen ids to the end (most recent) and adds the newly
