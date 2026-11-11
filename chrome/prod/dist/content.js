@@ -154,6 +154,9 @@ function extractStudies(targetNode) {
         const pageIds = getStudyIds(studyElements);
         const listedIds = [...pageIds, ...projectStudies.map((study) => study.id).filter((id) => !pageIds.includes(id))];
         const returnedIds = trackReturnedIds(listedIds);
+        // Prolific blanks the list while it refreshes; the history keeps what it had.
+        if (listedIds.length === 0)
+            return [];
         const storageValues = yield chrome.storage.sync.get([
             "trackIds",
             "studyHistoryLen",
@@ -168,12 +171,6 @@ function extractStudies(targetNode) {
             SEEN_STUDY_IDS,
         ]);
         const shouldIgnoreOldStudies = (_a = storageValues["trackIds"]) !== null && _a !== void 0 ? _a : true;
-        if (studyElements.length === 0 && projectStudies.length === 0) {
-            if (!shouldIgnoreOldStudies) {
-                yield chrome.storage.local.set({ ["currentStudies"]: [] });
-            }
-            return [];
-        }
         let studies = [];
         const numberOfStudiesToStore = (_b = storageValues["studyHistoryLen"]) !== null && _b !== void 0 ? _b : NUMBER_OF_STUDIES_TO_STORE;
         let savedStudies = (_c = localValues["currentStudies"]) !== null && _c !== void 0 ? _c : [];
@@ -239,12 +236,7 @@ function extractStudies(targetNode) {
         if (shouldFilterStudies()) {
             studies = studies.filter((study) => shouldIncludeStudy(study));
         }
-        if (shouldIgnoreOldStudies) {
-            savedStudies = [...savedStudies, ...studies];
-        }
-        else {
-            savedStudies = studies;
-        }
+        savedStudies = addToHistory(savedStudies, studies);
         if (savedStudies.length > numberOfStudiesToStore) {
             savedStudies = savedStudies.slice(-numberOfStudiesToStore);
         }
@@ -279,6 +271,13 @@ function trackReturnedIds(listedIds) {
     const previous = previouslyListedIds;
     previouslyListedIds = new Set(listedIds);
     return new Set(previous ? listedIds.filter((id) => !previous.has(id)) : []);
+}
+// The popup's list is a history with either "Notify once per study" setting:
+// new studies go to the end, and a study notified again because it came back
+// (setting off) keeps its first entry instead of being listed twice.
+function addToHistory(history, notified) {
+    const historyIds = new Set(history.map((study) => study.id));
+    return [...history, ...notified.filter((study) => !historyIds.has(study.id))];
 }
 // Moves still-listed seen ids to the end (most recent) and adds the newly
 // notified ones. Filtered-out studies are not added, so relaxing a filter
