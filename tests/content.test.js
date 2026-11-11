@@ -377,6 +377,41 @@ test("notifies listed studies again after Prolific's refresh when 'Notify once p
     assert.deepEqual(nextMutation, []);
 });
 
+test("applies the filters to a study that comes back when 'Notify once per study' is off", async () => {
+    // Arrange: cheap pays £1.00 and passes the £0.50 minimum
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100, reward: 0.5 } });
+    page.showStudies(["cheap"]);
+    await page.scan();
+    page.showStudies([]);
+    await page.scan();
+
+    // Act: the minimum is raised to £2.00 before cheap comes back
+    page.chrome.storage.sync.data.reward = 2;
+    page.showStudies(["cheap"]);
+    const returned = await page.scan();
+    const nextMutation = await page.scan();
+
+    // Assert
+    assert.deepEqual(returned, []);
+    assert.deepEqual(nextMutation, []);
+});
+
+test("notifies a project study again when it comes back when 'Notify once per study' is off", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100 } });
+    page.setProjectStudies([projectStudy(P1)]);
+    await page.scan();
+    page.setProjectStudies([]);
+    await page.scan();
+
+    // Act
+    page.setProjectStudies([projectStudy(P1)]);
+    const returned = await page.scan();
+
+    // Assert
+    assert.deepEqual(returned, [P1]);
+});
+
 test("does not count studies listed when the script starts as returned when 'Notify once per study' is off", async () => {
     // Arrange: a previous page load already notified a and b
     const sync = { trackIds: false, studyHistoryLen: 100 };
