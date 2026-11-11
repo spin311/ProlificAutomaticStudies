@@ -3,6 +3,7 @@
 Welcome Prolific Studies Notifier! <img src="imgs/logo.png" alt="icon" height="32">
 
 Get notified when new studies are available on [Prolific](https://app.prolific.com/).
+Free and open source under the [MIT License](LICENSE).
 Extension works by notifying when Prolific tab title changes, so [Prolific](https://app.prolific.com/) tab must be opened for the extension to work.
 
 ## Download
@@ -45,7 +46,9 @@ Make sure to pin the extension.
 
 ## License
 
-PolyForm Noncommercial License 1.0.0 (see [LICENSE](LICENSE)): you're free to use, modify and share it for non-commercial purposes, but not to sell it or use it commercially.
+[MIT License](LICENSE). Free and open source: you can use, change and share the code, as long as you keep the copyright notice.
+
+The MIT License applies to every version, including earlier ones that shipped without a license file or under the PolyForm Noncommercial License 1.0.0 (4.1.0 to 4.2.2).
 
 ## Contact
 
