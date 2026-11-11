@@ -428,6 +428,89 @@ test("does not count studies listed when the script starts as returned when 'Not
     assert.deepEqual(nextMutation, []);
 });
 
+// The popup's list (currentStudies) is a history with either setting: the
+// setting only decides whether a study that comes back is notified again.
+const listedInPopup = (page) => Array.from(page.chrome.storage.local.data.currentStudies ?? [], (study) => study.id);
+
+test("adds new studies to the list instead of replacing it when 'Notify once per study' is off", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100 } });
+    page.showStudies(["a", "b"]);
+    await page.scan();
+
+    // Act: a new study is published, then the page keeps mutating
+    page.showStudies(["a", "b", "c"]);
+    await page.scan();
+    await page.scan();
+
+    // Assert
+    assert.deepEqual(listedInPopup(page), ["a", "b", "c"]);
+});
+
+test("keeps the list through Prolific's refresh when 'Notify once per study' is off", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100 } });
+    page.showStudies(["a", "b"]);
+    await page.scan();
+
+    // Act: the list blanks while Prolific refreshes
+    page.showStudies([]);
+    await page.scan();
+
+    // Assert
+    assert.deepEqual(listedInPopup(page), ["a", "b"]);
+});
+
+test("keeps past studies and lists each returning study once when 'Notify once per study' is off", async () => {
+    // Arrange: a and b are listed, then a fills up and leaves
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100 } });
+    page.showStudies(["a", "b"]);
+    await page.scan();
+    page.showStudies([]);
+    await page.scan();
+
+    // Act: after the refresh b is back with a new study c
+    page.showStudies(["b", "c"]);
+    const notified = await page.scan();
+
+    // Assert: b is notified again but not listed twice; a stays in the history
+    assert.deepEqual(notified, ["b", "c"]);
+    assert.deepEqual(listedInPopup(page), ["a", "b", "c"]);
+});
+
+test("puts listed studies back after the list is cleared when 'Notify once per study' is off", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 100 } });
+    page.showStudies(["a", "b"]);
+    await page.scan();
+
+    // Act: the user clears the list, then Prolific refreshes and adds c
+    page.chrome.storage.local.data.currentStudies = [];
+    page.showStudies([]);
+    await page.scan();
+    page.showStudies(["a", "b", "c"]);
+    await page.scan();
+
+    // Assert
+    assert.deepEqual(listedInPopup(page), ["a", "b", "c"]);
+});
+
+test("keeps the list capped at 'Number of studies to remember' when 'Notify once per study' is off", async () => {
+    // Arrange
+    const page = await loadContentScript({ sync: { trackIds: false, studyHistoryLen: 3 } });
+    page.showStudies(["a", "b"]);
+    await page.scan();
+    page.showStudies([]);
+    await page.scan();
+
+    // Act
+    page.showStudies(["c", "d"]);
+    await page.scan();
+
+    // Assert: the oldest study goes first
+    assert.deepEqual(listedInPopup(page), ["b", "c", "d"]);
+});
+
 test("does not re-notify a study that reappears when 'Show each study only once' is on", async () => {
     // Arrange
     const page = await loadContentScript({ sync: { trackIds: true, studyHistoryLen: 100 } });

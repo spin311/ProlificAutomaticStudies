@@ -28,17 +28,21 @@
     display: none !important;
 }
 
+/* All text sizes are rem, so this one value sets how large the popup reads.
+   Icons in fixed-size buttons stay in px. 4.0.0-4.2.1 used 13px, which users
+   found too small after 3.x's 18px. */
 html {
+    font-size: 15px;
     background: var(--mint);
 }
 
 body {
-    width: 360px;
+    width: 400px;
     margin: 0;
     overflow-x: hidden;
     background: var(--mint);
     color: var(--ink);
-    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font: 1rem/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 button,
@@ -79,14 +83,14 @@ select {
 
 .app-title h1 {
     margin: 0;
-    font-size: 15px;
+    font-size: 1.1rem;
     font-weight: 600;
     line-height: 1.2;
 }
 
 .app-count {
     margin: 2px 0 0;
-    font-size: 12px;
+    font-size: 0.9rem;
     opacity: 0.85;
 }
 
@@ -219,7 +223,7 @@ body:not(.is-tab) #studies {
     gap: 6px;
     margin: 0;
     padding: 8px 12px 2px;
-    font-size: 12px;
+    font-size: 0.9rem;
     font-weight: 600;
     color: var(--brand-dark);
 }
@@ -261,7 +265,7 @@ body:not(.is-tab) #studies {
 }
 
 .hint {
-    font-size: 12px;
+    font-size: 0.9rem;
 }
 
 /* Toggle switch built on the checkbox, so popup.ts keeps using .checked. */
@@ -470,7 +474,7 @@ input[type="range"] {
     border-radius: 6px;
     background: var(--ink);
     color: #fff;
-    font-size: 12px;
+    font-size: 0.9rem;
     font-weight: 400;
     line-height: 1.4;
     text-align: left;
@@ -637,7 +641,7 @@ input[type="range"] {
 
 .study-meta {
     grid-area: meta;
-    font-size: 12px;
+    font-size: 0.9rem;
 }
 
 .study-sub {
@@ -645,7 +649,7 @@ input[type="range"] {
     display: flex;
     gap: 8px;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 0.9rem;
 }
 
 .study-researcher {
@@ -735,7 +739,7 @@ input[type="range"] {
 .is-detailed .study-sub {
     justify-content: space-between;
     gap: 12px;
-    font-size: 12px;
+    font-size: 0.9rem;
 }
 
 .study-reward {
@@ -859,7 +863,7 @@ body.is-tab #studies-container {
 
 .review-card h2 {
     margin: 0 0 2px;
-    font-size: 13px;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--brand-dark);
 }
@@ -884,7 +888,7 @@ body.is-tab #studies-container {
 .review-report {
     flex: none;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 0.9rem;
     white-space: nowrap;
 }
 
@@ -916,7 +920,7 @@ body.is-tab #studies-container {
 
 .sponsor-card p {
     margin-bottom: 9px;
-    font-size: 12.5px;
+    font-size: 0.95rem;
 }
 
 .sponsor-card .review-actions {
@@ -977,7 +981,7 @@ body.is-tab #studies-container {
 
 .app-footer a {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 0.9rem;
     text-decoration: none;
 }
 
@@ -1003,7 +1007,7 @@ body.is-tab #studies-container {
     border-radius: var(--radius);
     background: var(--surface);
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 0.9rem;
     text-decoration: none;
     transition: border-color 0.15s ease;
 }
@@ -1029,7 +1033,7 @@ body.is-tab #studies-container {
 .promo-text strong {
     margin-right: 3px;
     color: var(--ink);
-    font-size: 12.5px;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 

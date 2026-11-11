@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Prolific Studies Notifier",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "Instant sound and desktop alerts for new Prolific studies. Notify-only: never joins or reserves studies for you. Free.",
   "permissions": [
     "storage",
