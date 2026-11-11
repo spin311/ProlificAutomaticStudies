@@ -15,6 +15,13 @@ let isProcessing = false;
 // Set when the page changes during a scan, so the scan runs once more right after.
 let isRescanNeeded = false;
 let isObserverInitializing = false;
+// Ids this page listed at its last scan; null until the first scan. With "Notify
+// once per study" off, a study this page saw leave the list and come back is
+// notified again. Prolific removes its list while it refreshes (every 2 minutes),
+// so listed studies come back after each refresh, as they did before 3.6.1.
+// Kept per page, not in storage, so a second tab with an older list can't make
+// this tab's studies look returned on every mutation.
+let previouslyListedIds = null;
 const NUMBER_OF_STUDIES_TO_STORE = 100;
 const REWARD = "reward";
 const REWARD_PER_HOUR = "rewardPerHour";
@@ -149,6 +156,9 @@ function extractStudies(targetNode) {
         const studyElements = targetNode.querySelectorAll("li.list-item");
         // Read with the list, before any await, so both describe the same moment.
         const projectStudies = requestProjectStudies();
+        const pageIds = getStudyIds(studyElements);
+        const listedIds = [...pageIds, ...projectStudies.map(study => study.id).filter(id => !pageIds.includes(id))];
+        const returnedIds = trackReturnedIds(listedIds);
         if (!studyElements.length && !projectStudies.length)
             return [];
         const storageValues = yield browser.storage.sync.get([
@@ -169,13 +179,12 @@ function extractStudies(targetNode) {
         // is. Before this, studies trimmed from the history while still listed were
         // re-notified on every page mutation. The set only grows (up to its limit),
         // so an empty re-render or a second tab with an older list can't reset it.
-        const pageIds = getStudyIds(studyElements);
-        const listedIds = [...pageIds, ...projectStudies.map(study => study.id).filter(id => !pageIds.includes(id))];
         const storedSeenIds = localValues[SEEN_STUDY_IDS];
         // First scan after upgrading: adopt what is listed without notifying it again.
         const isFirstScanAfterUpgrade = storedSeenIds === undefined && savedStudies.length > 0;
         const seenIds = isFirstScanAfterUpgrade ? listedIds : storedSeenIds !== null && storedSeenIds !== void 0 ? storedSeenIds : [];
-        const knownIds = new Set(seenIds);
+        // Off: a study that left the list and came back is new again.
+        const knownIds = new Set(shouldIgnoreOldStudies ? seenIds : seenIds.filter(id => !returnedIds.has(id)));
         if (shouldIgnoreOldStudies) {
             savedStudies.forEach(study => knownIds.add(study.id));
         }
@@ -246,6 +255,14 @@ function getStudyIds(studyElements) {
     return Array.from(studyElements)
         .map(getStudyId)
         .filter((id) => id !== null);
+}
+// Records what this page lists now and returns the ids it did not list at its
+// previous scan. None on the first scan: what is listed when the script
+// starts has not come back.
+function trackReturnedIds(listedIds) {
+    const previous = previouslyListedIds;
+    previouslyListedIds = new Set(listedIds);
+    return new Set(previous ? listedIds.filter(id => !previous.has(id)) : []);
 }
 // Moves still-listed seen ids to the end (most recent) and adds the newly
 // notified ones. Filtered-out studies are not added, so relaxing a filter
